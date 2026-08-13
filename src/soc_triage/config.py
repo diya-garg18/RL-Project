@@ -110,6 +110,14 @@ class RewardConfig:
 
 
 @dataclass(frozen=True)
+class CompositeCostConfig:
+    # Evaluation-only rupee assumptions for the composite metric (brief §8).
+    missed_incident_by_criticality: tuple[float, ...]
+    wasted_analyst_minute: float
+    detection_delay_per_min: float
+
+
+@dataclass(frozen=True)
 class SeedsConfig:
     train: tuple[int, ...]
     eval: tuple[int, ...]
@@ -127,6 +135,7 @@ class EnvConfig:
     state_buckets: StateBucketsConfig
     actions: ActionsConfig
     reward: RewardConfig
+    composite_cost: CompositeCostConfig
     seeds: SeedsConfig
 
 
@@ -257,6 +266,20 @@ def load_env_config(path: str | Path) -> EnvConfig:
         end_of_shift_missed=float(_require(reward_raw, "end_of_shift_missed", "reward")),
     )
 
+    metrics_raw = _require(raw, "metrics", "env")
+    composite_raw = _require(metrics_raw, "composite_cost_inr", "metrics")
+    composite_cost = CompositeCostConfig(
+        missed_incident_by_criticality=tuple(
+            _require(composite_raw, "missed_incident_by_criticality", "metrics.composite_cost_inr")
+        ),
+        wasted_analyst_minute=float(
+            _require(composite_raw, "wasted_analyst_minute", "metrics.composite_cost_inr")
+        ),
+        detection_delay_per_min=float(
+            _require(composite_raw, "detection_delay_per_min", "metrics.composite_cost_inr")
+        ),
+    )
+
     seeds_raw = _require(raw, "seeds", "env")
     seeds = SeedsConfig(
         train=tuple(_require(seeds_raw, "train", "seeds")),
@@ -274,6 +297,7 @@ def load_env_config(path: str | Path) -> EnvConfig:
         state_buckets=state_buckets,
         actions=actions,
         reward=reward,
+        composite_cost=composite_cost,
         seeds=seeds,
     )
     _validate(config)
@@ -323,6 +347,11 @@ def _validate(cfg: EnvConfig) -> None:
 
     if len(cfg.actions.names) != 5:
         raise ConfigError(f"exactly 5 actions required, got {len(cfg.actions.names)}")
+
+    if len(cfg.composite_cost.missed_incident_by_criticality) != len(cfg.asset_criticality.levels):
+        raise ConfigError(
+            "'metrics.composite_cost_inr.missed_incident_by_criticality' length must match asset levels"
+        )
 
     # CONSTRAINTS.md #2: train/eval seed separation is enforced here, in code,
     # not by convention. Overlapping seeds refuse to load at all.

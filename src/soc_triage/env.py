@@ -261,6 +261,9 @@ class SOCTriageEnv:
         missed = [a for a in self._queue + self._pending if a.is_true_incident]
         buried = [a for a in self._bulk_closed if a.is_true_incident]
         critical_missed = sum(1 for a in missed + buried if a.asset_criticality == 2)
+        missed_by_criticality = [0, 0, 0]
+        for alert in missed + buried:
+            missed_by_criticality[alert.asset_criticality] += 1
 
         return {
             "incidents_total": int(incidents_total),
@@ -269,6 +272,7 @@ class SOCTriageEnv:
             "incidents_missed": len(missed) + len(buried),
             "incidents_buried_by_bulk_close": len(buried),
             "critical_missed": int(critical_missed),
+            "missed_by_criticality": missed_by_criticality,
             "mttd_min": float(sum(caught_delays) / len(caught_delays)) if caught_delays else None,
             "wasted_minutes": float(self._wasted_minutes),
         }

@@ -80,6 +80,14 @@ reward:
   bulk_close_true_incident: -150.0  # you buried a real one
   end_of_shift_missed: -200.0       # scaled by asset multiplier
 
+# --- Evaluation-only cost model for the composite metric (brief §8).
+# --- These rupee figures are a STATED ASSUMPTION for reporting, not learned.
+metrics:
+  composite_cost_inr:
+    missed_incident_by_criticality: [50000, 150000, 500000]  # breach cost by asset tier
+    wasted_analyst_minute: 30                                # loaded analyst cost / minute
+    detection_delay_per_min: 200                             # dwell-time cost / minute over caught incidents
+
 seeds:
   # Disjoint by construction and enforced in code. Never tune on eval seeds.
   train: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
