@@ -51,11 +51,13 @@ state_buckets:
   time_left:   [60, 240]            # minutes    -> 3 buckets
 
 actions:
-  - PULL_HIGHEST_SEVERITY
-  - PULL_OLDEST
-  - PULL_MOST_CRITICAL_ASSET
-  - PULL_CHEAPEST
-  - BULK_CLOSE_LOW_RISK
+  # Order defines the action indices 0..4 used everywhere (Q-tables, network heads).
+  names:
+    - PULL_HIGHEST_SEVERITY
+    - PULL_OLDEST
+    - PULL_MOST_CRITICAL_ASSET
+    - PULL_CHEAPEST
+    - BULK_CLOSE_LOW_RISK
   bulk_close:
     max_alerts: 10
     time_cost_min: 2
