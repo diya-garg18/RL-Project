@@ -45,6 +45,8 @@ class ArrivalsConfig:
 class IncidentConfig:
     base_rate: float
     target_severity_corr: tuple[float, float]  # (low, high) acceptance band
+    severity_lift: tuple[float, ...]           # P(true) multiplier per severity level
+    asset_lift: tuple[float, ...]              # P(true) multiplier per criticality level
     dwell_deadline_low_min: float
     dwell_deadline_high_min: float
 
@@ -187,6 +189,8 @@ def load_env_config(path: str | Path) -> EnvConfig:
     incident = IncidentConfig(
         base_rate=float(_require(incident_raw, "base_rate", "incident")),
         target_severity_corr=(float(corr_band[0]), float(corr_band[1])),
+        severity_lift=tuple(_require(incident_raw, "severity_lift", "incident")),
+        asset_lift=tuple(_require(incident_raw, "asset_lift", "incident")),
         dwell_deadline_low_min=float(_require(dwell_raw, "low", "incident.dwell_deadline_min")),
         dwell_deadline_high_min=float(_require(dwell_raw, "high", "incident.dwell_deadline_min")),
     )
@@ -290,6 +294,13 @@ def _validate(cfg: EnvConfig) -> None:
         raise ConfigError(
             f"'incident.target_severity_corr' must be an ascending band in [0, 1], got ({lo}, {hi})"
         )
+
+    if len(cfg.incident.severity_lift) != len(cfg.severity.levels):
+        raise ConfigError("'incident.severity_lift' length must match severity.levels")
+    if len(cfg.incident.asset_lift) != len(cfg.asset_criticality.levels):
+        raise ConfigError("'incident.asset_lift' length must match asset_criticality.levels")
+    if any(x < 0 for x in cfg.incident.severity_lift + cfg.incident.asset_lift):
+        raise ConfigError("incident lift values must be non-negative")
 
     _check_prior(cfg.severity.prior, len(cfg.severity.levels), "severity.prior")
     _check_prior(

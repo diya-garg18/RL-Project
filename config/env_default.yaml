@@ -17,6 +17,12 @@ incident:
   # This is the project's defining assumption (DECISIONS.md D-003) and a Phase 0 exit gate.
   target_severity_corr: [0.30, 0.40]
 
+  # P(true) = base_rate x type.incident_lift x severity_lift[sev] x asset_lift[crit].
+  # Both lifts are TUNE knobs for the Phase 0 calibration check. Starting guesses
+  # keep the prior-weighted mean lift near 1 so incidence stays near base_rate.
+  severity_lift: [0.2, 0.5, 2.0, 8.0]   # TUNE — the severity<->truth link (weak on purpose)
+  asset_lift: [0.8, 1.2, 1.4]           # TUNE — crown jewels attract real attacks slightly more
+
   dwell_deadline_min:        # how long a real incident may sit before it counts as a breach
     low: 120
     high: 480
