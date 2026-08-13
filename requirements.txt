@@ -1,24 +1,22 @@
-# Core — needed from Phase 0
-numpy
-pandas
-pyyaml
-matplotlib
-pytest
+# Pinned 2026-08-13 after first verified install on Python 3.13.2 (see ROLLBACK.md)
 
-# Phase 3+ — DQN, policy gradient, reward model
-# Verify this installs cleanly on Python 3.13 BEFORE Phase 3 depends on it (HANDOVER.md).
-torch
+# Core — needed from Phase 0
+numpy==2.5.2
+pandas==3.0.5
+PyYAML==6.0.3
+matplotlib==3.11.1
+pytest==9.1.1
+
+# Phase 3+ — DQN, policy gradient, reward model (CPU build; imports verified on 3.13)
+torch==2.13.0
 
 # Phase 5+ — labelling UI and dashboard backend (optional)
-fastapi
-uvicorn
+fastapi==0.141.1
+uvicorn==0.52.2
 
 # Phase 6 — Cohen's kappa, statistical checks
-scikit-learn
+scikit-learn==1.9.0
 
 # NOT ALLOWED without human approval (CONSTRAINTS.md #7, #8):
 #   stable-baselines3, ray[rllib], or any RL library.
 #   Every syllabus algorithm is written by hand.
-#
-# TODO after the first successful install: pin exact versions here
-# (pip freeze) so the environment is reproducible. See ROLLBACK.md.
