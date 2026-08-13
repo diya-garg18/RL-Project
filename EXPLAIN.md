@@ -8,7 +8,7 @@
 >
 > **Rule for the humans:** if you read a section here and still can't explain that part of the project out loud to a friend, the section is wrong. Say so and get it rewritten. That is the whole point of this file (Field Guide habit #15 — own the mental model).
 
-**Last updated:** 2026-08-13 · Phase 0 (nothing built yet) · written by Claude Opus 5
+**Last updated:** 2026-08-13 · Phase 0 in progress (generator built and calibrated) · written by Claude Fable 5
 
 ---
 
@@ -156,6 +156,24 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 2 — 2026-08-13 — Claude Fable 5
+
+**What:** The project's first real code: the config loader, the Alert record, the alert generator, and the calibration script that proves the generator behaves. Also: git repository created (6 commits), Python environment installed and version-pinned.
+
+**Where:** `src/soc_triage/config.py`, `alerts.py`, `generator.py`; `scripts/calibrate_generator.py`; tuned numbers in `config/env_default.yaml`.
+
+**Why each piece exists:**
+
+- **`config.py`** reads the YAML file of tunable numbers and turns it into Python objects that cannot be modified after loading. If a number is missing or nonsense (probabilities that don't sum to 1, training and evaluation seeds overlapping), it refuses to start and tells you exactly which line of the YAML to fix. The seed-overlap check is our scientific-integrity rule #2 enforced by code rather than by trust.
+- **`alerts.py`** defines what one alert *is*: eight facts (when it arrived, how severe it looks, which machine, how long it takes to check, what kind it is...) plus the two hidden answers — is it real, and how long until it becomes a breach. The hidden answers are for the scoring system only. The AI never sees them.
+- **`generator.py`** manufactures one 8-hour shift of alerts from a seed number. Same seed, exact same shift, every time — which is what lets us later show two different strategies the *identical* day and compare fairly. Arrivals follow a Poisson process (the standard maths for "independent events at a steady average rate" — same model as calls hitting a call centre). Whether an alert is *real* is a weighted coin flip: base rate ~1.35%, multiplied up or down by the alert's type, its severity, and how important the machine is.
+- **`calibrate_generator.py`** generates 100 shifts and measures whether the simulated world matches the world we claimed to build (see Part 8). We tuned the config until it did, and checked the result on two further batches of 100 shifts that were never used for tuning.
+
+**How (the one formula to remember):**
+`P(real) = base_rate × type_lift × severity_lift × asset_lift` — capped at 95% so nothing is ever a certainty.
+
+**Honest note:** the original scaffold's YAML had a formatting bug (a list and a named key at the same indent level, which YAML forbids) — the very first run of the loader caught it. Fixed by nesting the action names under `actions.names`. The five actions themselves are unchanged.
+
 ### Session 1 — 2026-08-13 — Claude Opus 5
 
 **What:** Nothing runnable yet — this session set up documentation and project structure only.
@@ -172,7 +190,24 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *Every headline number goes here in plain English as soon as it exists. Format: what we measured, what we got, what it means, and what could be wrong with it.*
 
-**Nothing measured yet.**
+### Generator calibration — 2026-08-13 — PASSED (checked by Diya)
+
+**What we measured:** 100 simulated shifts (seeds 1000–1099, disjoint from training and evaluation seeds), ~16,900 alerts pooled.
+
+| Number | Result | Target | Verdict |
+|---|---|---|---|
+| Alerts per shift | 168.7 | ~170 | ✓ |
+| True-incident rate | 3.34% | 2.5–3.5% | ✓ |
+| Real incidents per shift | 5.6 ± 2.6 | — | plausible |
+| Pearson r (severity ↔ real) | 0.323 | 0.30–0.40 | ✓ |
+
+**Robustness:** re-measured on two fresh 100-shift batches never used during tuning — rate 3.13% / r 0.311 (seeds 2000s) and rate 3.27% / r 0.317 (seeds 3000s). Stable, not a lucky sample.
+
+**Final tuned values** (in `config/env_default.yaml`): `base_rate` 0.03 → 0.0135, `severity_lift` [0.1, 0.35, 2.4, 15.0], `asset_lift` [0.8, 1.2, 1.4]. The base rate had to drop because the lift multipliers, averaged over the alert population, inflate the effective rate by roughly 2.2×.
+
+**What it means:** the simulated SOC now matches the story we tell about it — ~170 alerts a day of which ~5–6 are real, and the vendor severity label is *somewhat* informative but far from sufficient.
+
+**What could be wrong with it / what it forces:** to reach r ≥ 0.30 with only ~3% of alerts being real, the maths forces real incidents to concentrate in the top severity: P(real) climbs from 0.2% (severity 0) to ~30% (severity 3), and about two-thirds of real incidents arrive at severity 3. Consequence: severity-sort will be a genuinely decent baseline — the remaining one-third of incidents hiding at lower severities, plus asset value and time pressure, are the gap a learned policy can exploit. This is a *built-in assumption*, not a discovery (see Part 9, item 2).
 
 Planned first measurement (Phase 0 exit): the six baseline strategies compared on the same alert streams. Expectation — the oracle (which cheats by seeing the hidden answers) should be clearly best, and random clearly worst. If that doesn't happen, the simulator is broken.
 

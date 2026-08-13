@@ -10,24 +10,28 @@
 
 | | |
 |---|---|
-| **Last session** | 2026-08-13 |
-| **Model** | Claude Opus 5 |
-| **Current phase** | Phase 0 — Foundation (not started) |
-| **Repo state** | Documentation scaffold only. No code, no `git init` yet. |
-| **Tests passing** | N/A — no tests exist |
+| **Last session** | 2026-08-13 (session 2) |
+| **Model** | Claude Fable 5 |
+| **Current phase** | Phase 0 — Foundation (in progress, ~40%) |
+| **Repo state** | git initialised, 6 commits + session-end docs commit. `config.py`, `alerts.py`, `generator.py` built and verified. **Generator calibration PASSED and human-approved.** |
+| **Tests passing** | No pytest suite yet (next session starts it). All code verified by direct execution — see EXPERIMENT_LOG E-001. |
 
 ---
 
 ## Done
 
-- Project chosen, scoped, and fully specified in `PROJECT_BRIEF.md`
-- All nine Field Guide documents created, plus `EXPLAIN.md` and `INTERVIEW_PREP.md`
-- Directory structure, `requirements.txt`, `.gitignore`, and both config files created
-- Roadmap broken into 7 phases with concrete exit criteria
+- `git init`; `.gitignore` verified against CONSTRAINTS #19; scaffold committed
+- venv on Python 3.13.2; all deps install and import — **torch 2.13.0 works on 3.13** (HANDOVER risk retired); `requirements.txt` pinned (human-approved)
+- `config.py` — typed frozen config loader; fails loudly with dotted key paths; **enforces train/eval seed disjointness in code** (CONSTRAINTS #2)
+- `alerts.py` — frozen `Alert` dataclass per ARCHITECTURE §4, ground-truth warning in docstring
+- `generator.py` — Poisson arrivals; truth model `base_rate × type_lift × severity_lift × asset_lift` (D-007); deterministic per (config, seed)
+- **Calibration gate PASSED** (E-001): 168.7 alerts/shift, 3.34% incidence, r(sev,truth)=0.323; robust on two untouched seed blocks; Diya eyeballed and approved
+- Fixed scaffold bug: `actions:` YAML block was invalid YAML; names now under `actions.names` (FLOW.md gotcha #1)
+- DECISIONS D-007 (truth model), D-008 (time-of-day deferred) appended; EXPLAIN Parts 7+8 updated
 
 ## In progress
 
-Nothing.
+Nothing mid-flight. Clean stopping point at the ROADMAP calibration checkpoint.
 
 ## Broken / blocked
 
@@ -37,24 +41,25 @@ Nothing.
 
 ## Next session should do
 
-Start **Phase 0** in `ROADMAP.md`, in this order:
+Continue **Phase 0** in ROADMAP order:
 
-1. `git init` and make the first commit (the scaffold)
-2. Create the venv and install `requirements.txt`
-3. `config.py` → `alerts.py` → `generator.py`
-4. **Stop at the generator calibration check.** Do not build the environment until the generator produces ~3% true-incident rate and a severity↔truth correlation in the 0.30–0.40 band, and those numbers are written into `EXPLAIN.md` Part 8.
+1. `state.py` — `discretise(env_state) -> int` (0..575) and `featurise(env_state) -> np.ndarray` (~20 floats)
+2. `env.py` — `SOCTriageEnv` with `reset(seed)` / `step(action)`, the 5 actions, reward from brief §3.5, 480-min termination
+3. **Write `test_no_ground_truth_leakage` immediately after `state.py`** — not later (CONSTRAINTS #1; the docstrings in `alerts.py` point at it, so it must exist)
+4. `agents/base.py`, `agents/baselines.py`, `runner.py`, `evaluation/metrics.py`, tests, baseline table — per ROADMAP
 
-Follow the session-start protocol in `CLAUDE.md`: state the plan, get approval, then implement.
+The Phase 0 exit criterion (baseline table, oracle strictly best / random worst) is still 3–4 chunks of work away.
 
 ---
 
 ## Watch out for
 
-- **The generator calibration is the foundation of everything.** If severity ends up strongly predictive of truth, severity-sort becomes near-optimal and there is no project. If it ends up with no signal at all, the environment is pure noise and nothing can learn. The 0.30–0.40 target band matters — check it, don't assume it.
-- **Ground-truth leakage is the easiest way to accidentally fake a great result.** Write `test_no_ground_truth_leakage` early, not late.
-- `requirements.txt` pins nothing yet. Pin actual versions after the first successful install so the environment is reproducible.
-- PyTorch on Python 3.13 — verify the install works before Phase 3 depends on it. If it fights, that's a decision point worth raising early (fall back to 3.12), not in week 3.
-- Time budget: RLHF (Phase 5) needs ~100 minutes of *human* labelling time across two people. Book it in advance; it can't be rushed at the end.
+- **Bucket-boundary convention for `state.py`:** config boundaries `[10, 40, 100]` must mean `[0,10) [10,40) [40,100) [100,∞)` everywhere. Write one shared helper; an off-by-one here silently corrupts all 576 states.
+- **FLOW.md Flow A ordering detail:** admit new arrivals *after* the clock advances, *before* building the next observation. Get it backwards and the agent acts on a stale queue — mysterious underperformance, not a crash.
+- **Severity-sort will be a strong baseline** — by construction ~64% of true incidents carry severity 3 (E-001 / D-007 consequence). Don't panic when it looks good in the Phase 0 table; the learned-policy gap comes from the other third + asset value + time pressure.
+- `deadline_min == 0.0` on false positives is a *convention* (meaningless there). `env.py` must only read deadlines for true incidents.
+- Empty queue: `step` advances clock by `shift.empty_queue_wait_min` (5 min), reward 0 — already in config, easy to forget.
+- Calibration seeds are 1000+/2000+/3000+ — if anything else ever wants a seed block, keep it disjoint from 1–10, 101–105, and these.
 
 ---
 
