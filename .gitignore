@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Results and artefacts — regenerable, and large
+results/*
+!results/.gitkeep
+*.pt
+*.pth
+*.npy
+*.npz
+
+# Preference labels — contains human-provided data.
+# NOTE: this is the least replaceable file in the project (~100 min of human time).
+# Gitignored, so back it up OUTSIDE the repo after every labelling session,
+# and keep a CSV export alongside it. See ROLLBACK.md.
+*.db
+*.sqlite3
+
+# Secrets
+.env
+.env.*
+
+# Node / frontend
+node_modules/
+web/dist/
+web/.vite/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

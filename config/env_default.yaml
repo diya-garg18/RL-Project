@@ -1,0 +1,78 @@
+# Environment configuration — every number describing the simulated world.
+# No value in this file may be hard-coded in Python. See CONSTRAINTS.md #9.
+#
+# Values marked TUNE are starting guesses that Phase 0 calibration will adjust.
+# When you change one, record the old and new value in EXPLAIN.md Part 8.
+
+shift:
+  length_min: 480            # 8-hour analyst shift
+  empty_queue_wait_min: 5    # clock advance when the queue is empty
+
+arrivals:
+  rate_per_min: 0.35         # TUNE — Poisson lambda. ~170 alerts per shift.
+
+incident:
+  base_rate: 0.03            # TUNE — 3% of alerts are real. Target band 0.025-0.035.
+  # Target Pearson correlation between severity and is_true_incident: 0.30-0.40.
+  # This is the project's defining assumption (DECISIONS.md D-003) and a Phase 0 exit gate.
+  target_severity_corr: [0.30, 0.40]
+
+  dwell_deadline_min:        # how long a real incident may sit before it counts as a breach
+    low: 120
+    high: 480
+
+severity:
+  levels: [0, 1, 2, 3]              # info, low, medium, high (vendor label — noisy on purpose)
+  prior: [0.45, 0.30, 0.18, 0.07]   # TUNE — most alerts are low-severity noise
+
+asset_criticality:
+  levels: [0, 1, 2]                 # dev box, standard, crown jewel
+  prior: [0.55, 0.35, 0.10]
+  reward_multiplier: [1.0, 1.5, 2.5]
+
+verify_cost_min:
+  options: [5, 10, 20, 40]
+  prior: [0.35, 0.35, 0.20, 0.10]
+
+alert_types:                        # incident_lift multiplies the base rate for that type.
+  - {name: failed_login_burst, prior: 0.25, incident_lift: 0.8}
+  - {name: malware_signature,  prior: 0.20, incident_lift: 1.6}
+  - {name: data_exfil_volume,  prior: 0.10, incident_lift: 3.0}
+  - {name: priv_escalation,    prior: 0.10, incident_lift: 2.8}
+  - {name: phishing_click,     prior: 0.20, incident_lift: 1.1}
+  - {name: unusual_process,    prior: 0.15, incident_lift: 0.9}
+# Note: the informative signal lives in alert_type + asset_criticality + verify_cost,
+# NOT mainly in severity. That is the whole reason a learned policy can beat severity-sort.
+
+# --- State discretisation: 4 x 4 x 4 x 3 x 3 = 576 states ---
+state_buckets:
+  queue_len:   [10, 40, 100]        # boundaries -> 4 buckets
+  oldest_age:  [30, 90, 180]        # minutes    -> 4 buckets
+  time_left:   [60, 240]            # minutes    -> 3 buckets
+
+actions:
+  - PULL_HIGHEST_SEVERITY
+  - PULL_OLDEST
+  - PULL_MOST_CRITICAL_ASSET
+  - PULL_CHEAPEST
+  - BULK_CLOSE_LOW_RISK
+  bulk_close:
+    max_alerts: 10
+    time_cost_min: 2
+    max_severity: 1                 # only closes severity <= 1 ...
+    max_asset_criticality: 0        # ... on non-critical assets
+
+# --- Reward (v1, hand-written). Every number here is admittedly arbitrary,
+# --- which is precisely the motivation for the RLHF phase. See PROJECT_BRIEF.md 3.5.
+reward:
+  true_incident_base: 100.0
+  true_incident_decay_min: 120.0    # +100 * exp(-delay / 120)
+  false_positive_per_min: -1.0      # -1 per minute burned, i.e. -5 to -40
+  bulk_close_fp: 0.5                # small credit for queue hygiene
+  bulk_close_true_incident: -150.0  # you buried a real one
+  end_of_shift_missed: -200.0       # scaled by asset multiplier
+
+seeds:
+  # Disjoint by construction and enforced in code. Never tune on eval seeds.
+  train: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  eval:  [101, 102, 103, 104, 105]

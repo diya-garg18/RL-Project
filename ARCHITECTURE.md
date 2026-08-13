@@ -1,0 +1,213 @@
+# ARCHITECTURE.md — The system map
+
+> Field Guide habit #6. This is the **shape** of the system, not the implementation detail. Read this at the start of every session so you don't re-derive the terrain. Update it whenever a module is added, removed, or its responsibility changes.
+
+**Last updated:** 2026-08-13 (scaffold — no code written yet)
+
+---
+
+## 1. The shape in one picture
+
+```
+                        ┌──────────────────────────┐
+                        │   config/*.yaml          │
+                        │  (all tunable numbers)   │
+                        └────────────┬─────────────┘
+                                     │ loaded once at startup
+                                     ▼
+┌───────────────┐         ┌─────────────────────┐         ┌──────────────────┐
+│  generator.py │────────▶│      env.py         │◀───────▶│    agents/       │
+│ makes alerts  │ stream  │ SOCTriageEnv        │ s,a,r,s'│ random, fifo,    │
+│ + hidden truth│         │ reset() / step()    │         │ severity, q_learn│
+└───────────────┘         │ Gymnasium-style API │         │ dqn, reinforce...│
+                          └──────────┬──────────┘         └────────┬─────────┘
+                                     │ trajectory                  │
+                                     ▼                             │
+                          ┌─────────────────────┐                  │
+                          │  runner.py          │◀─────────────────┘
+                          │ episode loop,       │
+                          │ seeding, logging    │
+                          └──────────┬──────────┘
+                                     │ EpisodeRecord (JSON)
+                    ┌────────────────┼────────────────┐
+                    ▼                ▼                ▼
+          ┌──────────────┐  ┌────────────────┐  ┌──────────────┐
+          │ evaluation/  │  │ rlhf/          │  │  results/    │
+          │ metrics,     │  │ pair builder,  │  │ runs, plots, │
+          │ baselines,   │  │ reward model,  │  │ q-tables,    │
+          │ audit        │  │ label store    │  │ checkpoints  │
+          └──────────────┘  └───────┬────────┘  └──────────────┘
+                                    │ labelling pairs
+                                    ▼
+                          ┌─────────────────────┐
+                          │  web/  (optional)   │
+                          │ FastAPI + React     │
+                          │ dashboard + labeller│
+                          └─────────────────────┘
+```
+
+---
+
+## 2. Modules and their single responsibility
+
+| Module | Responsibility | Must NOT do |
+|---|---|---|
+| `src/soc_triage/config.py` | Load + validate YAML config into typed objects | Contain any numbers itself |
+| `src/soc_triage/alerts.py` | The `Alert` dataclass and its hidden ground truth | Know about the agent |
+| `src/soc_triage/generator.py` | Poisson arrivals, feature sampling, `is_true_incident` labelling | Know about rewards |
+| `src/soc_triage/env.py` | The MDP: queue state, `reset()`, `step(action)`, reward, termination | Contain learning logic |
+| `src/soc_triage/state.py` | Both state encoders: `discretise()` (576 states) and `featurise()` (~20 floats) | Mutate the environment |
+| `src/soc_triage/agents/` | One file per algorithm, each exposing `act(state)` and `update(...)` | Touch the environment internals |
+| `src/soc_triage/runner.py` | Run N episodes with a given agent + seed, emit `EpisodeRecord`s | Compute metrics |
+| `src/soc_triage/evaluation/` | Metrics, baseline comparison tables, plots, the reward-hacking audit | Train anything |
+| `src/soc_triage/rlhf/` | Build comparison pairs, store labels, train the Bradley–Terry reward model | Know about specific agents |
+| `web/` | FastAPI backend + React dashboard + labelling UI | Contain any RL logic |
+
+**The rule this table encodes:** the environment never knows which agent is acting, and the agents never reach inside the environment. They communicate only through `(state, action, reward, next_state, done, info)`. Keep that boundary clean and every algorithm becomes swappable — which is the entire point, since we're implementing six of them.
+
+---
+
+## 3. Directory layout
+
+```
+RL Project/
+├─ README.md                   ← start here
+├─ CLAUDE.md                   ← rules for the AI session (read first, every session)
+├─ PROJECT_BRIEF.md            ← the idea, the MDP, the plan
+├─ EXPLAIN.md                  ← plain-English living explanation (UPDATE EVERY SESSION)
+├─ ROADMAP.md                  ← phase-by-phase task list
+├─ ARCHITECTURE.md             ← this file
+├─ CONSTRAINTS.md              ← what the AI must never do
+├─ FLOW.md                     ← how execution travels
+├─ HANDOVER.md                 ← where things stand right now (UPDATE EVERY SESSION)
+├─ DECISIONS.md                ← why each choice was made (APPEND-ONLY)
+├─ TEST_CHECKLIST.md           ← what "done" means
+├─ ROLLBACK.md                 ← how to undo
+├─ INTERVIEW_PREP.md           ← the functions you must know cold
+├─ requirements.txt
+├─ .gitignore
+├─ config/
+│   ├─ env_default.yaml        ← every environment number lives here
+│   └─ training_default.yaml   ← every hyperparameter lives here
+├─ docs/
+│   ├─ features/               ← one FEATURE_xxx.md per feature (template inside)
+│   ├─ bugs/                   ← one BUG_xxx.md per bug (template inside)
+│   └─ experiments/
+│       └─ EXPERIMENT_LOG.md   ← every training run: config, seed, result
+├─ src/soc_triage/
+│   ├─ __init__.py
+│   ├─ config.py
+│   ├─ alerts.py
+│   ├─ generator.py
+│   ├─ env.py
+│   ├─ state.py
+│   ├─ runner.py
+│   ├─ agents/
+│   │   ├─ base.py             ← the Agent interface everything implements
+│   │   ├─ baselines.py        ← random, fifo, severity, cheapest, oracle
+│   │   ├─ dp.py               ← model estimation + value/policy iteration
+│   │   ├─ monte_carlo.py
+│   │   ├─ sarsa.py
+│   │   ├─ q_learning.py
+│   │   ├─ dqn.py
+│   │   ├─ reinforce.py
+│   │   └─ actor_critic.py
+│   ├─ evaluation/
+│   │   ├─ metrics.py
+│   │   ├─ compare.py
+│   │   ├─ plots.py
+│   │   └─ audit.py            ← the reward-hacking experiments
+│   └─ rlhf/
+│       ├─ pairs.py            ← build comparison pairs from EpisodeRecords
+│       ├─ store.py            ← SQLite label storage
+│       └─ reward_model.py     ← Bradley–Terry MLP
+├─ tests/
+├─ scripts/                    ← thin CLI entry points, no logic
+├─ results/                    ← gitignored except .gitkeep
+└─ web/                        ← FastAPI + React (Phase 5+, optional)
+```
+
+---
+
+## 4. Key data contracts
+
+These three shapes are the spine of the system. Changing any of them is a **DECISIONS.md-worthy** event.
+
+### `Alert`
+```python
+@dataclass(frozen=True)
+class Alert:
+    id: int
+    arrival_time: float          # minutes into the shift
+    severity: int                # 0..3  — vendor label, deliberately noisy
+    asset_criticality: int       # 0..2
+    verify_cost_min: int         # 5 | 10 | 20 | 40
+    alert_type: str              # one of 6
+    is_true_incident: bool       # HIDDEN — never passed to the agent
+    deadline_min: float          # dwell budget; only meaningful if true incident
+```
+
+> `is_true_incident` and `deadline_min` are **ground truth**. They live on the object because the environment needs them to compute reward, but `state.py` must never encode them into an observation. This is the single easiest way to accidentally cheat, so there is a test for it (`test_no_ground_truth_leakage`).
+
+### `StepInfo` (the `info` dict from `env.step`)
+```python
+{
+  "action_name": str,
+  "alert_investigated": Alert | None,
+  "was_true_incident": bool | None,
+  "delay_min": float | None,
+  "bulk_closed": list[Alert],
+  "time_consumed": float,
+  "reward_breakdown": dict[str, float],   # for debugging + the dashboard
+}
+```
+
+### `EpisodeRecord`
+```python
+{
+  "run_id": str, "agent_name": str, "seed": int, "config_hash": str,
+  "steps": [ {state_disc, state_cont, action, reward, info} ],
+  "outcome": {
+      "incidents_total": int, "incidents_caught": int,
+      "incidents_missed": int, "critical_missed": int,
+      "mttd_min": float, "wasted_minutes": float,
+      "total_reward": float
+  }
+}
+```
+`EpisodeRecord` is what evaluation, the RLHF pair builder, and the dashboard all consume. Write it to JSON. It is the interchange format of the whole project.
+
+---
+
+## 5. Where each phase adds code
+
+| Phase | New modules |
+|---|---|
+| 0 | `config`, `alerts`, `generator`, `env`, `state`, `runner`, `agents/base`, `agents/baselines`, `evaluation/metrics` |
+| 1 | `agents/dp` |
+| 2 | `agents/monte_carlo`, `agents/sarsa`, `agents/q_learning` |
+| 3 | `agents/dqn` |
+| 4 | `agents/reinforce`, `agents/actor_critic` |
+| 5 | `rlhf/*`, `web/*` |
+| 6 | `evaluation/audit`, `evaluation/plots` |
+
+Nothing from a later phase should be needed to run an earlier phase. If Phase 5 breaks, Phase 2's results must still reproduce.
+
+---
+
+## 6. Tech stack and why
+
+| Choice | Reason |
+|---|---|
+| Python 3.13 | Already installed on this machine |
+| NumPy | Tabular Q-tables, all the array work |
+| PyTorch | DQN, policy gradient, reward model. Pranav already uses it (EHCV). |
+| Gymnasium-style API (`reset`/`step`) — **interface only, not the dependency** | Standard, recognisable on a resume, zero lock-in |
+| pytest | Pranav's existing test discipline |
+| YAML config | Keeps every magic number out of the code and in one reviewable place |
+| SQLite | Preference labels; zero setup |
+| FastAPI + React (Vite) | Matches both resumes; Phase 5+, kept optional |
+| Groq / Llama | The plain-English justification line; Diya has shipped this twice |
+| matplotlib | All plots for the report |
+
+**Explicitly rejected:** Stable-Baselines3. The whole point is writing the algorithms by hand so both team members can reproduce them in an interview. It may be used *only* as an optional cross-check for PPO, and if so it must be recorded in `DECISIONS.md`.

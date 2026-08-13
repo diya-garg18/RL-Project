@@ -1,0 +1,24 @@
+# Core — needed from Phase 0
+numpy
+pandas
+pyyaml
+matplotlib
+pytest
+
+# Phase 3+ — DQN, policy gradient, reward model
+# Verify this installs cleanly on Python 3.13 BEFORE Phase 3 depends on it (HANDOVER.md).
+torch
+
+# Phase 5+ — labelling UI and dashboard backend (optional)
+fastapi
+uvicorn
+
+# Phase 6 — Cohen's kappa, statistical checks
+scikit-learn
+
+# NOT ALLOWED without human approval (CONSTRAINTS.md #7, #8):
+#   stable-baselines3, ray[rllib], or any RL library.
+#   Every syllabus algorithm is written by hand.
+#
+# TODO after the first successful install: pin exact versions here
+# (pip freeze) so the environment is reproducible. See ROLLBACK.md.

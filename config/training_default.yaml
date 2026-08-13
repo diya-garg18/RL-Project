@@ -1,0 +1,67 @@
+# Training hyperparameters. Starting values — tune on TRAIN seeds only,
+# never on eval seeds (CONSTRAINTS.md #2). Log every run in docs/experiments/EXPERIMENT_LOG.md.
+
+common:
+  gamma: 0.99          # patient: end-of-shift misses are charged at the very end,
+                       # so the agent must value distant consequences.
+  n_episodes: 20000
+  eval_every: 500
+  log_smoothing_window: 100
+
+epsilon:
+  start: 1.0
+  min: 0.05            # floor stays above zero: queue composition shifts during a shift,
+                       # so a fully greedy agent stops adapting.
+  decay: 0.9995        # per episode
+
+monte_carlo:
+  alpha: 0.05
+  first_visit: true
+
+sarsa:
+  alpha: 0.10
+
+q_learning:
+  alpha: 0.10
+
+dqn:
+  hidden_layers: [128, 128]
+  activation: relu
+  lr: 0.0005
+  batch_size: 64
+  replay_capacity: 100000
+  learning_starts: 1000        # fill the buffer before training begins
+  target_update_every: 1000    # steps between hard copies to the target network
+  grad_clip_norm: 10.0
+  loss: huber                  # less sensitive to the large negative outlier rewards
+  ablations:                   # Phase 3 required ablations — expect visible instability
+    no_replay: false
+    no_target_network: false
+
+reinforce:
+  lr: 0.001
+  use_baseline: true           # value baseline for variance reduction; ablate this
+
+actor_critic:
+  actor_lr: 0.001
+  critic_lr: 0.005
+  entropy_coef: 0.01
+
+ppo:                           # optional; first thing to cut if time runs short
+  enabled: false
+  clip_eps: 0.2
+  epochs_per_batch: 4
+
+reward_model:
+  hidden_layers: [64, 64]
+  lr: 0.001
+  epochs: 200
+  batch_size: 32
+  heldout_fraction: 0.20       # report train AND held-out accuracy separately.
+                               # The gap is a reward-hacking audit signal, not a footnote.
+  min_heldout_accuracy: 0.65   # below this the model is not informative — say so
+
+rlhf:
+  target_pairs: 300
+  double_labelled_pairs: 50    # labelled by BOTH annotators, for Cohen's kappa
+  pair_must_share_seed: true   # invalid data otherwise — assert it, don't trust it

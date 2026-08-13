@@ -1,0 +1,188 @@
+# EXPLAIN.md — The whole project, in plain English
+
+> **This is the file you read when you need to understand anything about this project.**
+>
+> It assumes you know nothing. No jargon without a translation. If something here can only be understood by someone who already understands it, it is written wrong — rewrite it.
+>
+> **Rule for every AI session:** whenever you add or change something, add or change the plain-English explanation here too, in the same session. A change that isn't explained here isn't finished.
+>
+> **Rule for the humans:** if you read a section here and still can't explain that part of the project out loud to a friend, the section is wrong. Say so and get it rewritten. That is the whole point of this file (Field Guide habit #15 — own the mental model).
+
+**Last updated:** 2026-08-13 · Phase 0 (nothing built yet) · written by Claude Opus 5
+
+---
+
+## Part 1 — What are we actually building, and why?
+
+### The situation
+
+Imagine an emergency room, but for computers.
+
+A company runs security software that watches everything — logins, downloads, odd network traffic. Whenever something looks off, it fires an **alert**. A company might get 2,000 of these a day.
+
+The problem: they have maybe 3 people to look at them, and each alert takes 10–20 minutes to check properly. So they can honestly investigate maybe 60 out of 2,000.
+
+And here's the cruel part. Almost all of those alerts are nothing — someone logged in from a café, someone downloaded a big file for a normal reason. But hidden in there, maybe 2 or 3 a day, is a **real attacker**. Every hour that one sits unread in the queue, the attacker is inside the network taking more.
+
+So it's an ER doctor with 200 people in the waiting room and time to see 6. Who do you see next? Get the order wrong and someone dies in the waiting room.
+
+### What companies do today
+
+Sort by the "severity" label the security software attached. High first. That's it — that's the whole strategy at most companies.
+
+It's a weak strategy, because that label was decided by a software vendor who has never seen this company, doesn't know which servers actually matter, and doesn't know the analyst has 40 minutes left in their shift.
+
+### What we're building
+
+An AI that learns a better order — by practising.
+
+### Why this is a reinforcement learning problem and not something simpler
+
+Three reasons, and you should be able to give all three:
+
+1. **Decisions affect the future.** Investigating one alert burns 20 minutes you can never use on another. This is not "classify each alert independently" — the choices are linked through a shared budget.
+2. **Feedback is delayed.** You don't find out whether skipping an alert was a mistake until much later, possibly at the end of the shift. RL is specifically the tool for delayed consequences.
+3. **There's no labelled "correct answer" to copy.** Nobody has a dataset of perfect triage orders to learn from. The agent has to discover a good strategy by trying and being scored.
+
+---
+
+## Part 2 — How does the learning work?
+
+Think of it as a video game the AI plays over and over.
+
+**The game:** You're the analyst. It's an 8-hour shift. Alerts pile into your queue. You pick one, spend time checking it, find out whether it was real or nothing, then pick the next. Shift ends. Score gets counted.
+
+**The scoring:**
+
+| What happened | Score |
+|---|---|
+| Caught a real attack | Big points — and *more* points the faster you caught it |
+| Wasted 15 minutes on a false alarm | Small penalty |
+| Auto-closed something that turned out to be real | Big penalty |
+| A real attack sat in the queue all shift, never looked at | **Huge** penalty — that's the breach |
+
+The AI plays this shift tens of thousands of times. Early on it's terrible — basically random. But it slowly notices patterns:
+
+> *"When the queue is huge and I'm low on time, chasing the scary high-severity alerts actually loses me points — they're usually noise and they eat 20 minutes each. I score better clearing quick ones and watching the critical servers."*
+
+That noticing-and-remembering is the learning. In our case it's mostly **Q-learning**, which is just: a big table where the AI writes down "in this kind of situation, this move tends to work out well," and keeps nudging those numbers as it gets more experience.
+
+---
+
+## Part 3 — The one clever design choice
+
+The obvious design: the AI picks one alert out of the 400 waiting. That's 400 possible moves, and the number changes every second. Messy to code, messy to explain, and it breaks the simple table-based methods entirely.
+
+**Our design:** the AI doesn't pick an *alert*. It picks a **strategy to use right now** — one of five:
+
+1. Take the scariest-looking one (highest severity)
+2. Take the one that's been waiting longest
+3. Take the one on the most important server
+4. Take a quick easy one (clear the backlog)
+5. Mass-close a batch of obviously-harmless ones
+
+Always 5 choices, no matter how big the queue gets.
+
+**Why this matters so much:** the result is *readable by a human*. You can print out what the AI learned — "queue flooded + low time left → use strategy 4" — and a security manager could look at that table and agree or disagree. In this domain, that readability is worth more than the extra flexibility we gave up.
+
+If you are asked one design question about this project in an interview, it will probably be this one.
+
+---
+
+## Part 4 — The human feedback part (the bit that makes this special)
+
+Here's a genuine problem. Look back at the scoring table in Part 2. **How many points is a 3-hour delay worth?**
+
+Nobody knows. Is catching a real attack 3 hours late worse than wasting 40 analyst-minutes on junk? There's no correct number. And if we just make numbers up, our AI is optimising *our made-up opinion* — the entire project would rest on a guess.
+
+So instead of guessing, **we ask humans.**
+
+We build a small web page showing two shifts side by side — same flood of alerts, two different AIs handling them. The person just clicks: *"the left one handled that better."* No numbers. Just a preference — which is something humans are genuinely good at, unlike assigning point values.
+
+We collect about 300 of these clicks from ourselves, some classmates, and ideally a working security analyst.
+
+Then we train a small model whose only job is to **predict which one a human would pick**. That model becomes our new scoring system. Now the AI is being trained toward *what real people think good triage looks like*, instead of toward numbers we invented on a Tuesday afternoon.
+
+**This is how ChatGPT was trained to be helpful.** Same technique, shrunk to something two students can actually build. It's called **RLHF** — Reinforcement Learning from Human Feedback. It's 7 lectures of the course syllabus, and almost no student project ever actually does it.
+
+---
+
+## Part 5 — The part that makes us look genuinely good
+
+Once the AI is chasing a *learned* score, it can start cheating — finding a loophole that scores brilliantly but behaves badly.
+
+The obvious one here: strategy 5 (mass-close). Closing things makes the queue shrink fast, which *looks* like great work, while quietly burying a real attack.
+
+So we go hunting for exactly that, on purpose. And whatever we find, **we write it down in the report instead of hiding it.**
+
+This is called a **reward hacking audit**, and it's a real research concern in AI safety, not something we invented for marks. Pranav has done this once before — on ChurnLens he found his own pipeline was leaking test data and retracted a better-looking result for the honest one. Doing it once looks like luck. Doing it twice is a pattern.
+
+---
+
+## Part 6 — Words you'll hear, translated
+
+| Word | What it actually means |
+|---|---|
+| **Agent** | The AI making decisions |
+| **Environment** | The simulated shift — the queue, the clock, the alerts |
+| **State** | A summary of the current situation ("queue is huge, 30 min left, one critical server involved") |
+| **Action** | One of our 5 strategies |
+| **Reward** | Points scored for what just happened |
+| **Policy** | The AI's strategy — "in situation X, do Y". The thing we're trying to learn. |
+| **Episode** | One complete 8-hour shift, start to finish |
+| **MDP** (Markov Decision Process) | The formal name for "states, actions, rewards, and how they connect". The maths version of the game. |
+| **Markov** | "The current state tells you everything you need — you don't need the full history." |
+| **Q-value** | "How good is taking action A in situation S, counting all future consequences?" |
+| **Bellman equation** | The rule saying a situation's value = immediate reward + value of wherever you land next |
+| **γ (gamma) / discount** | How much we care about the future vs right now. 0.99 = very patient. |
+| **ε (epsilon) / exploration** | How often the AI tries something random instead of its current best guess — so it doesn't get stuck on a mediocre strategy it found early |
+| **Dynamic Programming** | Solving for the perfect strategy by calculation — only possible if you know exactly how the world works |
+| **Model-free** | Learning by trial and error instead, without knowing the rules in advance. Q-learning is model-free. |
+| **DQN** | Q-learning where a neural network replaces the table, so it can handle situations too detailed to list out |
+| **Experience replay** | Storing past experiences and re-learning from them in random order, so training is stable |
+| **Target network** | A frozen copy of the network used as a reference, so the AI isn't chasing its own constantly-moving estimate |
+| **Policy gradient** | Learning the strategy directly instead of learning value estimates first |
+| **RLHF** | Learning the scoring system itself from human preferences instead of writing it by hand |
+| **Reward model** | The small model that predicts what a human would prefer. Our learned scorer. |
+| **Bradley–Terry** | The specific maths for turning "A beat B" comparisons into scores. Same idea as chess Elo ratings. |
+| **Reward hacking** | The AI finding a loophole that scores well but is actually bad |
+| **Baseline** | A simple method we compare against, to prove the fancy method was worth it |
+| **MTTD** | Mean Time To Detect — average delay before a real attack was found. Lower is better. |
+| **Seed** | A number fixing the randomness, so a run can be repeated exactly |
+
+---
+
+## Part 7 — What's built so far
+
+*This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
+
+### Session 1 — 2026-08-13 — Claude Opus 5
+
+**What:** Nothing runnable yet — this session set up documentation and project structure only.
+
+**Where:** All the `.md` files in the project root, plus empty `src/`, `tests/`, `config/`, `docs/` folders.
+
+**Why:** The project will be built across many AI sessions over ~6 weeks. Each new session starts with no memory of the last one. These documents are the memory. Without them, session 8 would rebuild things session 3 already decided, and — more importantly — neither student would be able to explain the code in an interview six months later.
+
+**How:** Followed the *AI Collaboration Field Guide*, which prescribes nine documents. Added this file (`EXPLAIN.md`) as a tenth, because all nine of the Field Guide's documents are technical, and there was no document meant for "explain it to me like I know nothing".
+
+---
+
+## Part 8 — Results so far
+
+*Every headline number goes here in plain English as soon as it exists. Format: what we measured, what we got, what it means, and what could be wrong with it.*
+
+**Nothing measured yet.**
+
+Planned first measurement (Phase 0 exit): the six baseline strategies compared on the same alert streams. Expectation — the oracle (which cheats by seeing the hidden answers) should be clearly best, and random clearly worst. If that doesn't happen, the simulator is broken.
+
+---
+
+## Part 9 — Things we know are wrong or unproven
+
+*Honest limitations. Add to this list the moment one is discovered — never at the end.*
+
+1. **The whole environment is simulated.** We have no real security-team data. Every result depends on our invented world being reasonable.
+2. **We deliberately built in the assumption that severity labels are a weak predictor** of whether an alert is real. It's grounded in what the industry reports, but it *is* the mechanism that lets our AI beat severity-sorting. If severity were a perfect predictor, sorting by it would already be optimal and there'd be no project. This has to be stated in the report.
+3. **Our human preference labels will come mostly from students**, not working analysts. So we're learning *our* idea of good triage, not a professional's.
+4. **One analyst, one shift.** Real teams have multiple people, shift handovers, and alerts that group together into a single incident. We model none of that.
