@@ -25,9 +25,11 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 - [x] Tests: env determinism under a fixed seed; reward accounting sums correctly; **`test_no_ground_truth_leakage`** (no observation ever encodes `is_true_incident`); action-4 never closes more than 10 *(7 tests passing)*
 - [x] Baseline comparison table over 5 seeds, written to `results/` *(E-002)*
 
-**Exit criterion:** `python scripts/run_baselines.py` prints a table of all 6 baselines × 5 metrics with mean ± std, and the oracle is strictly best on recall while random is worst.
+**Exit criterion (amended 2026-08-14, approved by Diya after reproducing E-002):** `python scripts/run_baselines.py` prints a table of the baselines × all metrics with mean ± std; the oracle is strictly best on mean recall; random and FIFO sit clearly at the bottom. *(Original wording said "random is worst" — E-002 showed FIFO is far worse (0.20 vs 0.46), for the textbook queueing reason that always serving the oldest item in an overloaded queue means serving expired deadlines. That is a finding, not a bug — see EXPERIMENT_LOG E-002 obs. 1.)*
 
-> If the oracle isn't clearly best or random isn't clearly worst, the environment is broken. Fix it before proceeding — everything downstream depends on this being right.
+> If the oracle isn't clearly best or the naive strategies aren't clearly at the bottom, the environment is broken. Fix it before proceeding — everything downstream depends on this being right.
+
+**✅ PHASE 0 COMPLETE — 2026-08-14.** Gate evidence: E-001 (calibration), E-002 (baseline table), 7 passing tests, human reproduction of the table by Diya.
 
 ---
 
