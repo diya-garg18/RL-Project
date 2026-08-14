@@ -60,7 +60,7 @@ Baselines never call `agent.update()` — they have nothing to learn. The `Agent
 
 ---
 
-## Flow C — Dynamic Programming (Phase 1) ⬜
+## Flow C — Dynamic Programming (Phase 1) ✅ *(built & verified 2026-08-14 — E-004; entry point scripts/run_dp.py; VI/PI agreed 100%)*
 
 ```
 scripts/run_dp.py

@@ -35,14 +35,16 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 ## Phase 1 — MDP formalisation & Dynamic Programming (Week 1, second half) — CO1, CO2
 
-- [ ] `agents/dp.py` — estimate `P̂(s'|s,a)` and `R̂(s,a)` by counting transitions over 50k random-policy episodes
-- [ ] Report state-coverage: how many of the 576 states were visited, and how often. Unvisited states must be handled explicitly (document the choice in `DECISIONS.md`).
-- [ ] Implement **value iteration** (and **policy iteration**) from scratch on the estimate
-- [ ] Plot the convergence curve (max value change per sweep)
-- [ ] Evaluate the DP policy in the real environment; add it to the baseline table
-- [ ] **For the report:** hand-work a 5-state Markov Reward Process on paper, show the Bellman equations explicitly, verify against code
+- [x] `agents/dp.py` — estimate `P̂(s'|s,a)` and `R̂(s,a)` by counting transitions over 50k random-policy episodes *(E-004)*
+- [x] Report state-coverage: 133/576 states, 589/2880 (s,a) pairs visited. Unvisited pairs handled explicitly as absorbing self-loops, reward 0 — **D-011**.
+- [x] Implement **value iteration** (and **policy iteration**) from scratch on the estimate *(VI 1075 sweeps; VI/PI agree 100%)*
+- [x] Plot the convergence curve (max value change per sweep) *(results/dp_convergence.png)*
+- [x] Evaluate the DP policy in the real environment; add it to the baseline table *(E-004)*
+- [ ] **For the report:** hand-work a 5-state Markov Reward Process on paper, show the Bellman equations explicitly, verify against code *(pen-and-paper task — left for the humans)*
 
-**Exit criterion:** value iteration converges (Δ < 1e-4), the DP policy beats severity-sort on recall@deadline, and `EXPLAIN.md` states plainly that this policy is optimal *for the estimated model*, not for the true environment.
+**Exit criterion (ORIGINAL):** value iteration converges (Δ < 1e-4), the DP policy beats severity-sort on recall@deadline, and `EXPLAIN.md` states plainly that this policy is optimal *for the estimated model*, not for the true environment.
+
+**⚠ EXIT NOT YET DECLARED — open decision for the humans (E-004).** VI converged (Δ 9.95e-05 ✓) and the "estimated-model, not true-environment" caveat is written. BUT the DP policy does **not** beat severity-sort on recall — it scores 0.43 vs 0.87, *because it reward-hacks*: ~97% BULK_CLOSE-as-paid-waiting + a few surgical severity strikes, which maximises the hand-written reward (DP reward 306 > oracle 214 > severity 154) while abandoning 57% of incidents. This is the brief §3.5 deliberate trap being sprung two phases early by exact planning — arguably the project's best RLHF-motivation finding, not a failure. **Same decision shape as the Phase 0 amendment:** restate the exit on total reward + log the hack as a headline result, OR treat it as a reward bug (the brief says the trap is intentional, so patching it would delete the Phase 5 motivation). Do NOT start Phase 2 until this is decided.
 
 ---
 

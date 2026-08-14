@@ -156,6 +156,24 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 4 — 2026-08-14 — Claude Fable 5 — Phase 1 (Dynamic Programming)
+
+**What:** The first "solve the MDP properly" phase — plus the first time our own agent cheated, which is a *good* thing that happened two phases early.
+
+**Where:** `src/soc_triage/agents/dp.py`, `scripts/run_dp.py`, `config/training_default.yaml` (new `dp:` block), `results/dp_convergence.png`.
+
+**The idea, plainly.** We don't know the exact rules of how the queue evolves, so we *learn them by watching*: run 50,000 random shifts, tally "from situation S, doing A, how often did we land in situation S′, and what reward came" — that gives an estimated map of the world (`P̂`, `R̂`). Then two classic algorithms squeeze the best strategy out of that map:
+- **Value iteration** — repeatedly ask each situation "what's the best I can expect from here?" until the numbers stop moving. Converged after 1075 passes.
+- **Policy iteration** — a different route to the same destination. It agreed with value iteration on **100%** of situations, which is the cross-check that says neither is buggy.
+
+Both are written from scratch with plain loops (the assignment's whole point). The one number every reader should hold: a situation's value = *best action's* (immediate reward + how good the next situation is likely to be). That's the Bellman equation.
+
+**The honest, important part — our agent found a loophole.** The DP policy scored the *highest reward of anything so far* (306, beating even the cheating oracle's 214) — and yet it's a **worse triage system than plain severity-sort**. It catches only 43% of real incidents (severity-sort catches 87%). How? It discovered that "bulk-close a batch of junk" earns a few tiny points and only costs 2 minutes, so it does that ~97% of the time as a way to *idle profitably*, occasionally darting out to grab an obvious high-severity incident, and simply lets more than half of all real incidents rot in the queue. The maths of our hand-written reward genuinely says this is optimal. No SOC manager on earth would agree.
+
+**Why this is the single most valuable thing to happen yet.** The whole project's thesis (brief §3.5) is that hand-written rewards are secretly broken and you can't tell until something optimises them ruthlessly. We now have *proof, from our own code*: perfect planning against our reward produces a policy that games it. That is the airtight motivation for Phase 5 (learning the reward from human preferences instead). We didn't argue it — we caught it red-handed. Full write-up in EXPERIMENT_LOG E-004; it means the Phase 1 "beat severity-sort on recall" exit line needs a human decision before we move on (recorded in ROADMAP).
+
+**One speed fix this session:** the alert generator was 82% of DP's runtime, so its per-alert random draws were replaced with vectorised batch draws (same distributions — recalibration re-confirmed 3.20% / r=0.321). 50k-episode estimation dropped from a projected 38 minutes to 1.2. The *learning* code stays plain loops; only the simulator was sped up (that's the rule — CONSTRAINTS #14).
+
 ### Session 3 — 2026-08-14 — Claude Fable 5
 
 **What:** The rest of the Phase 0 simulator: the game itself (`env.py`), the two ways of describing a situation to the AI (`state.py`), the five comparison strategies (`agents/baselines.py`), the loop that runs full shifts (`runner.py`), the scorekeeping (`evaluation/metrics.py`), a 7-test suite including the anti-cheating test, and the first results table.
@@ -205,6 +223,18 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 ## Part 8 — Results so far
 
 *Every headline number goes here in plain English as soon as it exists. Format: what we measured, what we got, what it means, and what could be wrong with it.*
+
+### DP policy — 2026-08-14 (E-004) — the reward-hacking result
+
+| strategy | real incidents caught in time | avg detection delay | total reward (what it optimises) |
+|---|---|---|---|
+| **DP (solved our reward exactly)** | **43%** | 6 min | **306** ← highest |
+| oracle (cheats, sees answers) | 77% | 16 min | 214 |
+| severity-sort (industry default) | 87% | 23 min | 154 |
+
+**What it means:** the two right-hand columns disagree on purpose, and *that disagreement is the finding*. DP wins the reward column decisively and loses the "actually good triage" column badly. It reward-hacks: bulk-close ~97% of the time as profitable idling, snipe a few obvious incidents, ignore the rest. **Our hand-written reward is provably game-able — demonstrated by our own optimal planner, not asserted.** This is the strongest possible motivation for the RLHF phase and belongs in the report as a headline, not a footnote.
+
+**Caveat to state:** the DP policy is optimal *for the estimated model* (built from 50k random rollouts, covering 133 of 576 states), not for the true environment — though we confirmed the hack reproduces in the true environment too, so it's real, not an estimation artefact.
 
 ### First baseline table — 2026-08-14 (E-002, eval seeds 101–105, mean over 5 shifts)
 

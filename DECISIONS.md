@@ -162,3 +162,19 @@
 **Alternatives rejected:** Full lookahead/planning over arrivals — no longer explainable in five minutes, and the ceiling it adds is not needed for the exit gate.
 
 **Consequences:** The oracle is a bound *in expectation over seeds*, not per-stream: on eval seed 101 it loses to severity-sort by one incident through end-game timing (an incident arriving at minute 464 while the oracle was mid-investigation). This caveat is documented in EXPLAIN.md and must accompany any use of the word "upper bound" in the report. Also note: severity-sort's 0.85 recall confirms the D-007 prediction that it is a strong opponent.
+
+---
+
+## D-011 — Unvisited (state, action) pairs in the DP estimate → absorbing self-loop, reward 0
+
+**Date:** 2026-08-14 · **Model:** Claude Fable 5 · **Phase:** 1 · **Status:** active
+
+**Decision:** For any (s, a) never observed in the 50k random-policy rollouts, set `P̂(s | s, a) = 1` (deterministic self-loop) and `R̂(s, a) = 0`, rather than a uniform prior or a pessimistic/optimistic constant.
+
+**Why:** ROADMAP requires unvisited states be handled *explicitly*, not left as silent zeros. With random-policy exploration only 589/2880 (s,a) pairs are ever seen — the unvisited ones are essentially unreachable under any sensible policy. A self-loop with reward 0 keeps their value pinned near 0, so value iteration never has a reason to *prefer* an unknown action; inventing transition mass toward real states would inject fiction into the Bellman backups.
+
+**Alternatives rejected:**
+- *Optimistic init (large +R̂)* — would lure the greedy policy into unexplored actions the model knows nothing about; the opposite of what we want from a reference policy.
+- *Uniform P̂ over all 576 states* — mathematically smooth but meaningless: it asserts knowledge (equiprobable transitions) we do not have.
+
+**Consequences:** The DP policy is only trustworthy on the visited core of the state space; on unvisited states it defaults toward low-value actions. This is acceptable for a reference ceiling but is another reason the DP "optimum" is optimum *for the estimated model* only (compounds D-004). If a later phase visits states DP never saw, its policy there is uninformed — note it if it ever matters.
