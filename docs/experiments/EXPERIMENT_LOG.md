@@ -58,7 +58,7 @@
 
 ## E-002 — baseline comparison — 2026-08-14
 
-**Status:** valid
+**Status:** SUPERSEDED by E-003 (generator vectorised for Phase 1 speed — same distributions, but RNG draw order changed, so the same seeds now produce different alert streams; per CONSTRAINTS #4 this entry stays, unedited below this line)
 **Config:** env_default.yaml @ 2c1d974 (hash 13dddbb15332)
 **Command:** `.\.venv\Scripts\python.exe scripts\run_baselines.py`
 **Seeds:** eval=[101..105] (baselines learn nothing, so no tuning risk; identical alert streams per seed = paired comparison)
@@ -80,3 +80,32 @@
 2. First oracle version scored 0.72 (below severity-sort) — two defects found and fixed (see D-010): no path-clearing for unreachable incidents, and an unconditional-bulk-close hygiene loop. Lesson: even a cheating baseline needs debugging.
 3. Per-seed pairing: oracle ≥ severity-sort on 4/5 seeds; loses seed 101 by one incident (id 143, arrival min 464/480 — end-game timing). "Upper bound" holds in expectation only.
 4. Severity-sort at 0.85 recall confirms D-007: it is the strong opponent, exactly as the calibration's severity-concentration predicted.
+
+---
+
+## E-003 — vectorised generator: recalibration + baseline re-run + 30-seed diagnostic — 2026-08-14
+
+**Status:** valid
+**Config:** env_default.yaml @ 6ab8032 (values unchanged from E-002; generator internals vectorised)
+**Commands:** `python scripts/calibrate_generator.py` · `python scripts/run_baselines.py` · 30-seed diagnostic (seeds 5000–5029, fresh block)
+**Runtime:** seconds each; estimation projection now 1.3 min for 50k episodes (was 37.6 min — the reason for the change; profile showed generate_shift at 82% of runtime)
+
+**Recalibration (seeds 1000–1099):** 168.7 alerts/shift · rate 3.20% · r = 0.321 — still in band, no retuning needed. Distributions unchanged by construction; only stream identities changed.
+
+**Baseline re-run (eval seeds, new streams):** severity_sort 0.87 recall, oracle 0.77 — **the E-002 "oracle strictly best on recall" conclusion did NOT survive the stream change.**
+
+**30-seed diagnostic (seeds 5000–5029, no tuning of anything):**
+| agent | recall | total reward | MTTD |
+|---|---|---|---|
+| severity_sort | **0.826 ± 0.148** | 50.6 | **26.5** |
+| oracle_greedy | 0.799 ± 0.199 | **145.0** | 38.7 |
+| random | 0.545 | −270.9 | 98.4 |
+| cheapest_first | 0.391 | −381.2 | 65.3 |
+| fifo | 0.141 | −702.2 | 198.6 |
+
+**Finding (the real content of this entry):** within the deliberately coarse 5-rule action space, perfect information does NOT yield the best recall@deadline — severity-sort's camp-on-severity-3 behaviour is near-unbeatable on that one metric because ~64% of incidents carry severity 3 (D-007). The oracle's information advantage shows decisively on **total reward** (145 vs 51 — the environment's actual objective, which also prices wasted time, asset criticality, and bulk hygiene) but not on recall. E-002's 0.86-vs-0.85 recall win was 5-seed noise.
+
+**Implications flagged for the humans:**
+1. The Phase 0 exit criterion's "oracle strictly best on recall" cannot be met robustly by any honest greedy oracle in this action space. Proposal: restate the oracle-dominance gate on **total reward** (objective-level), and record the recall finding as a feature of the design, not a failure.
+2. Phase 2's exit criterion ("Q-learning beats severity-sort on recall@deadline and MTTD") may be similarly optimistic on the recall half — the learnable headroom is concentrated in reward/wasted-minutes/composite-cost. Flagging now, deciding later with real Q-learning numbers in hand.
+3. FIFO-worst (E-002 obs. 1) reconfirmed at 30 seeds (0.141) — that amendment stands.

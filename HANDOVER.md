@@ -33,15 +33,14 @@ Nothing mid-flight.
 
 ## Broken / blocked
 
-**One open decision blocks formally closing Phase 0** (the code is done):
+**One open decision blocks the Phase 0 gate wording — again, and for a better-understood reason (E-003):**
 
-> The ROADMAP exit criterion says "random is clearly worst". Reality (E-002): **FIFO is worst by a mile** (recall 0.20 vs random's 0.46, MTTD 246 min). This is correct queueing behaviour, not a bug — always working the *oldest* alert in an overloaded queue means investigating things whose deadlines already expired. Proposed amendment: "oracle strictly best on mean recall; random and FIFO clearly at the bottom." **Needs Diya/Pranav sign-off before the criterion text is edited** (flagged in E-002, TEST_CHECKLIST, and EXPLAIN — nothing hidden).
+> After vectorising the generator (Phase 1 speed: 50k-episode estimation 37.6 → 1.3 min), the same seeds produce different alert streams. Recalibration still passes (rate 3.20%, r 0.321). But the baseline re-run + a 30-seed diagnostic showed **E-002's "oracle strictly best on recall" was 5-seed noise**: severity-sort wins recall robustly (0.826 vs 0.799 over 30 seeds) because ~64% of incidents carry severity 3; the oracle's truth advantage is decisive on **total reward** (145 vs 51) instead. Proposal awaiting Diya/Pranav: restate oracle dominance on total reward; keep the recall finding as a documented design feature. Phase 2's recall-based criterion flagged too (E-003 implication 2).
 
 ## Next session should do
 
-1. Get the exit-criterion decision above; update ROADMAP wording accordingly; declare Phase 0 complete.
-2. Start **Phase 1 — DP**: `agents/dp.py` — estimate P̂/R̂ from 50k random-policy episodes, report state coverage, then value iteration + policy iteration from scratch (Sutton & Barto §4.1–4.4 docstrings per CLAUDE.md).
-3. Runtime heads-up: 50k episodes × ~130 steps ≈ 6.5M steps. Time the estimation loop on 1k episodes first; if the full 50k projects to >10 min, ask before launching (CLAUDE.md rule).
+1. Get the E-003 gate decision; amend ROADMAP Phase 0 exit wording accordingly.
+2. Run **Phase 1 DP pipeline**: `agents/dp.py` is written and committed (estimation + VI + PI + DPAgent); `scripts/run_dp.py` still needs writing — estimation (~1.3 min for 50k), coverage report, convergence curve plot, VI-vs-PI agreement %, evaluation on eval seeds, DP row added to baselines table. Log as E-004, decide unvisited-state handling entry (already drafted as D-011 self-loop convention in dp.py docstring — needs a DECISIONS entry).
 
 ## Watch out for
 
