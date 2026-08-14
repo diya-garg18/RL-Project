@@ -10,20 +10,20 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 *Goal: a working simulator you can run a random agent against and get sensible numbers out of.*
 
-- [ ] `git init`, verify `.gitignore`
-- [ ] Create and activate a venv; install `requirements.txt`
-- [ ] `config.py` — load and validate `config/env_default.yaml` into typed objects; fail loudly on missing keys
-- [ ] `alerts.py` — the `Alert` dataclass (see `ARCHITECTURE.md` §4)
-- [ ] `generator.py` — Poisson arrivals; sample severity, asset criticality, verify cost, type; assign `is_true_incident` and `deadline_min`
-- [ ] **Calibration check:** write a script that generates 100 shifts and prints: alerts/shift, % true incidents, and the **Pearson correlation between severity and `is_true_incident`**. Tune the generator until incidence ≈ 3% and that correlation lands in **0.30–0.40**. Record the final numbers in `EXPLAIN.md`. *(This is the assumption the whole project rests on — §4.2 of the brief. Get it right and write it down.)*
-- [ ] `state.py` — `discretise(env_state) -> int` (0..575) and `featurise(env_state) -> np.ndarray`
-- [ ] `env.py` — `SOCTriageEnv` with `reset(seed)` and `step(action)`; the 5 actions; the reward function from brief §3.5; 480-minute termination
-- [ ] `agents/base.py` — the `Agent` interface: `act(state)`, `update(...)`, `save()`, `load()`
-- [ ] `agents/baselines.py` — random, FIFO, severity-sort, cheapest-first, oracle-greedy
-- [ ] `runner.py` — run N episodes, fixed seed, emit `EpisodeRecord` JSON
-- [ ] `evaluation/metrics.py` — MTTD, recall@deadline, wasted minutes, critical misses, composite cost
-- [ ] Tests: env determinism under a fixed seed; reward accounting sums correctly; **`test_no_ground_truth_leakage`** (no observation ever encodes `is_true_incident`); action-4 never closes more than 10
-- [ ] Baseline comparison table over 5 seeds, written to `results/`
+- [x] `git init`, verify `.gitignore`
+- [x] Create and activate a venv; install `requirements.txt` *(pinned after verified install; torch 2.13.0 works on Python 3.13)*
+- [x] `config.py` — load and validate `config/env_default.yaml` into typed objects; fail loudly on missing keys
+- [x] `alerts.py` — the `Alert` dataclass (see `ARCHITECTURE.md` §4)
+- [x] `generator.py` — Poisson arrivals; sample severity, asset criticality, verify cost, type; assign `is_true_incident` and `deadline_min`
+- [x] **Calibration check:** PASSED 2026-08-13, human-verified (E-001): 168.7 alerts/shift, 3.34% incidence, r=0.323; robust on two untuned seed blocks. Recorded in `EXPLAIN.md` Part 8.
+- [x] `state.py` — `discretise(env_state) -> int` (0..575) and `featurise(env_state) -> np.ndarray`
+- [x] `env.py` — `SOCTriageEnv` with `reset(seed)` and `step(action)`; the 5 actions; the reward function from brief §3.5; 480-minute termination
+- [x] `agents/base.py` — the `Agent` interface: `act(state)`, `update(...)`, `save()`, `load()`
+- [x] `agents/baselines.py` — random, FIFO, severity-sort, cheapest-first, oracle-greedy
+- [x] `runner.py` — run N episodes, fixed seed, emit `EpisodeRecord` JSON
+- [x] `evaluation/metrics.py` — MTTD, recall@deadline, wasted minutes, critical misses, composite cost
+- [x] Tests: env determinism under a fixed seed; reward accounting sums correctly; **`test_no_ground_truth_leakage`** (no observation ever encodes `is_true_incident`); action-4 never closes more than 10 *(7 tests passing)*
+- [x] Baseline comparison table over 5 seeds, written to `results/` *(E-002)*
 
 **Exit criterion:** `python scripts/run_baselines.py` prints a table of all 6 baselines × 5 metrics with mean ± std, and the oracle is strictly best on recall while random is worst.
 

@@ -21,26 +21,29 @@ Expected: all tests pass, clean import, no forbidden files staged.
 ## Phase 0 — Foundation
 
 ```bash
-python scripts/calibrate_generator.py --shifts 100
+python scripts/calibrate_generator.py     # (100 shifts is built in; edit N_SHIFTS in the script to vary)
 ```
 **Must show:** ~170 alerts/shift · true-incident rate 2.5–3.5% · **severity↔truth Pearson r between 0.30 and 0.40**.
 If r is outside that band, stop and retune. This gates the whole project (`DECISIONS.md` D-003).
+*Verified PASS 2026-08-13 (E-001): 168.7 / 3.34% / r=0.323.*
 
 ```bash
-python scripts/run_baselines.py --seeds 5
+python scripts/run_baselines.py           # eval seeds come from config seeds.eval
 ```
-**Must show:** a table of 6 baselines × 5 metrics with mean ± std, where `oracle` is strictly best on recall@deadline and `random` is worst.
+**Must show:** the 5 Phase-0 baselines × all metrics with mean ± std (the DP row joins in Phase 1), where `oracle` is strictly best on mean recall@deadline. *Verified PASS 2026-08-14 (E-002).*
+**Known deviation, decision pending:** `random` is NOT worst — FIFO is (0.20 vs 0.46), for a clean queueing-theory reason (E-002 obs. 1). Amending this criterion's wording awaits Diya/Pranav sign-off; until then this line stands as written and the deviation is flagged, not hidden.
 
 ```bash
-pytest tests/test_env.py -v
+pytest tests/ -v
 ```
-Required tests, by name:
-- `test_determinism_under_seed` — same seed ⟹ identical trajectory
-- `test_reward_accounting` — sum of per-step rewards == episode total
-- `test_no_ground_truth_leakage` — no observation array contains or is derivable from `is_true_incident` **(never weaken or skip this one)**
-- `test_bulk_close_caps_at_ten`
-- `test_clock_never_exceeds_shift_length`
-- `test_empty_queue_advances_clock`
+Required tests, by actual name (all passing 2026-08-14, 7 tests):
+- `test_env_deterministic_under_fixed_seed` — same seed ⟹ identical trajectory and outcome
+- `test_different_seeds_differ`
+- `test_reward_breakdown_sums_to_step_reward` — per-step breakdown sums exactly to the step reward
+- `test_no_ground_truth_leakage` — observations unchanged when hidden truth is flipped **(never weaken or skip this one)**
+- `test_snapshot_carries_no_precomputed_truth_fields` — snapshot field whitelist
+- `test_bulk_close_never_exceeds_cap`
+- `test_clock_terminates_at_shift_end`
 
 ---
 

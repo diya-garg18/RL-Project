@@ -8,7 +8,7 @@
 
 ---
 
-## Flow A — One training run ⬜
+## Flow A — One training run ⬜ *(env/runner/encoders built & tested 2026-08-14; runner has the learn=True hook; scripts/train.py itself arrives with the first learning agent)*
 
 The main loop. Everything else is a variation on this.
 
@@ -45,7 +45,7 @@ scripts/train.py
 
 ---
 
-## Flow B — Baseline evaluation ⬜
+## Flow B — Baseline evaluation ✅ *(built & verified 2026-08-14 — E-002; entry point is scripts/run_baselines.py, table lands in results/baselines.md)*
 
 ```
 scripts/run_baselines.py

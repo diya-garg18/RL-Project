@@ -156,6 +156,22 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 3 — 2026-08-14 — Claude Fable 5
+
+**What:** The rest of the Phase 0 simulator: the game itself (`env.py`), the two ways of describing a situation to the AI (`state.py`), the five comparison strategies (`agents/baselines.py`), the loop that runs full shifts (`runner.py`), the scorekeeping (`evaluation/metrics.py`), a 7-test suite including the anti-cheating test, and the first results table.
+
+**Where:** `src/soc_triage/` (env, state, runner, agents/, evaluation/), `tests/`, `scripts/run_baselines.py`, table in `results/baselines.md`.
+
+**Why / how, per piece:**
+
+- **`state.py`** answers "what does the AI get to see?" Two answers: a single number 0–575 (situation bucketed five ways — worst severity present, queue size, oldest wait, time left, most valuable server involved) for the table-based methods; and a 17-number vector (averages, extremes, queue composition) for the neural methods. One shared `bucket()` helper so every boundary works identically.
+- **`env.py`** is the game. It owns the clock, the queue, and the hidden answers. Each turn: apply the chosen strategy to the current queue, spend the minutes, let newly-arrived alerts in, score the move. Three scoring details the brief left open are now fixed and explained (DECISIONS D-009): delay is counted when you *start* investigating; end-of-shift punishment only for real incidents whose deadline actually expired during the shift; a bulk-closed real incident is punished once, not twice.
+- **The anti-cheating test** (`test_no_ground_truth_leakage`) walks a whole episode, flips the hidden truth on every alert, and proves both state encodings don't change by a single bit. A second test locks the snapshot's field list so nobody can quietly add a leaky field later.
+- **`baselines.py`** — the five reference strategies, including the two that matter: **severity-sort** (the industry default, the one to beat) and the **oracle** (allowed to see the hidden answers — the cheating ceiling).
+- **`runner.py` + `metrics.py`** — run shifts, write every episode to JSON, compute the five report metrics including a rupee-denominated composite cost whose assumptions are config values, not buried constants.
+
+**The honest story of this session — the oracle needed debugging twice.** First version lost to severity-sort (0.72 vs 0.85 recall): a real incident that never becomes any rule's top pick can sit untouched all shift, and the oracle also had a loop where it endlessly tidied junk instead of clearing a path to a blocked incident. Fixed by "path-clearing": find the rule the incident is *closest* to topping, and pull along that path until it surfaces. Final: oracle 0.86, severity-sort 0.85. Even a cheating baseline is code, and code has bugs — we found ours by refusing to accept a nonsensical result (CONSTRAINTS #5 in action, on ourselves).
+
 ### Session 2 — 2026-08-13 — Claude Fable 5
 
 **What:** The project's first real code: the config loader, the Alert record, the alert generator, and the calibration script that proves the generator behaves. Also: git repository created (6 commits), Python environment installed and version-pinned.
@@ -189,6 +205,22 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 ## Part 8 — Results so far
 
 *Every headline number goes here in plain English as soon as it exists. Format: what we measured, what we got, what it means, and what could be wrong with it.*
+
+### First baseline table — 2026-08-14 (E-002, eval seeds 101–105, mean over 5 shifts)
+
+| strategy | % of real incidents caught in time | avg detection delay |
+|---|---|---|
+| **oracle (cheats)** | **86%** | 41 min |
+| severity-sort (industry default) | 85% | 37 min |
+| random | 46% | 79 min |
+| cheapest-first | 47% | 55 min |
+| FIFO (oldest first) | **20%** | 246 min |
+
+**What it means:** the world behaves sensibly — the cheater wins, and sorting by severity is genuinely strong here (predicted consequence of our calibration: most real incidents carry the top severity label). The gap the learning agent must exploit is the 14% of incidents severity-sort misses, plus its wasted time and delays.
+
+**Two honest caveats, written before anyone asks:**
+1. **FIFO scored *below random*.** Not a bug — with time to work only ~20% of the queue, always taking the *oldest* alert means investigating things whose deadlines already passed (4-hour average delay). It's the cleanest illustration of why triage exists. The roadmap's exit line "random is clearly worst" was written before this was understood; the amendment is awaiting Diya/Pranav's sign-off.
+2. **The oracle is a ceiling on average, not on every single day.** On one of the five evaluation shifts it caught one fewer incident than severity-sort — an incident arrived 16 minutes before closing time while the oracle was mid-investigation. Greedy, no crystal ball for arrivals. Say "upper bound in expectation".
 
 ### Generator calibration — 2026-08-13 — PASSED (checked by Diya)
 
