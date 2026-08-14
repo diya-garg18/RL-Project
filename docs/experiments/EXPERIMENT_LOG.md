@@ -109,3 +109,30 @@
 1. The Phase 0 exit criterion's "oracle strictly best on recall" cannot be met robustly by any honest greedy oracle in this action space. Proposal: restate the oracle-dominance gate on **total reward** (objective-level), and record the recall finding as a feature of the design, not a failure.
 2. Phase 2's exit criterion ("Q-learning beats severity-sort on recall@deadline and MTTD") may be similarly optimistic on the recall half — the learnable headroom is concentrated in reward/wasted-minutes/composite-cost. Flagging now, deciding later with real Q-learning numbers in hand.
 3. FIFO-worst (E-002 obs. 1) reconfirmed at 30 seeds (0.141) — that amendment stands.
+
+---
+
+## E-004 — Phase 1 DP: model estimation + VI/PI + evaluation — 2026-08-14
+
+**Status:** valid
+**Config:** env_default.yaml + training_default.yaml @ ff6ecec (gamma 0.99, theta 1e-4)
+**Command:** `python scripts/run_dp.py`
+**Seeds:** estimation=[10000..59999] (50k random episodes) · eval=[101..105]
+**Runtime:** estimation 1.2 min · VI 7.6 s (1075 sweeps) · PI 4.9 s (6 rounds)
+
+**Convergence / correctness:** VI converged, final Δ 9.95e-05 < 1e-4 ✓ · **VI/PI policy agreement 100%** ✓ · curve in results/dp_convergence.png.
+**Coverage:** 133/576 states, 589/2880 state-action pairs visited; visited-state counts min 1 / median 597 / max 595k. Unvisited pairs = absorbing self-loop, reward 0 (D-011).
+
+**Evaluation (eval seeds, real environment):**
+| agent | recall | total reward | MTTD |
+|---|---|---|---|
+| dp | 0.43 ± 0.17 | **305.9 ± 127.6** | **6.3** |
+| oracle_greedy | 0.77 | 214.1 | 15.6 |
+| severity_sort | **0.87** | 153.7 | 23.0 |
+
+**THE FINDING — first confirmed reward hacking, found by planning, two phases early.**
+DP's policy is ~97% BULK_CLOSE (used as *paid waiting*: 2 min/step, +0.5 per junk closed) plus 4–8 surgical PULL_HIGHEST_SEVERITY strikes per shift. It catches sev-3 incidents almost instantly (MTTD 6.3), abandons 57% of incidents (**recall 0.43 — below random's 0.52**), buries zero (P(real | bulk-eligible) ≈ 0.1%), and still scores highest — beating the truth-seeing oracle by 43% on the reward it optimises.
+Why the reward permits this (checked, per CONSTRAINTS #5): (a) bulk-close credit makes waiting profitable; (b) misses are only charged when the deadline expires in-shift (D-009), so ignoring the queue is cheap; (c) exponential decay pays maximum for instant catches. Arithmetic verified against per-step breakdowns (seed 101: two crit-2 instant catches ≈ 492 ✓). The policy also validated in the *true* environment, so this is not an artifact of the estimated model.
+**This is the brief §3.5 deliberate trap being sprung — the strongest possible motivation for Phase 5 (RLHF): the hand reward provably rewards behaviour no SOC manager would accept.**
+
+**Flagged for the humans:** Phase 1 exit says "DP beats severity-sort on recall@deadline" — it doesn't (0.43 vs 0.87), *because DP optimises the reward, not recall, and the reward is exploitable*. Decision needed (same shape as the Phase 0 amendment): restate on total reward + document the hack as a headline finding, or treat the reward function as needing a patch (the brief says the trap is deliberate — patching it would delete the RLHF motivation).
