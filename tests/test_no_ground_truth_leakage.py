@@ -30,27 +30,31 @@ def _flip_hidden_fields(snap: EnvSnapshot) -> EnvSnapshot:
 def test_no_ground_truth_leakage(cfg):
     """Both encoders must be blind to is_true_incident and deadline_min.
 
-    Walked through a real episode (random actions, fixed seed) so the check
-    covers many genuine queue states, not one artificial example.
+    Walked through three real episodes (random actions, fixed seeds) so the
+    check covers many genuine queue states, not one artificial example. The
+    per-state assertions are the integrity check; the floor at the end only
+    guards against the walk silently checking too few states (a single
+    episode's step count varies with the action mix, so three episodes).
     """
     env = SOCTriageEnv(cfg)
     rng = np.random.default_rng(0)
-    snap = env.reset(seed=1)
 
     checked = 0
-    done = False
-    while not done:
-        flipped = _flip_hidden_fields(snap)
-        assert discretise(snap, cfg) == discretise(flipped, cfg), (
-            "discretise() changed when only hidden ground truth changed — LEAK"
-        )
-        assert np.array_equal(featurise(snap, cfg), featurise(flipped, cfg)), (
-            "featurise() changed when only hidden ground truth changed — LEAK"
-        )
-        checked += 1
-        snap, _, done, _ = env.step(int(rng.integers(0, 5)))
+    for episode_seed in (1, 2, 3):
+        snap = env.reset(seed=episode_seed)
+        done = False
+        while not done:
+            flipped = _flip_hidden_fields(snap)
+            assert discretise(snap, cfg) == discretise(flipped, cfg), (
+                "discretise() changed when only hidden ground truth changed — LEAK"
+            )
+            assert np.array_equal(featurise(snap, cfg), featurise(flipped, cfg)), (
+                "featurise() changed when only hidden ground truth changed — LEAK"
+            )
+            checked += 1
+            snap, _, done, _ = env.step(int(rng.integers(0, 5)))
 
-    assert checked > 50, f"only {checked} states checked — episode ended suspiciously early"
+    assert checked > 100, f"only {checked} states checked across 3 episodes — walk is broken"
 
 
 def test_snapshot_carries_no_precomputed_truth_fields():

@@ -38,54 +38,60 @@ def generate_shift(cfg: EnvConfig, seed: int) -> list[Alert]:
 
     # Poisson process: exponential(1/λ) gaps between consecutive arrivals
     # (standard queueing theory: the inter-arrival times of a Poisson process
-    # are exponentially distributed).
-    arrival_times: list[float] = []
-    t = rng.exponential(1.0 / cfg.arrivals.rate_per_min)
-    while t < cfg.shift.length_min:
-        arrival_times.append(t)
-        t += rng.exponential(1.0 / cfg.arrivals.rate_per_min)
+    # are exponentially distributed). Drawn in chunks and cumulative-summed —
+    # vectorised because profiling showed per-alert draws were 82% of episode
+    # runtime (CONSTRAINTS #14: optimise the simulator, not the algorithms).
+    mean_gap = 1.0 / cfg.arrivals.rate_per_min
+    chunk = int(cfg.shift.length_min * cfg.arrivals.rate_per_min * 1.5) + 50
+    gaps = rng.exponential(mean_gap, size=chunk)
+    while gaps.sum() < cfg.shift.length_min:  # astronomically rare undershoot
+        gaps = np.concatenate([gaps, rng.exponential(mean_gap, size=chunk)])
+    arrivals_all = np.cumsum(gaps)
+    arrival_times = arrivals_all[arrivals_all < cfg.shift.length_min]
+    n = len(arrival_times)
 
+    # One vectorised draw per feature — same distributions as the per-alert
+    # version, so calibration properties are unchanged (re-verified in E-003).
+    severities = rng.choice(cfg.severity.levels, size=n, p=cfg.severity.prior)
+    criticalities = rng.choice(cfg.asset_criticality.levels, size=n, p=cfg.asset_criticality.prior)
+    verify_costs = rng.choice(cfg.verify_cost_min.options, size=n, p=cfg.verify_cost_min.prior)
     type_names = [at.name for at in cfg.alert_types]
     type_priors = [at.prior for at in cfg.alert_types]
     type_lift = {at.name: at.incident_lift for at in cfg.alert_types}
+    types = rng.choice(type_names, size=n, p=type_priors)
+
+    # Truth model (D-007): multiplicative lifts on the base rate, capped.
+    severity_lift = np.array(cfg.incident.severity_lift)
+    asset_lift = np.array(cfg.incident.asset_lift)
+    type_lift_arr = np.array([type_lift[t] for t in types])
+    p_true = (
+        cfg.incident.base_rate
+        * type_lift_arr
+        * severity_lift[severities]
+        * asset_lift[criticalities]
+    )
+    is_true = rng.random(n) < np.minimum(p_true, _P_TRUE_CAP)
+
+    # Dwell deadline only exists for real incidents; false positives get 0.0
+    # (documented as meaningless for them — alerts.py).
+    deadlines = np.where(
+        is_true,
+        rng.uniform(cfg.incident.dwell_deadline_low_min, cfg.incident.dwell_deadline_high_min, size=n),
+        0.0,
+    )
 
     alerts: list[Alert] = []
-    for alert_id, arrival in enumerate(arrival_times):
-        # Independent draws from the config priors. Realism note: features are
-        # sampled independently; only the *truth* depends on their combination.
-        severity = int(rng.choice(cfg.severity.levels, p=cfg.severity.prior))
-        criticality = int(rng.choice(cfg.asset_criticality.levels, p=cfg.asset_criticality.prior))
-        verify_cost = int(rng.choice(cfg.verify_cost_min.options, p=cfg.verify_cost_min.prior))
-        alert_type = str(rng.choice(type_names, p=type_priors))
-
-        p_true = (
-            cfg.incident.base_rate
-            * type_lift[alert_type]
-            * cfg.incident.severity_lift[severity]
-            * cfg.incident.asset_lift[criticality]
-        )
-        is_true = bool(rng.random() < min(p_true, _P_TRUE_CAP))
-
-        # Dwell deadline only exists for real incidents. False positives get
-        # 0.0 — the field is documented as meaningless for them (alerts.py).
-        if is_true:
-            deadline = float(
-                rng.uniform(cfg.incident.dwell_deadline_low_min, cfg.incident.dwell_deadline_high_min)
-            )
-        else:
-            deadline = 0.0
-
+    for alert_id in range(n):
         alerts.append(
             Alert(
                 id=alert_id,
-                arrival_time=float(arrival),
-                severity=severity,
-                asset_criticality=criticality,
-                verify_cost_min=verify_cost,
-                alert_type=alert_type,
-                is_true_incident=is_true,
-                deadline_min=deadline,
+                arrival_time=float(arrival_times[alert_id]),
+                severity=int(severities[alert_id]),
+                asset_criticality=int(criticalities[alert_id]),
+                verify_cost_min=int(verify_costs[alert_id]),
+                alert_type=str(types[alert_id]),
+                is_true_incident=bool(is_true[alert_id]),
+                deadline_min=float(deadlines[alert_id]),
             )
         )
-
     return alerts

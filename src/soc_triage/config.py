@@ -358,3 +358,68 @@ def _validate(cfg: EnvConfig) -> None:
     overlap = set(cfg.seeds.train) & set(cfg.seeds.eval)
     if overlap:
         raise ConfigError(f"train and eval seeds must be disjoint; both contain {sorted(overlap)}")
+
+
+# ---------------------------------------------------------------------------
+# Training configuration (config/training_default.yaml).
+# Loaded section-by-section as phases need them — no building ahead. Phase 1
+# needs `common` and `dp` only.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CommonTrainingConfig:
+    gamma: float
+    n_episodes: int
+    eval_every: int
+    log_smoothing_window: int
+
+
+@dataclass(frozen=True)
+class DPConfig:
+    n_estimation_episodes: int
+    estimation_seed_start: int
+    value_iteration_theta: float
+    policy_eval_theta: float
+    max_sweeps: int
+
+
+@dataclass(frozen=True)
+class TrainingConfig:
+    common: CommonTrainingConfig
+    dp: DPConfig
+
+
+def load_training_config(path: str | Path) -> TrainingConfig:
+    """Read the training YAML; validate the sections Phase 1 uses."""
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ConfigError(f"config file {path} did not parse to a mapping")
+
+    common_raw = _require(raw, "common", "training")
+    common = CommonTrainingConfig(
+        gamma=float(_require(common_raw, "gamma", "common")),
+        n_episodes=int(_require(common_raw, "n_episodes", "common")),
+        eval_every=int(_require(common_raw, "eval_every", "common")),
+        log_smoothing_window=int(_require(common_raw, "log_smoothing_window", "common")),
+    )
+
+    dp_raw = _require(raw, "dp", "training")
+    dp = DPConfig(
+        n_estimation_episodes=int(_require(dp_raw, "n_estimation_episodes", "dp")),
+        estimation_seed_start=int(_require(dp_raw, "estimation_seed_start", "dp")),
+        value_iteration_theta=float(_require(dp_raw, "value_iteration_theta", "dp")),
+        policy_eval_theta=float(_require(dp_raw, "policy_eval_theta", "dp")),
+        max_sweeps=int(_require(dp_raw, "max_sweeps", "dp")),
+    )
+
+    if not 0.0 < common.gamma <= 1.0:
+        raise ConfigError("'common.gamma' must be in (0, 1]")
+    if dp.value_iteration_theta <= 0 or dp.policy_eval_theta <= 0:
+        raise ConfigError("DP convergence thresholds must be positive")
+    if dp.estimation_seed_start < 10_000:
+        raise ConfigError(
+            "'dp.estimation_seed_start' must be >= 10000 to stay clear of the "
+            "train (1-10), eval (101-105), and calibration (1000-3099) seed blocks"
+        )
+    return TrainingConfig(common=common, dp=dp)

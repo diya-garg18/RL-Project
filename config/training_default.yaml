@@ -14,6 +14,13 @@ epsilon:
                        # so a fully greedy agent stops adapting.
   decay: 0.9995        # per episode
 
+dp:                              # Phase 1 — model-based DP on an estimated model (D-004)
+  n_estimation_episodes: 50000   # random-policy rollouts for counting P-hat / R-hat
+  estimation_seed_start: 10000   # seeds 10000..59999 — disjoint from train/eval/calibration blocks
+  value_iteration_theta: 1.0e-4  # convergence threshold on max value change (ROADMAP exit)
+  policy_eval_theta: 1.0e-4      # same threshold for policy-iteration's evaluation step
+  max_sweeps: 5000               # hard stop so a non-converging run fails loudly, not forever
+
 monte_carlo:
   alpha: 0.05
   first_visit: true
