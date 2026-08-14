@@ -53,13 +53,24 @@ def main() -> None:
 
     print(table)
 
-    # The exit-criterion checks, stated loudly rather than silently assumed.
+    # The exit-criterion checks (ROADMAP Phase 0, as amended 2026-08-14 per
+    # E-003): oracle dominance is stated on total reward — the MDP's objective —
+    # because recall@deadline structurally favours severity-camping (D-007).
+    rewards = {n: s["total_reward"]["mean"] for n, s in summaries.items()}
     recalls = {n: s["recall_at_deadline"]["mean"] for n, s in summaries.items()}
-    oracle_best = all(recalls["oracle_greedy"] > v for n, v in recalls.items() if n != "oracle_greedy")
-    random_worst = all(recalls["random"] <= v for n, v in recalls.items() if n != "random")
+    oracle_best = all(rewards["oracle_greedy"] > v for n, v in rewards.items() if n != "oracle_greedy")
+    # Informed strategies (see queue signal) must clearly beat uninformed ones
+    # on recall. cheapest_first counts as uninformed here: it optimises
+    # throughput and ignores every signal about which alerts matter.
+    informed = ("severity_sort", "oracle_greedy")
+    uninformed = ("random", "fifo", "cheapest_first")
+    informed_floor = min(recalls[n] for n in informed)
+    uninformed_ceiling = max(recalls[n] for n in uninformed)
+    separated = informed_floor > uninformed_ceiling
     print()
-    print(f"oracle strictly best on recall : {'PASS' if oracle_best else 'FAIL'}  ({recalls})")
-    print(f"random worst on recall         : {'PASS' if random_worst else 'FAIL'}")
+    print(f"oracle strictly best on total reward : {'PASS' if oracle_best else 'FAIL'}  ({ {n: round(v, 1) for n, v in rewards.items()} })")
+    print(f"informed >> uninformed on recall     : {'PASS' if separated else 'FAIL'}  "
+          f"(informed floor {informed_floor:.2f} vs uninformed ceiling {uninformed_ceiling:.2f})")
 
     out = ROOT / "results" / "baselines.md"
     out.write_text(table + "\n", encoding="utf-8")

@@ -25,11 +25,11 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 - [x] Tests: env determinism under a fixed seed; reward accounting sums correctly; **`test_no_ground_truth_leakage`** (no observation ever encodes `is_true_incident`); action-4 never closes more than 10 *(7 tests passing)*
 - [x] Baseline comparison table over 5 seeds, written to `results/` *(E-002)*
 
-**Exit criterion (amended 2026-08-14, approved by Diya after reproducing E-002):** `python scripts/run_baselines.py` prints a table of the baselines × all metrics with mean ± std; the oracle is strictly best on mean recall; random and FIFO sit clearly at the bottom. *(Original wording said "random is worst" — E-002 showed FIFO is far worse (0.20 vs 0.46), for the textbook queueing reason that always serving the oldest item in an overloaded queue means serving expired deadlines. That is a finding, not a bug — see EXPERIMENT_LOG E-002 obs. 1.)*
+**Exit criterion (amended twice — 2026-08-14, both approved by Diya):** `python scripts/run_baselines.py` prints a table of the baselines × all metrics with mean ± std; **the oracle is strictly best on mean total reward** (the MDP's objective); random and FIFO sit clearly at the bottom on recall. *(First amendment: "random is worst" → FIFO is far worse, textbook overloaded-queue behaviour — E-002 obs. 1. Second amendment: "oracle strictly best on recall" → E-003 showed that in this deliberately coarse action space no honest greedy oracle can reliably out-recall severity-camping (64% of incidents are sev-3 by construction, D-007); the oracle's information advantage is decisive on total reward instead (145 vs 51 over 30 seeds). Both are findings about the design, documented, not bugs.)*
 
-> If the oracle isn't clearly best or the naive strategies aren't clearly at the bottom, the environment is broken. Fix it before proceeding — everything downstream depends on this being right.
+> If the oracle isn't clearly best on total reward or the naive strategies aren't clearly at the bottom, the environment is broken. Fix it before proceeding — everything downstream depends on this being right.
 
-**✅ PHASE 0 COMPLETE — 2026-08-14.** Gate evidence: E-001 (calibration), E-002 (baseline table), 7 passing tests, human reproduction of the table by Diya.
+**✅ PHASE 0 COMPLETE — 2026-08-14.** Gate evidence: E-001 (calibration), E-003 (baselines + 30-seed diagnostic, superseding E-002), 7 passing tests, human reproduction of the table by Diya, gate wording approved by Diya.
 
 ---
 
