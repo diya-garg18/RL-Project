@@ -13,7 +13,7 @@
 | **Last session** | 2026-08-16 (session 5) |
 | **Model** | Claude Opus 5 |
 | **Current phase** | **Phase 2 — tabular model-free RL. Not started.** Phases 0 and 1 both closed. |
-| **Repo state** | Device migrated to `D:\RLPROJECT`. Committed locally; **not yet pushed** — see "Next session should do" #1. |
+| **Repo state** | Device migrated to `D:\RLPROJECT`. Committed **and pushed** to `origin/master` (github.com/diya-garg18/RL-Project) at `a14a0bb`. In sync. |
 | **Tests passing** | **14/14** (`pytest tests/ -q`) — was 7, plus 7 new in `test_mrp_bellman.py` |
 | **Blockers** | **None.** The Phase 1 gate decision that blocked session 4 is resolved (D-012). |
 
@@ -50,15 +50,15 @@ Two things are *owed* but block nothing:
 
 ## Next session should do
 
-1. **Push to `origin/master`.** This session committed locally but did not push — the remote is still at `38ee87d`. `git push origin master`.
-2. **Start Phase 2 — tabular model-free RL.** `agents/monte_carlo.py` (first-visit MC control), `agents/sarsa.py` (on-policy TD), `agents/q_learning.py` (off-policy TD with ε-decay). All by hand, plain loops, ε-greedy. `runner.run_episode(learn=True)` is already the training hook. `scripts/train.py` needs writing.
-3. Then: learning curves over 5 seeds, convergence comparison against the DP Q-table (max-norm distance + policy agreement %), the printed policy table (headline viva figure), the α/γ/ε ablations, and `tests/test_tabular.py` with the hand-checkable 2-state MDP.
+1. **Start Phase 2 — tabular model-free RL.** `agents/monte_carlo.py` (first-visit MC control), `agents/sarsa.py` (on-policy TD), `agents/q_learning.py` (off-policy TD with ε-decay). All by hand, plain loops, ε-greedy. `runner.run_episode(learn=True)` is already the training hook. `scripts/train.py` needs writing.
+2. Then: learning curves over 5 seeds, convergence comparison against the DP Q-table (max-norm distance + policy agreement %), the printed policy table (headline viva figure), the α/γ/ε ablations, and `tests/test_tabular.py` with the hand-checkable 2-state MDP.
 
 ## Watch out for
 
 - **Expect the bulk-close reward hack to reappear in Phase 2.** Q-learning maximises the same exploitable reward DP did. If it does recur, that is a *result*, not a bug — it demonstrates the pathology lives in the reward rather than in any one algorithm, which is the report's spine (DP hacks → Q-learning hacks → RLHF fixes). `ROADMAP.md` Phase 2's exit criterion is **flagged but deliberately not pre-emptively weakened** — run it first, decide on real numbers, exactly as Phases 0 and 1 did.
 - **The DP reward number must never be quoted without its recall beside it** (D-012). 305.9 reward with 0.43 recall is the finding; 305.9 alone is misleading.
 - **Stray zero-byte files are still appearing.** Two more this session (`This`, `V(QUIET)` — created 12:53 and 12:57, deleted before commit), same phenomenon session 4 hit. Root cause **not** confirmed; the pattern is that something in the tooling chain interprets a `>` inside written content as a shell redirect. Mitigation stands: **`git add <explicit paths>`, never `git add -A`**, and check `git status` for oddly-named 0-byte files before every commit.
+- **The default branch is `master`, not `main`.** The remote has exactly one head (`refs/heads/master`). If someone asks to "push to main", that means `master` here — don't create a second branch and split the history.
 - **`mrp_example.py` uses γ = 0.9, not the project's 0.99.** Deliberate (keeps the hand arithmetic an exact fraction, 52/11). Don't "fix" it to match config.
 - **If `test_mrp_bellman.py` ever fails, fix `agents/dp.py` — never the expected values.** They came from a human with a pen; editing them to make the test pass destroys the only external correctness anchor Phase 1 has.
 - Seeds: train 1–10, eval 101–105, calibration 1000–3099, DP estimation 10000–59999. Any new purpose gets a fresh disjoint block (config enforces train/eval disjointness in code).
