@@ -84,6 +84,42 @@ def test_q_table_starts_at_zero():
     assert np.count_nonzero(_toy_agent().Q) == 0
 
 
+def test_visits_are_counted_per_state_action():
+    """The agent records how often it has updated each (s,a).
+
+    Needed for honesty in the policy table, not for learning. Of the 576 states,
+    most are never reached; their Q rows stay all-zero and `argmax` falls to the
+    tie-break, action 0. Printed without a visit count that renders as a
+    confident wall of PULL_HIGHEST_SEVERITY which the agent never actually
+    chose — a figure that would mislead a reader and an examiner equally.
+    """
+    agent = _toy_agent()
+    assert agent.visits.shape == (N_TINY_STATES, N_TINY_ACTIONS)
+    assert agent.visits.sum() == 0
+
+    agent.update(QUIET, WAIT, 1.0, QUIET, False)
+    agent.update(QUIET, WAIT, 1.0, QUIET, False)
+    agent.update(BUSY, WORK, 4.0, QUIET, False)
+
+    assert agent.visits[QUIET, WAIT] == 2
+    assert agent.visits[BUSY, WORK] == 1
+    assert agent.visits[QUIET, WORK] == 0
+    assert agent.visits[BUSY, WAIT] == 0
+
+
+def test_unvisited_states_are_reported_as_unvisited_not_as_action_zero():
+    """A state the agent never saw must be distinguishable from one it chose 0 for.
+
+    This is the assertion that keeps the headline policy table honest.
+    """
+    agent = _toy_agent()
+    agent.update(QUIET, WAIT, 1.0, QUIET, False)
+
+    assert agent.visits[QUIET].sum() > 0
+    assert agent.visits[BUSY].sum() == 0, "BUSY was never visited and must read as such"
+    assert agent.greedy_policy()[BUSY] == 0, "argmax still returns 0 — which is why the count matters"
+
+
 def test_epsilon_decays_geometrically_and_stops_at_the_floor():
     """One decay per episode, floored. Config calls it 'decay: per episode'."""
     agent = _toy_agent(epsilon_start=1.0, epsilon_min=0.25, epsilon_decay=0.5)

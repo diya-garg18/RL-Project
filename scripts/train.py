@@ -235,8 +235,13 @@ def main() -> None:
     print("  run each); the q_learning row shows std across TRAINING RUNS. Different")
     print("  quantities — do not read the two spreads as comparable.")
 
+    # Visits are saved alongside Q because the policy table is not honest without
+    # them: an unvisited state has an all-zero Q row, so argmax returns action 0
+    # and thousands of never-seen states would print as a confident preference.
     np.save(ROOT / "results" / "q_learning_Q.npy", agents[0].Q)
-    print(f"\nrun-0 Q-table -> results/q_learning_Q.npy (gitignored, regenerable)")
+    np.save(ROOT / "results" / "q_learning_visits.npy", agents[0].visits)
+    print(f"\nrun-0 Q-table  -> results/q_learning_Q.npy (gitignored, regenerable)")
+    print(f"run-0 visits   -> results/q_learning_visits.npy")
 
 
 if __name__ == "__main__":

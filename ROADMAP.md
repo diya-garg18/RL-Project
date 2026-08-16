@@ -66,7 +66,10 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 - [x] `agents/q_learning.py` — off-policy TD control, ε-greedy with decay *(FEATURE_003, E-007, D-015 — built test-first; reproduces the hand-derived `q_*` to 9.24e-14 on the tiny MDP, correct policy after 10 episodes. **Not yet run on the 576-state environment** — the update rule is verified, performance is not.)*
 - [x] Learning curves: reward per episode, smoothed over 100 episodes, 5 seeds each *(FEATURE_004, E-008 — `scripts/train.py`, `results/q_learning_curve.png`. **Caveat: the curve does not visibly converge** after epsilon floors; learner instability and environment variance have not been separated, so no convergence claim is made.)*
 - [ ] Convergence comparison against the Phase 1 DP solution (max-norm distance between Q-tables, and policy agreement %)
-- [ ] **Print the learned policy as a readable table** — for each `time_left` bucket, which action wins in which queue state. This is a headline figure for the report and the viva.
+- [x] **Print the learned policy as a readable table** — for each `time_left` bucket, which action wins in which queue state. This is a headline figure for the report and the viva. *(FEATURE_005, E-009 — `scripts/policy_table.py` → `results/policy_table.md`.)*
+  - **The strategy shift exists and is monotonic across all three buckets:** working alerts by severity falls 34.9% → 28.0% → 15.4% as time runs out; bulk-closing rises 25.3% → 36.0% → 46.2%.
+  - **Two readings, not separated by the data.** Either an analyst-like escalation under deadline pressure, or the E-008 reward hack intensifying where end-of-shift miss charges make it most profitable. Both fit; a per-action reward decomposition inside the crunch bucket would settle it.
+  - **Caveat:** coverage is 121/576 states, and the crunch column rests on **13 states**. 455 unvisited states would have printed as a confident `PULL_HIGHEST_SEVERITY` via the argmax tie-break — the agent now records visit counts purely so they print as `·` instead.
 - [ ] Ablations: learning rate, γ, ε-decay schedule
 - [ ] Tests: Q-learning converges on a tiny hand-checkable 2-state MDP with a known answer
   - [x] **The 2-state MDP itself, hand-solved and verified** *(FEATURE_002, E-006, D-014 — `src/soc_triage/tiny_mdp.py`, 13 tests. `q_* = [[10.0, 6.7], [10.7, 13.0]]` derived on paper, Bellman-optimality residual 1.78e-15, and `agents/dp.value_iteration` reproduces it.)* **Built first, ahead of the learners** — deliberately out of box order, because an anchor built afterwards cannot say whether a disagreement is the learner's fault or its own (D-014).
@@ -75,6 +78,8 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 **Exit criterion:** Q-learning beats severity-sort on recall@deadline and MTTD across 5 seeds (report mean ± std), and the printed policy table shows a *behaviourally interpretable* strategy shift as time runs out.
 
+> **Second half of the gate — the policy table — IS satisfied** (E-009): the shift is present, monotonic, and interpretable. The recall half is not.
+>
 > ❌ **MEASURED 2026-08-16 (E-008) — NOT MET.** Q-learning recall **0.73 ± 0.03** against severity-sort's **0.87** — fails. MTTD 22.0 vs 23.0 — marginally better, well inside the spread. Reward 270.9 vs 153.7 — wins clearly, on the metric the gate does not use.
 >
 > The flag below was right. BULK_CLOSE_LOW_RISK accounts for **62.3%** of the learned policy's actions (DP: ~97%). Same exploit, less extreme, found by a completely different algorithm — which is the evidence that the pathology is in the reward, not in DP.

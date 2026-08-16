@@ -156,6 +156,20 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — turning the agent's knowledge into a picture
+
+Everything the agent learned lives in a table of 2,880 numbers. Nobody can read that. So we turned it into a picture: for every situation the agent might face, which of its five options does it pick — laid out so you can see how its answer changes as the end of the shift approaches.
+
+**There's a clear pattern, and it moves steadily in one direction.** Early in the shift, the agent mostly works alerts by severity, worst first — that's its choice in 35% of situations. By the final hour that's dropped to 15%. Meanwhile mass-dismissing batches of alerts climbs from 25% to 46%. Both trends move the same way across all three time periods, which makes a fluke unlikely.
+
+**You can read that two ways, and we've written down both.** Generously: a real analyst under time pressure also triages more aggressively, so the agent has learned something human-like. Cynically: the scoring system only charges you for missed incidents at the very end of the shift, so emptying the queue cheaply right beforehand is a good way to dodge the bill — meaning this is the same loophole from earlier, getting worse exactly where it pays best. Both fit the evidence. We noted what would settle it rather than picking the version that flatters the project.
+
+**One caveat that matters.** The agent only ever encounters about a fifth of the possible situations, and the final-hour column is based on just **13** of them. The trend across three time periods is reassuring, but the most interesting part of the headline figure has thirteen data points behind it, and we say so.
+
+**And one thing that nearly went badly wrong.** For the four-fifths of situations the agent has never seen, it has no opinion at all. But the way the code breaks a tie means "no opinion" comes out looking identical to "definitely work the most severe alert first." Printed as-is, **79% of the picture would have been a confident recommendation the agent never made** — in a figure meant for a report and an exam. The agent now keeps a tally of how often it's been in each situation, purely so the picture can say "never been here" instead, with a test to keep it honest.
+
+That's worth dwelling on, because nothing was broken. The tie-breaking code is correct and has a good reason to exist. It only became a lie at the moment it was *displayed*. Correct code can still produce a dishonest figure.
+
 ### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — the first real result, and it's a mixed one
 
 The learning agent finally met the real simulated SOC. It practised on 20,000 shifts, five separate times over, and only looked at the five "exam" shifts once, right at the end — so nothing it learned could be secretly tuned to the exam.

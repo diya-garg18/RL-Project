@@ -333,3 +333,51 @@ This is not a Phase 2 problem. It affects **E-002, E-003, E-004 and E-008 alike*
 - Run-0 alone scores reward 113.6 / recall 0.68 on eval, against the 5-run mean of 270.9 — consistent with the ±105.5 spread, and a reminder that the single saved Q-table is not the reported result.
 
 **Decision owed to the humans (not taken here).** Three questions, in order of importance: (1) is the eval block widened, and if so, does every prior experiment get re-run for comparability? (2) is the Phase 2 gate restated on total reward, as Phase 1's was in D-012 — and if so, does the recall figure travel beside it under the same rule? (3) do the α/γ/ε ablations (ROADMAP box 7) run before or after that is settled? Following D-012's precedent, the gate is left **unmet and unamended** until a human decides.
+
+---
+
+## E-009 — The learned policy, rendered readable — 2026-08-16
+
+**Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_005 · ROADMAP box 6
+**Not a new training run.** `scripts/train.py` was re-run only to capture per-(s,a) visit counts, which the agent did not previously record. **The re-run reproduced E-008 exactly** — recall 0.73 ± 0.03, reward 270.9 ± 105.5, MTTD 22.0 ± 15.6 — which is itself the reproducibility check CONSTRAINTS #3 implies.
+
+```
+.\.venv\Scripts\python.exe scripts\train.py --no-plot
+.\.venv\Scripts\python.exe scripts\policy_table.py    ->  results/policy_table.md
+```
+
+**Coverage: 121 of 576 states visited (21%).** The other 455 have all-zero Q rows. They are printed as `·`, never as an action — see the finding below.
+
+### The strategy shift, in the LEARNED policy
+
+Share of visited states in each `time_left` bucket whose greedy action is each of the five:
+
+| time_left | PULL_HIGHEST_SEVERITY | PULL_OLDEST | PULL_MOST_CRITICAL | PULL_CHEAPEST | **BULK_CLOSE** | states |
+|---|---|---|---|---|---|---|
+| >240m (early) | **34.9%** | 12.0% | 7.2% | 20.5% | **25.3%** | 83 |
+| 60–240m (mid) | 28.0% | 20.0% | 8.0% | 8.0% | **36.0%** | 25 |
+| <60m (crunch) | **15.4%** | 7.7% | 15.4% | 15.4% | **46.2%** | 13 |
+
+**Both trends are monotonic across all three buckets.** As the shift runs out, the agent works alerts by severity progressively less (34.9% → 28.0% → 15.4%) and bulk-closes progressively more (25.3% → 36.0% → 46.2%).
+
+**Interpretation, and the uncomfortable part.** The roadmap asked for a "behaviourally interpretable strategy shift as time runs out", and there is one. It is even superficially plausible — a real analyst does triage more aggressively under deadline pressure. But read against E-008, the more likely reading is less flattering: the reward charges end-of-shift misses at the very end, and bulk-closing is the cheapest way to clear the queue before that charge lands. This is not obviously an analyst's judgement being learned; it is plausibly the reward hack intensifying exactly where the reward makes it most profitable. **Both readings are consistent with the data and this log does not pick between them.** Distinguishing them needs the per-action reward decomposition in the crunch bucket, which has not been done.
+
+### Finding — the crunch bucket rests on 13 states
+
+The `<60m` column is computed from **13 visited states**, so 46.2% is six states and 15.4% is two. The three-bucket monotonicity is reassuring — a coincidence would not usually line up in both directions across all three — but the headline figure for the report and viva currently has its most interesting column supported by thirteen data points.
+
+Coverage falls off sharply with `time_left` (83 / 25 / 13 states), which makes sense: the crunch is a small slice of each shift and few queue configurations are reachable within it. It is nonetheless a real limitation on the claim, not a footnote.
+
+### Finding — 455 unvisited states would have printed as a confident preference
+
+An unvisited state has an all-zero Q row, so `argmax` returns action 0 by the tie-break rule. Rendered naively, **455 of 576 cells (79%) would have shown `PULL_HIGHEST_SEVERITY`** — a decision the agent never made, in a figure intended for a report and a viva. The agent now records per-(s,a) visit counts for no purpose other than letting the table print `·` instead, and `test_unvisited_states_are_reported_as_unvisited_not_as_action_zero` pins the distinction.
+
+This is the same class of error as D-011's unvisited-pair convention in DP, arriving by a different route: a defensible internal default becoming a false claim the moment it is displayed.
+
+### What this does and does not establish
+
+It establishes what the learned policy does, per state, with data coverage made explicit. It does **not** establish *why* — the strategy shift has two competing explanations and the evidence here does not separate them. It also inherits E-008's eval-seed caveat in full.
+
+---
+
+*(E-008's open decisions are recorded at the end of E-008, above.)*

@@ -12,9 +12,9 @@
 |---|---|
 | **Last session** | 2026-08-16 (session 6) |
 | **Model** | Claude Opus 5 |
-| **Current phase** | **Phase 2 — tabular model-free RL.** 4 of 8 boxes done. Q-learning has now run on the real environment (E-008). **The Phase 2 exit criterion is NOT met, and two decisions are owed to the humans.** Phases 0 and 1 closed. |
+| **Current phase** | **Phase 2 — tabular model-free RL.** 5 of 8 boxes done. Q-learning has now run on the real environment (E-008). **The Phase 2 exit criterion is NOT met, and two decisions are owed to the humans.** Phases 0 and 1 closed. |
 | **Repo state** | `D:\RLPROJECT`, branch `master`. **Session 6's work is not yet committed** — see "Next session should do" #1. Last commit `4833775`. |
-| **Tests passing** | **48/48** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, 2.24 s) — was 14; +13 `test_tiny_mdp.py`, +21 `test_tabular.py` |
+| **Tests passing** | **50/50** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, 2.34 s) — was 14; +13 `test_tiny_mdp.py`, +23 `test_tabular.py` |
 | **Blockers** | **None technical.** Two decisions are owed by the humans before Phase 2 can close — see "Broken / blocked". |
 
 ---
@@ -47,6 +47,10 @@ cd D:\RLPROJECT
   - Trains on a dedicated seed block (200000+, one fresh shift per episode), diagnoses on seeds 1–10, reads eval seeds 101–105 **exactly once, at the end**.
   - 5 runs × 20,000 episodes in **2.8 min**. Baseline rows reproduce E-002/E-004 exactly — the eval path is unchanged and still gives the same answers.
   - **Result: recall 0.73 ± 0.03, reward 270.9 ± 105.5, MTTD 22.0** vs severity_sort 0.87 / 153.7 / 23.0.
+
+- **The readable policy table** — FEATURE_005, E-009: `scripts/policy_table.py` → `results/policy_table.md`. The strategy shift is real and **monotonic across all three time buckets** (severity-first 34.9% → 28.0% → 15.4%; bulk-close 25.3% → 36.0% → 46.2%). Coverage 121/576 states; the crunch column rests on **13 states**. The agent now records per-(s,a) visit counts purely so 455 unvisited states print as `·` rather than as a confident `PULL_HIGHEST_SEVERITY` via the argmax tie-break.
+  - **Two readings of the shift, not separated by the data:** analyst-like escalation under deadline pressure, or the E-008 reward hack intensifying where end-of-shift miss charges bite. Both fit. Deliberately not resolved in favour of the flattering one.
+  - The re-run needed to capture visit counts reproduced E-008 to the digit — a free determinism check.
 
 ## The two things a human has to decide
 
@@ -82,8 +86,8 @@ Three things are *owed* but block nothing:
 
 1. **Commit session 6's work** — `git add` the paths explicitly (never `-A`, see below), message `phase2: hand-solved 2-state MDP anchor + tabular Q-learning + doc sweep`.
 2. **Get the two decisions above answered** before spending compute on ablations. Box 7's α/γ/ε sweep is close to meaningless while the measurement noise is several times the effect size — that would be tuning against noise, and the results would have to be thrown away if the eval block changes.
-3. **The readable policy table** (ROADMAP box 6) — a headline report figure, needs no new decisions, and is the cheapest remaining box. Good next task regardless of how the decisions land.
-4. **The DP convergence comparison** (box 5): max-norm distance between the Q-learning and DP Q-tables plus policy agreement %. Both tables already exist (`results/q_learning_Q.npy`, `results/dp_policy.npy`).
+3. **Settle the two readings of the strategy shift** with a per-action reward decomposition inside the crunch bucket (E-009). Cheap, needs no decisions, and it feeds the report's central argument — is the agent learning analyst-like escalation, or intensifying the reward hack? Highest-value remaining analysis.
+4. **The DP convergence comparison** (box 5): max-norm distance between the Q-learning and DP Q-tables plus policy agreement %. Both tables already exist (`results/q_learning_Q.npy`, `results/dp_policy.npy`), and `scripts/policy_table.py` can be pointed at the DP policy for a cell-by-cell comparison.
 5. Then `agents/sarsa.py` and `agents/monte_carlo.py` — verify each on `tiny_mdp` first (reuse `_train_on_tiny_mdp` in `tests/test_tabular.py`), then run through `scripts/train.py`. Both should use the D-016 seed block, offset per algorithm, or their numbers will not be comparable to Q-learning's.
 
 ## Watch out for

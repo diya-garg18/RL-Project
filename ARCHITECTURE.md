@@ -190,7 +190,7 @@ class Alert:
 |---|---|
 | 0 | `config`, `alerts`, `generator`, `env`, `state`, `runner`, `agents/base`, `agents/baselines`, `evaluation/metrics` |
 | 1 | `agents/dp`, `mrp_example` |
-| 2 | `tiny_mdp` ✅, `agents/q_learning` ✅, `scripts/train.py` ✅, `agents/monte_carlo`, `agents/sarsa` |
+| 2 | `tiny_mdp` ✅, `agents/q_learning` ✅, `scripts/train.py` ✅, `scripts/policy_table.py` ✅, `agents/monte_carlo`, `agents/sarsa` |
 | 3 | `agents/dqn` |
 | 4 | `agents/reinforce`, `agents/actor_critic` |
 | 5 | `rlhf/*`, `web/*` |

@@ -92,7 +92,19 @@ pytest tests/test_tabular.py -v
 - `test_q_table_shape` — (576, 5) · `test_q_table_starts_at_zero` — zero init, not optimistic
 - Config: alpha and epsilon range checks reject bad YAML at load time
 
+- `test_visits_are_counted_per_state_action` · `test_unvisited_states_are_reported_as_unvisited_not_as_action_zero` — **display-honesty tests** (FEATURE_005). Unvisited states have all-zero Q rows, so `argmax` returns action 0; without the visit count, 455 of 576 cells in the headline policy table would print as a confident `PULL_HIGHEST_SEVERITY` the agent never chose.
+
 Still to write, same fixture: `test_sarsa_solves_toy_mdp` (on-policy) and `test_monte_carlo_solves_toy_mdp` (truncated at `tiny_mdp.HORIZON`).
+
+### Regenerating the Phase 2 artefacts
+
+```bash
+python scripts/train.py           # 5 runs x 20000 episodes, ~2.8 min
+python scripts/policy_table.py    # reads results/*.npy, writes results/policy_table.md
+```
+`results/` is gitignored. The pipeline is deterministic under its seeds: the second training run of 2026-08-16 reproduced E-008 to the digit (recall 0.73 ± 0.03, reward 270.9 ± 105.5, MTTD 22.0 ± 15.6). **If a re-run does not reproduce those numbers, something has changed that shouldn't have — investigate before using any new figure.**
+
+`scripts/policy_table.py` self-checks its own `encode`/`decode` over all 576 state ids on every run. A transposed mixed-radix unpack yields a table that still looks plausible, which is exactly the error that survives review.
 
 > Watch for one specific false pass here: under the tiny MDP's optimal policy the agent never leaves `QUIET`, so `BUSY` is reached only by exploring. A learner run with ε = 0 will never see half the MDP. If a learner passes on `Q(QUIET, ·)` and produces garbage on `Q(BUSY, ·)`, the exploration schedule is the suspect, not the update rule.
 

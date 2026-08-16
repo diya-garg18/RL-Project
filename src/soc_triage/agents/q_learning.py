@@ -65,6 +65,13 @@ class QLearningAgent(Agent):
         # every number this project reports — it would need a DECISIONS entry.
         self.Q: np.ndarray = np.zeros((n_states, n_actions), dtype=np.float64)
 
+        # Visit counts play no part in learning. They exist so the policy table
+        # can say "never seen" instead of silently reporting the argmax
+        # tie-break. An unvisited state has an all-zero Q row, so argmax returns
+        # action 0 — printed without this count, thousands of unvisited states
+        # would render as a confident preference the agent never expressed.
+        self.visits: np.ndarray = np.zeros((n_states, n_actions), dtype=np.int64)
+
         self.epsilon = float(epsilon_start)
         self.epsilon_min = float(epsilon_min)
         self.epsilon_decay = float(epsilon_decay)
@@ -137,6 +144,7 @@ class QLearningAgent(Agent):
 
         td_error = target - self.Q[obs, action]
         self.Q[obs, action] += self.alpha * td_error
+        self.visits[obs, action] += 1
 
     def end_episode(self) -> None:
         """Decay epsilon one step, floored.

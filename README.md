@@ -46,7 +46,7 @@ The first ten follow the *AI Collaboration Field Guide* ("Don't just trust the A
 cd D:\RLPROJECT
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest tests/ -q     # expect 48 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q     # expect 50 passed
 ```
 
 Python 3.13.1 confirmed on this machine. Verify the PyTorch install works before Phase 3 depends on it.
