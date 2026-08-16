@@ -3,7 +3,7 @@
 **An RL agent that learns which security alert a human analyst should investigate next — trained first on a hand-written reward, then re-trained on a reward model learned from human preferences (RLHF).**
 
 CS4148 Reinforcement Learning · VII Semester · Manipal University Jaipur
-Pranav Upadhyay · Diya Garg
+Diya Garg · Pranav Upadhyay  
 
 ---
 
