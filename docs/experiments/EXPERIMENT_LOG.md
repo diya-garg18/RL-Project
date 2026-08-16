@@ -136,3 +136,35 @@ Why the reward permits this (checked, per CONSTRAINTS #5): (a) bulk-close credit
 **This is the brief §3.5 deliberate trap being sprung — the strongest possible motivation for Phase 5 (RLHF): the hand reward provably rewards behaviour no SOC manager would accept.**
 
 **Flagged for the humans:** Phase 1 exit says "DP beats severity-sort on recall@deadline" — it doesn't (0.43 vs 0.87), *because DP optimises the reward, not recall, and the reward is exploitable*. Decision needed (same shape as the Phase 0 amendment): restate on total reward + document the hack as a headline finding, or treat the reward function as needing a patch (the brief says the trap is deliberate — patching it would delete the RLHF motivation).
+
+**RESOLVED 2026-08-16 (D-012, approved by Pranav; Diya countersign pending):** gate restated on total reward, reward left unpatched, hack promoted to a headline finding and carried into Phase 5 as its primary motivation. Nothing in the measurements above changed — only the criterion they are judged against. See E-005 for the verification work that closed the phase.
+
+---
+
+## E-005 — Phase 1 closure: Bellman machinery verified against a hand-derived answer — 2026-08-16
+
+**Status:** valid
+**Config:** the MRP is self-contained (D-013); γ = 0.9 for the example only, *not* the project's 0.99
+**Commands:** `python scripts/run_mrp_example.py` · `pytest tests/test_mrp_bellman.py -v`
+**Runtime:** < 1 s
+**Model:** Claude Opus 5
+
+**Why this experiment exists.** E-004's correctness evidence was entirely *internal*: value iteration converged, and policy iteration agreed with it on 100% of states. But VI and PI share `greedy_policy` and the same Bellman expression — a wrong equation would make both converge, agree perfectly, and be wrong together. No Phase 1 result had been compared to an answer produced outside the code.
+
+**Method.** A five-state Markov Reward Process (QUIET / BACKLOG / INVESTIGATING / CONFIRMED / MISSED), small enough to solve by hand. Rewards booked on the transition and folded into R(s) via S&B eq. 3.5. Solved four ways: by hand on paper; closed form V = (I − γP)⁻¹R; iterative policy evaluation; and — the load-bearing route — the shipped `agents/dp.value_iteration`, run on the MRP expanded into a degenerate MDP whose five actions are identical, so `max_a` collapses to the MRP Bellman equation.
+
+**Hand-derived answer:** R = [−1, −4, +20, 0, 0], and
+
+| state | V (by hand) |
+|---|---|
+| QUIET | 52/11 = 4.727272… |
+| BACKLOG | −4 |
+| INVESTIGATING | +20 |
+| CONFIRMED | 0 (absorbing) |
+| MISSED | 0 (absorbing) |
+
+**Result:** all four routes agree. Largest disagreement with the hand-derived vector **7.11e-15** — floating-point noise at ~15 significant figures. `agents/dp.value_iteration` converged in 44 sweeps, final Δ 8.88e-15. 7/7 new tests pass; suite now 14/14.
+
+**What this does and does not establish.** It establishes that the Bellman backup in `agents/dp.py` is the textbook equation (S&B eq. 3.14 / §4.1 / §4.4), independently of anything else in the repo. It does **not** validate `estimate_model` — the MRP supplies exact dynamics, whereas the 576-state P̂/R̂ are sampled, and their sampling error remains bounded only by the coverage figures in E-004 (133/576 states) and the D-011 unvisited-pair convention. Those are separate concerns and stay open as stated caveats.
+
+**Negative result worth keeping.** The first design booked the incident payoff as `R(CONFIRMED) = +10` on an absorbing state. It diverges — an absorbing state with non-zero reward collects it forever, giving V = 10/(1−γ) = 100 and swamping the chain. Fixed by moving to per-transition rewards. `test_absorbing_states_have_zero_value` now guards against re-introducing it. Recorded because it is a mistake a student would plausibly make on the exam version of this question.

@@ -75,6 +75,24 @@ scripts/run_dp.py
 
 `value_iteration` and `policy_iteration` must converge to the same policy. If they don't, one of them is wrong — that disagreement is the test.
 
+### Flow C2 — the external correctness check (Phase 1, E-005) ✅ *(built & verified 2026-08-16 — FEATURE_001)*
+
+Flow C's VI/PI cross-check proves the two solvers are *consistent*, not *correct* — they share `greedy_policy` and the same Bellman expression, so a wrong equation would make both agree and both be wrong. This path is the only one that compares the solver to an answer derived outside the code.
+
+```
+scripts/run_mrp_example.py                          tests/test_mrp_bellman.py
+  └─ mrp_example.expected_rewards(P, r)  ──▶ R(s)          (S&B eq. 3.5)
+  ├─ mrp_example.solve_linear(P, R, γ)        ──▶ V   closed form (I − γP)⁻¹R
+  ├─ mrp_example.evaluate_iteratively(...)    ──▶ V   iterative backups (§4.1)
+  ├─ mrp_example.as_degenerate_mdp(P, R, 5)   ──▶ (P_mdp, R_mdp) shaped (5,5,5)/(5,5)
+  │     └─ agents/dp.value_iteration(...)     ──▶ V   THE SHIPPED SOLVER
+  └─ compare all of the above against mrp_example.HAND_COMPUTED_V
+```
+
+Note the direction of the arrow: `mrp_example.py` depends on `agents/dp.py`, never the reverse. The DP module has no idea this check exists, which is what makes it a check.
+
+All four routes must agree to ~1e-9. Measured disagreement: **7.11e-15**. If this test ever fails, the Bellman backup in `agents/dp.py` has been broken — fix `dp.py`, never the expected values (they came from a human with a pen; see `docs/features/FEATURE_001_mrp_worked_example.md`).
+
 ---
 
 ## Flow D — RLHF (Phase 5) ⬜

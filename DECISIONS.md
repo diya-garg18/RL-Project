@@ -178,3 +178,43 @@
 - *Uniform P̂ over all 576 states* — mathematically smooth but meaningless: it asserts knowledge (equiprobable transitions) we do not have.
 
 **Consequences:** The DP policy is only trustworthy on the visited core of the state space; on unvisited states it defaults toward low-value actions. This is acceptable for a reference ceiling but is another reason the DP "optimum" is optimum *for the estimated model* only (compounds D-004). If a later phase visits states DP never saw, its policy there is uninformed — note it if it ever matters.
+
+---
+
+## D-012 — Phase 1 exit gate restated on total reward; the reward hack is kept and featured
+
+**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 1 · **Status:** active
+**Approved by:** Pranav (2026-08-16). **Diya countersign: pending** — the two Phase 0 amendments were both Diya-approved and this one should match that bar before the report cites it.
+
+**Decision:** The Phase 1 exit criterion is restated from *"the DP policy beats severity-sort on recall@deadline"* to *"the DP policy achieves the highest mean total reward of any agent on the evaluation seeds"*, plus an added requirement that the Bellman machinery be verified against an answer derived outside the code. The hand-written reward function is **left exactly as it is**, and the reward-hacking behaviour it permits is recorded as a headline finding rather than patched.
+
+**Why:** The original gate asked a reward-maximiser to top a metric it does not maximise. DP computes an optimal policy for `R̂`; recall@deadline is a *diagnostic* we compute afterwards, and nothing in value iteration is pointed at it. E-004 measured the consequence: DP earns 305.9 ± 127.6 total reward against oracle 214.1 and severity-sort 153.7, while scoring recall 0.43 against severity-sort's 0.87 — it uses BULK_CLOSE as paid waiting ~97% of the time and abandons 57% of real incidents. That was checked before being accepted (CONSTRAINTS #5): the arithmetic reconciles against per-step reward breakdowns, and the policy reproduces the same behaviour in the *true* environment, so it is not an artefact of the estimated model (D-004) or of unvisited-state handling (D-011).
+
+`PROJECT_BRIEF.md` §3.5 states the exploit is deliberate — the reward is *designed* to be gameable, because a reward nobody can write correctly by hand is the entire argument for learning one from human preferences in Phase 5. The hack is therefore the project working as intended, discovered two phases earlier than expected because exact planning finds exploits that gradient-based learning only stumbles into.
+
+This is the third gate amendment (after the two in Phase 0) and follows the same rule: when measurement contradicts a criterion, establish which of the two is wrong before changing either. Here the criterion was wrong.
+
+**Alternatives rejected:**
+- *Patch the reward so bulk-close is no longer profitable.* Rejected on three counts. It changes the MDP, which CONSTRAINTS #15 forbids without explicit human sign-off. It invalidates every number in E-002, E-003 and E-004. And it deletes the Phase 5 motivation — an un-gameable hand-written reward would make RLHF a bolted-on exercise rather than a necessity, which is precisely the failure mode `PROJECT_BRIEF.md` §2 argues this project avoids.
+- *Declare Phase 1 failed and re-run DP with a recall-shaped objective.* Rejected: optimising a metric directly to make a gate pass is tuning-to-the-test, and would produce a "DP" that is not the textbook DP the syllabus requires.
+- *Keep the gate and mark it permanently unmet.* Rejected: it blocks the roadmap on a criterion now known to be unsatisfiable in principle, and buries the most interesting result of the phase under an apparent failure.
+
+**Consequences:** Phase 1 is closed. The DP row must never be reported as "best triage policy" without the recall figure beside it — the reward number alone is misleading, and the report's honesty depends on the pair travelling together. Phase 2's exit criterion has the same structural weakness and is now flagged in `ROADMAP.md`, but **deliberately not pre-emptively amended**: Q-learning gets run first and the gate gets decided on real numbers, the same way this one was. If the bulk-close hack recurs under Q-learning and DQN, that recurrence is itself evidence that the pathology lives in the reward rather than in any one algorithm — which is the strongest possible setup for Phase 5.
+
+---
+
+## D-013 — The worked MRP's constants live in code, not in config
+
+**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 1 · **Status:** active
+
+**Decision:** The five-state MRP in `src/soc_triage/mrp_example.py` — its transition matrix, transition rewards, discount factor and hand-derived value function — is defined as module-level constants, not loaded from `config/*.yaml`. A deliberate, narrow exception to CONSTRAINTS #9.
+
+**Why:** CONSTRAINTS #9 targets *tunables* — "a number someone might want to change." These are the opposite. They are the definition of a worked example whose entire value is that a human derived `V = [52/11, −4, +20, 0, 0]` from them on paper. Exposing them in YAML would invite an edit that leaves the derivation in `FEATURE_001` and the frozen `HAND_COMPUTED_V` silently disagreeing with the config — turning an external correctness anchor into a test that checks nothing. Constants in the module keep the numbers, the derivation and the assertion within one reading distance of each other.
+
+The discount factor deserves its own note: the example uses γ = 0.9, *not* the project's 0.99 from `config/training_default.yaml`. That is chosen so the only non-integer value stays an exact fraction (52/11) rather than an unmemorable decimal. Anyone reading the example must not mistake its γ for the project's.
+
+**Alternatives rejected:**
+- *A `config/mrp_example.yaml`.* Literal compliance with #9, but it separates the numbers from the derivation that depends on them and creates exactly the drift risk described above.
+- *Inlining the constants into `tests/test_mrp_bellman.py`.* Would satisfy "not in src", but then `scripts/run_mrp_example.py` could not import them for the report output, and the MRP would be untestable from anywhere else.
+
+**Consequences:** One module in `src/` contains hard-coded numbers, which will look like a #9 violation to anyone reading the constraint without this entry — hence the pointer to D-013 in the module docstring. If the example is ever changed, `FEATURE_001`'s derivation, `HAND_COMPUTED_V`, and the arithmetic asserted in `test_expected_rewards_match_hand_arithmetic` must all be redone together, or the tests will catch the mismatch immediately (which is the intended safety net).

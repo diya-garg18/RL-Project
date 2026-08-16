@@ -58,6 +58,7 @@
 | `src/soc_triage/env.py` | The MDP: queue state, `reset()`, `step(action)`, reward, termination | Contain learning logic |
 | `src/soc_triage/state.py` | Both state encoders: `discretise()` (576 states) and `featurise()` (~20 floats) | Mutate the environment |
 | `src/soc_triage/agents/` | One file per algorithm, each exposing `act(state)` and `update(...)` | Touch the environment internals |
+| `src/soc_triage/mrp_example.py` | The hand-solved 5-state MRP that validates the Bellman backup in `agents/dp.py` against an answer derived outside the code (FEATURE_001, D-013) | Be imported by anything in the main pipeline — it depends on `agents/dp`, never the reverse |
 | `src/soc_triage/runner.py` | Run N episodes with a given agent + seed, emit `EpisodeRecord`s | Compute metrics |
 | `src/soc_triage/evaluation/` | Metrics, baseline comparison tables, plots, the reward-hacking audit | Train anything |
 | `src/soc_triage/rlhf/` | Build comparison pairs, store labels, train the Bradley–Terry reward model | Know about specific agents |
@@ -102,6 +103,7 @@ RL Project/
 │   ├─ env.py
 │   ├─ state.py
 │   ├─ runner.py
+│   ├─ mrp_example.py          ← hand-solved 5-state MRP; external check on dp.py
 │   ├─ agents/
 │   │   ├─ base.py             ← the Agent interface everything implements
 │   │   ├─ baselines.py        ← random, fifo, severity, cheapest, oracle
@@ -184,7 +186,7 @@ class Alert:
 | Phase | New modules |
 |---|---|
 | 0 | `config`, `alerts`, `generator`, `env`, `state`, `runner`, `agents/base`, `agents/baselines`, `evaluation/metrics` |
-| 1 | `agents/dp` |
+| 1 | `agents/dp`, `mrp_example` |
 | 2 | `agents/monte_carlo`, `agents/sarsa`, `agents/q_learning` |
 | 3 | `agents/dqn` |
 | 4 | `agents/reinforce`, `agents/actor_critic` |

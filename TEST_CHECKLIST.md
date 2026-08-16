@@ -30,8 +30,9 @@ If r is outside that band, stop and retune. This gates the whole project (`DECIS
 ```bash
 python scripts/run_baselines.py           # eval seeds come from config seeds.eval
 ```
-**Must show:** the 5 Phase-0 baselines × all metrics with mean ± std (the DP row joins in Phase 1), where `oracle` is strictly best on mean recall@deadline. *Verified PASS 2026-08-14 (E-002).*
-**Known deviation, decision pending:** `random` is NOT worst — FIFO is (0.20 vs 0.46), for a clean queueing-theory reason (E-002 obs. 1). Amending this criterion's wording awaits Diya/Pranav sign-off; until then this line stands as written and the deviation is flagged, not hidden.
+**Must show:** the 5 Phase-0 baselines × all metrics with mean ± std (the DP row joins in Phase 1), where **`oracle` is strictly best on mean total reward**, and random and FIFO sit clearly at the bottom on recall. The script asserts both gates and prints PASS/FAIL for each. *Verified PASS 2026-08-14 (E-003); re-verified on the new device 2026-08-16 — oracle 214.1, severity-sort 153.7, cheapest-first −467.6, random −229.9, FIFO −658.7.*
+
+**Both amendments to this criterion are approved and folded in above** (Diya, 2026-08-14). For the record, since the original wording is still quoted in older documents: (1) "random is worst" was wrong — FIFO is far worse (0.141 recall at 30 seeds), a textbook overloaded-queue result, E-002 obs. 1; (2) "oracle strictly best on **recall**" was unachievable — no honest greedy oracle can out-recall severity-camping when 64% of incidents carry severity 3 by construction (D-007), so the gate moved to total reward, where the oracle's information advantage is decisive (E-003). Both are findings about the design, documented, not bugs.
 
 ```bash
 pytest tests/ -v
@@ -53,6 +54,17 @@ Required tests, by actual name (all passing 2026-08-14, 7 tests):
 python scripts/run_dp.py
 ```
 **Must show:** value iteration converged with Δ < 1e-4; the sweep count; state coverage (how many of 576 states were visited, and the minimum visit count); and **value iteration and policy iteration agreeing on ≥95% of states**. Disagreement means one is wrong — investigate, don't average.
+*Verified PASS 2026-08-14 (E-004); re-verified 2026-08-16: Δ 9.95e-05 in 1075 sweeps, VI/PI agreement 100%, coverage 133/576 states and 589/2880 pairs.*
+
+**Also must show — and must be read, not skipped:** the DP row's **total reward beside its recall**. Currently reward 305.9 ± 127.6 (highest of any agent) with recall 0.43 ± 0.17 (below random's 0.52). That pair is the E-004 reward-hacking finding. Quoting the reward alone is misleading and D-012 forbids it.
+
+```bash
+pytest tests/test_mrp_bellman.py -v
+python scripts/run_mrp_example.py
+```
+**Must show:** all four routes to the five-state MRP's value function agreeing — by hand, closed form, iterative evaluation, and `agents/dp.value_iteration` — with the largest disagreement below 1e-9. *Verified PASS 2026-08-16 (E-005): 7/7 tests, largest disagreement 7.11e-15.*
+
+This is the only check in the project that validates the Bellman backup against an answer derived **outside** the code. VI/PI agreement above cannot do it — they share the same equation. **If this fails, fix `agents/dp.py`; never adjust the expected values.** They were derived by a human on paper (`docs/features/FEATURE_001_mrp_worked_example.md`) and changing them to make the test pass would destroy the only external anchor Phase 1 has.
 
 ---
 

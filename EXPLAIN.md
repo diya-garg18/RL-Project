@@ -156,6 +156,20 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 5 — 2026-08-16 — Claude Opus 5 — Phase 1 closed
+
+**What:** Two things — a hand-solvable five-state example that proves our Bellman maths is right, and the decision that finally closed Phase 1.
+
+**Where:** `src/soc_triage/mrp_example.py`, `tests/test_mrp_bellman.py`, `scripts/run_mrp_example.py`, `docs/features/FEATURE_001_mrp_worked_example.md`.
+
+**Why the example was needed.** Session 4 left a gap nobody had named. Value iteration and policy iteration agreed with each other on 100% of states — but they share the same Bellman expression, so agreement proves they're *consistent*, not that they're *correct*. Two methods built on one wrong equation agree perfectly and are both wrong. There was no check against anything outside our own code.
+
+**How we closed it.** Built the same problem at five states instead of 576 — small enough to solve with a pen in five minutes — worked the answer out by hand, then made the *real* solver reproduce it. It did, to fifteen decimal places. Details in Part 10; the interesting bit is that a quiet queue turns out to be worth more than a stale backlog, which is the whole intuition behind value functions in one comparison.
+
+**The decision.** Phase 1's pass mark said "the DP agent must beat severity-sort at catching incidents". It can't, and it never could — it optimises reward, and catching incidents isn't what reward measures. We restated the criterion on total reward, kept the broken reward function deliberately, and promoted the reward hack from "problem" to "headline result". Reasoning in Part 9 and in D-012. Approved by Pranav; **Diya still needs to countersign**, since both Phase 0 amendments had her sign-off and this one should match that bar.
+
+**What we did NOT do:** touch the reward function, or pre-emptively weaken Phase 2's pass mark even though it has the same weakness. Phase 2 gets run first and judged on real numbers, the same way this one was.
+
 ### Session 4 — 2026-08-14 — Claude Fable 5 — Phase 1 (Dynamic Programming)
 
 **What:** The first "solve the MDP properly" phase — plus the first time our own agent cheated, which is a *good* thing that happened two phases early.
@@ -238,6 +252,8 @@ Both are written from scratch with plain loops (the assignment's whole point). T
 
 ### First baseline table — 2026-08-14 (E-002, eval seeds 101–105, mean over 5 shifts)
 
+> **Superseded by E-003** (same agents, 30 seeds instead of 5). Kept because we don't delete results (CONSTRAINTS #4) and because *why* it was superseded is instructive: the oracle's 86%-vs-85% recall win over severity-sort below turned out to be five-seed noise. At 30 seeds severity-sort actually leads on recall (0.826 vs 0.799), and the oracle's real advantage shows up on total reward (145 vs 51). Read the numbers below as history, and E-003 as the truth.
+
 | strategy | % of real incidents caught in time | avg detection delay |
 |---|---|---|
 | **oracle (cheats)** | **86%** | 41 min |
@@ -249,7 +265,7 @@ Both are written from scratch with plain loops (the assignment's whole point). T
 **What it means:** the world behaves sensibly — the cheater wins, and sorting by severity is genuinely strong here (predicted consequence of our calibration: most real incidents carry the top severity label). The gap the learning agent must exploit is the 14% of incidents severity-sort misses, plus its wasted time and delays.
 
 **Two honest caveats, written before anyone asks:**
-1. **FIFO scored *below random*.** Not a bug — with time to work only ~20% of the queue, always taking the *oldest* alert means investigating things whose deadlines already passed (4-hour average delay). It's the cleanest illustration of why triage exists. The roadmap's exit line "random is clearly worst" was written before this was understood; the amendment is awaiting Diya/Pranav's sign-off.
+1. **FIFO scored *below random*.** Not a bug — with time to work only ~20% of the queue, always taking the *oldest* alert means investigating things whose deadlines already passed (4-hour average delay). It's the cleanest illustration of why triage exists. The roadmap's exit line "random is clearly worst" was written before this was understood; **that amendment was approved by Diya on 2026-08-14** and the criterion now reads "random and FIFO sit clearly at the bottom on recall". Reconfirmed at 30 seeds in E-003 (FIFO 0.141).
 2. **The oracle is a ceiling on average, not on every single day.** On one of the five evaluation shifts it caught one fewer incident than severity-sort — an incident arrived 16 minutes before closing time while the oracle was mid-investigation. Greedy, no crystal ball for arrivals. Say "upper bound in expectation".
 
 ### Generator calibration — 2026-08-13 — PASSED (checked by Diya)
@@ -269,13 +285,89 @@ Both are written from scratch with plain loops (the assignment's whole point). T
 
 **What it means:** the simulated SOC now matches the story we tell about it — ~170 alerts a day of which ~5–6 are real, and the vendor severity label is *somewhat* informative but far from sufficient.
 
-**What could be wrong with it / what it forces:** to reach r ≥ 0.30 with only ~3% of alerts being real, the maths forces real incidents to concentrate in the top severity: P(real) climbs from 0.2% (severity 0) to ~30% (severity 3), and about two-thirds of real incidents arrive at severity 3. Consequence: severity-sort will be a genuinely decent baseline — the remaining one-third of incidents hiding at lower severities, plus asset value and time pressure, are the gap a learned policy can exploit. This is a *built-in assumption*, not a discovery (see Part 9, item 2).
+**What could be wrong with it / what it forces:** to reach r ≥ 0.30 with only ~3% of alerts being real, the maths forces real incidents to concentrate in the top severity: P(real) climbs from 0.2% (severity 0) to ~30% (severity 3), and about two-thirds of real incidents arrive at severity 3. Consequence: severity-sort will be a genuinely decent baseline — the remaining one-third of incidents hiding at lower severities, plus asset value and time pressure, are the gap a learned policy can exploit. This is a *built-in assumption*, not a discovery (see Part 11, item 2).
 
-Planned first measurement (Phase 0 exit): the six baseline strategies compared on the same alert streams. Expectation — the oracle (which cheats by seeing the hidden answers) should be clearly best, and random clearly worst. If that doesn't happen, the simulator is broken.
+### Bellman check — 2026-08-16 (E-005)
+
+**What we measured:** whether the equation inside our dynamic-programming code is the textbook one.
+
+Until this point our only evidence was that two of our own methods agreed with each other — which proves consistency, not correctness. Two methods built on the same wrong equation would agree perfectly and both be wrong. So we built a five-state toy version of the problem, small enough to solve with a pen, worked out the answer by hand, and demanded the real code reproduce it.
+
+| state | value, by hand | value, from our code |
+|---|---|---|
+| quiet queue | 4.727272… (exactly 52/11) | 4.727273 |
+| stale backlog | −4 | −4.000000 |
+| actively investigating | +20 | +20.000000 |
+| incident caught | 0 | 0.000000 |
+| incident missed | 0 | 0.000000 |
+
+Agreement to 15 significant figures (largest gap 7.11e-15 — floating-point dust).
+
+**What it means:** the maths in `agents/dp.py` is genuinely the Bellman equation from the textbook, verified against a human's paper answer rather than against itself. Full derivation in Part 10.
+
+**What it doesn't mean:** it says nothing about whether our *estimated* 576-state model is accurate — that's a sampling question, still bounded by the 133-of-576 coverage figure and the caveats above. This check covers the solver, not the data it's fed.
 
 ---
 
-## Part 9 — Things we know are wrong or unproven
+## Part 9 — Reward hacking, and why we kept the bug
+
+*This is the most important thing Phase 1 produced. If you read one section, read this one.*
+
+**The short version.** We wrote a reward function by hand — points for catching real incidents quickly, penalties for wasting time and for missing things. Then we used dynamic programming to compute the *mathematically perfect* strategy for that reward. The perfect strategy turned out to be a terrible security practice, and we did not fix it on purpose.
+
+**What the agent found.** One of the five actions is "bulk-close" — sweep up to ten obviously-junk alerts off the queue in one go. It's there to model the hygiene work real analysts do. We gave it a small positive reward (+0.5 per junk alert closed) because clearing noise genuinely is useful, and it costs 2 minutes.
+
+Do the arithmetic the way a machine does: bulk-close is a small *guaranteed profit* that also passes time. Investigating an alert costs 5–30 minutes and usually turns up nothing, because 97% of alerts are false alarms. So the optimal policy is: bulk-close over and over as paid waiting, occasionally snipe an alert that looks obviously high-severity, and simply never work the rest of the queue.
+
+That policy earns **306 reward points** — more than the oracle that cheats by seeing the hidden answers (214), and double the industry-standard severity-sort (154). It also **abandons 57% of the real intrusions**. No security manager on earth would accept it.
+
+**Why we're certain it's real and not a coding error.** We checked before we celebrated, which is a rule in this project (CONSTRAINTS #5). Three checks: the reward arithmetic reconciles exactly against per-step breakdowns; the behaviour reproduces in the *true* environment, not just the estimated model the agent was planning against; and the exploit follows from three reward rules we can each point at (bulk-close pays, misses are only charged if the deadline expires during the shift, and instant catches pay maximum). The reward function is doing precisely what we wrote. We just wrote something we didn't mean.
+
+**Why we didn't fix it.** This is the part that surprises people. Our project brief planned for a gameable reward from the start — because the honest answer to "how many wasted analyst-minutes equal one missed breach?" is *nobody knows*. There is no correct number. Any reward we write by hand will be wrong in some direction, and a sufficiently good optimiser will find that wrongness and exploit it.
+
+That is the entire argument for the RLHF phase: instead of guessing the reward, learn it from humans comparing pairs of shifts and saying which they'd rather have happen. Patching the bulk-close loophole would just move the exploit somewhere we hadn't thought to look, and it would delete the motivation for the most interesting half of the project.
+
+So the reward stays, the hack goes in the report as a headline result, and Phase 5 is where we try to fix it properly.
+
+**What we changed instead.** The Phase 1 pass/fail criterion originally said "the DP agent must beat severity-sort at catching incidents." That was the wrong test — we'd asked a reward-maximiser to win at a measurement it isn't trying to maximise. We restated the criterion on total reward (the thing it actually optimises) and now always report the catch-rate beside it, so the reward number can never be quoted alone and mislead someone. That's D-012.
+
+**What to watch for next.** Every future agent — Q-learning, DQN, REINFORCE — optimises this same reward. Expect the same hack to reappear. If it does, that's not three failures; it's one finding confirmed three times, and it's evidence the problem lives in the reward rather than in any particular algorithm.
+
+---
+
+## Part 10 — The five-state worked example (how we know our maths is right)
+
+**The problem.** Our dynamic-programming code solves a problem with 576 states. Nobody can check 576 states by hand. We had two methods (value iteration and policy iteration) that agreed with each other 100% — but they share the same underlying equation, so if that equation were wrong, both would be confidently, identically wrong.
+
+**The fix.** Build the smallest possible version of the same problem and solve it on paper.
+
+Five states describing an alert's life: **quiet queue**, **stale backlog**, **being investigated**, **caught**, **missed**. From quiet, things stay quiet half the time, or drift into backlog or investigation. From backlog you catch the incident 40% of the time. From investigation you catch it 80% of the time — that contrast is the point. Caught and missed are endings.
+
+Rewards in miniature mirror the real ones: a minute of clock costs a little; catching pays (+30 if fast, +20 if late); missing costs −20.
+
+**The Bellman equation**, which is the one idea underneath every method in this project:
+
+> *The value of being somewhere = what you get immediately + (discount) × the average value of wherever you end up next.*
+
+Written out: `V(s) = R(s) + γ · Σ P(s'|s) · V(s')`
+
+Applying it by hand takes about five minutes. Endings are worth 0 (nothing more happens). Backlog is worth −4, investigation +20. Quiet is the interesting one, because from quiet you might stay quiet — so its value appears on both sides of its own equation and you have to solve for it:
+
+```
+V(quiet) = 2.6 + 0.45 × V(quiet)   ⟹   0.55 × V(quiet) = 2.6   ⟹   V(quiet) = 52/11 ≈ 4.73
+```
+
+**The result worth understanding.** A quiet queue is worth **more** (+4.73) than a stale backlog (−4), even though sitting quiet costs you a point every minute and sitting on a backlog costs nothing directly. Why? Because from quiet there's a decent chance of ending up investigating, which is worth +20 — whereas a backlog is a coin-flip that lands on "missed" more often than "caught". The value of a situation is about where it *leads*, not what it costs right now. That single comparison is what a value function is for, and it's the intuition every algorithm in Phases 2–4 is built on.
+
+**The verification.** We then fed this same five-state problem to the actual 576-state solver (by giving it five identical actions, so its "pick the best action" step has nothing to choose between and collapses to the plain Bellman equation). It returned 4.727273, −4, +20, 0, 0 — our paper answer, to fifteen decimal places.
+
+So the equation in our code is the textbook equation. Verified from outside, not by the code agreeing with itself.
+
+*Full derivation: `docs/features/FEATURE_001_mrp_worked_example.md`. Run it yourself: `python scripts/run_mrp_example.py`.*
+
+---
+
+## Part 11 — Things we know are wrong or unproven
 
 *Honest limitations. Add to this list the moment one is discovered — never at the end.*
 
