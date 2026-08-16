@@ -2,7 +2,7 @@
 
 > Field Guide habit #6. This is the **shape** of the system, not the implementation detail. Read this at the start of every session so you don't re-derive the terrain. Update it whenever a module is added, removed, or its responsibility changes.
 
-**Last updated:** 2026-08-13 (scaffold — no code written yet)
+**Last updated:** 2026-08-16 — Phases 0 and 1 built; Phase 2 in progress. Everything in §3 marked as existing has been written and tested; the rest is still planned.
 
 ---
 
@@ -58,7 +58,9 @@
 | `src/soc_triage/env.py` | The MDP: queue state, `reset()`, `step(action)`, reward, termination | Contain learning logic |
 | `src/soc_triage/state.py` | Both state encoders: `discretise()` (576 states) and `featurise()` (~20 floats) | Mutate the environment |
 | `src/soc_triage/agents/` | One file per algorithm, each exposing `act(state)` and `update(...)` | Touch the environment internals |
-| `src/soc_triage/mrp_example.py` | The hand-solved 5-state MRP that validates the Bellman backup in `agents/dp.py` against an answer derived outside the code (FEATURE_001, D-013) | Be imported by anything in the main pipeline — it depends on `agents/dp`, never the reverse |
+| `src/soc_triage/mrp_example.py` | The hand-solved 5-state MRP that validates the Bellman backup for **V** in `agents/dp.py` against an answer derived outside the code (FEATURE_001, D-013) | Be imported by anything in the main pipeline — it depends on `agents/dp`, never the reverse |
+| `src/soc_triage/tiny_mdp.py` | The hand-solved 2-state MDP that validates the Bellman backup for **Q** in the Phase 2 learners against an answer derived outside the code (FEATURE_002, D-014) | Same rule: it is a check, so nothing in the main pipeline may depend on it |
+| `src/soc_triage/agents/q_learning.py` | Off-policy TD control, S&B §6.5 (FEATURE_003, D-015). Owns its own seeded RNG and its epsilon schedule; epsilon decays only when the caller invokes `end_episode()` | Know which environment it is in, or decay epsilon on its own — the episode boundary must be stated by the training loop |
 | `src/soc_triage/runner.py` | Run N episodes with a given agent + seed, emit `EpisodeRecord`s | Compute metrics |
 | `src/soc_triage/evaluation/` | Metrics, baseline comparison tables, plots, the reward-hacking audit | Train anything |
 | `src/soc_triage/rlhf/` | Build comparison pairs, store labels, train the Bradley–Terry reward model | Know about specific agents |
@@ -71,7 +73,7 @@
 ## 3. Directory layout
 
 ```
-RL Project/
+RLPROJECT/                     ← D:\RLPROJECT on the current device
 ├─ README.md                   ← start here
 ├─ CLAUDE.md                   ← rules for the AI session (read first, every session)
 ├─ PROJECT_BRIEF.md            ← the idea, the MDP, the plan
@@ -103,7 +105,8 @@ RL Project/
 │   ├─ env.py
 │   ├─ state.py
 │   ├─ runner.py
-│   ├─ mrp_example.py          ← hand-solved 5-state MRP; external check on dp.py
+│   ├─ mrp_example.py          ← hand-solved 5-state MRP; external check on V (dp.py)
+│   ├─ tiny_mdp.py             ← hand-solved 2-state MDP; external check on Q (learners)
 │   ├─ agents/
 │   │   ├─ base.py             ← the Agent interface everything implements
 │   │   ├─ baselines.py        ← random, fifo, severity, cheapest, oracle
@@ -187,7 +190,7 @@ class Alert:
 |---|---|
 | 0 | `config`, `alerts`, `generator`, `env`, `state`, `runner`, `agents/base`, `agents/baselines`, `evaluation/metrics` |
 | 1 | `agents/dp`, `mrp_example` |
-| 2 | `agents/monte_carlo`, `agents/sarsa`, `agents/q_learning` |
+| 2 | `tiny_mdp` ✅, `agents/q_learning` ✅, `scripts/train.py` ✅, `agents/monte_carlo`, `agents/sarsa` |
 | 3 | `agents/dqn` |
 | 4 | `agents/reinforce`, `agents/actor_critic` |
 | 5 | `rlhf/*`, `web/*` |

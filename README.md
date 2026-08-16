@@ -33,6 +33,8 @@ Diya Garg · Pranav Upadhyay
 | `ROLLBACK.md` | How to undo | When risky work starts |
 | `INTERVIEW_PREP.md` | The functions and answers you must know cold | Week 6 (read Week 1) |
 | `docs/experiments/EXPERIMENT_LOG.md` | Every training run and its result | Every run |
+| `docs/features/` | One file per feature, start to finish | Per feature |
+| `docs/bugs/` | One file per bug, start to finish | Per bug |
 
 The first ten follow the *AI Collaboration Field Guide* ("Don't just trust the AI. Trace it."). `EXPLAIN.md` and `INTERVIEW_PREP.md` are additions specific to this project — see `DECISIONS.md` D-006.
 
@@ -41,20 +43,25 @@ The first ten follow the *AI Collaboration Field Guide* ("Don't just trust the A
 ## Setup
 
 ```powershell
-cd "C:\Users\prana\Desktop\RL Project"
+cd D:\RLPROJECT
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-pytest -q
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pytest tests/ -q     # expect 48 passed
 ```
 
 Python 3.13.1 confirmed on this machine. Verify the PyTorch install works before Phase 3 depends on it.
+
+`results/` is gitignored. Regenerate it with `scripts/run_baselines.py` and `scripts/run_dp.py` (DP takes ≈ 2.1 min).
 
 ---
 
 ## Current status
 
-**Phase 0 — Foundation. Documentation scaffold complete; no code written yet.**
+**Phase 0 complete** (2026-08-14) · **Phase 1 complete** (2026-08-16) · **Phase 2 — tabular model-free RL, in progress.**
+
+Built and tested: the simulator, the environment, both state encoders, five baselines, and model-based Dynamic Programming (value iteration + policy iteration) with an external correctness check against a hand-solved 5-state MRP.
+
+The headline finding so far is a negative one, and it is deliberate: the DP policy earns the **highest total reward of any agent (305.9)** while catching **fewer than half the real incidents (recall 0.43)**. It games the hand-written reward. We kept the exploitable reward rather than patching it, because a reward nobody can write correctly by hand is the entire argument for learning one from human preferences in Phase 5. See `DECISIONS.md` D-012 and `EXPLAIN.md` Part 9.
 
 See `HANDOVER.md` for the live picture.
 

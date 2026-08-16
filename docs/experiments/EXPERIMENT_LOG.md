@@ -168,3 +168,168 @@ Why the reward permits this (checked, per CONSTRAINTS #5): (a) bulk-close credit
 **What this does and does not establish.** It establishes that the Bellman backup in `agents/dp.py` is the textbook equation (S&B eq. 3.14 / §4.1 / §4.4), independently of anything else in the repo. It does **not** validate `estimate_model` — the MRP supplies exact dynamics, whereas the 576-state P̂/R̂ are sampled, and their sampling error remains bounded only by the coverage figures in E-004 (133/576 states) and the D-011 unvisited-pair convention. Those are separate concerns and stay open as stated caveats.
 
 **Negative result worth keeping.** The first design booked the incident payoff as `R(CONFIRMED) = +10` on an absorbing state. It diverges — an absorbing state with non-zero reward collects it forever, giving V = 10/(1−γ) = 100 and swamping the chain. Fixed by moving to per-transition rewards. `test_absorbing_states_have_zero_value` now guards against re-introducing it. Recorded because it is a mistake a student would plausibly make on the exam version of this question.
+
+---
+
+## E-006 — Phase 2 anchor: a hand-derived `q_*` verified against the shipped solver — 2026-08-16
+
+**Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_002 · **Decision:** D-014
+**Not a training run.** No agent was trained and no environment episode was executed. Logged here because it establishes a reference answer every Phase 2 result will be measured against, exactly as E-005 did for Phase 1.
+
+**What was run**
+
+```
+.\.venv\Scripts\python.exe -m pytest tests/test_tiny_mdp.py -v     ->  13 passed in 0.36s
+.\.venv\Scripts\python.exe -m pytest tests/ -q                     ->  27 passed in 0.38s
+```
+
+**The object.** A two-state, two-action, deterministic, continuing MDP with γ = 0.9 (`src/soc_triage/tiny_mdp.py`). States `QUIET` / `BUSY`; actions `WAIT` / `WORK`. Rewards: `(QUIET,WAIT) = +1`, `(QUIET,WORK) = −5`, `(BUSY,WAIT) = −1`, `(BUSY,WORK) = +4`.
+
+**The hand-derived answer** (derivation in `docs/features/FEATURE_002_tiny_mdp_qstar.md`):
+
+| | WAIT | WORK | V(s) | π*(s) |
+|---|---|---|---|---|
+| QUIET | **10.0** | 6.7 | 10 | WAIT |
+| BUSY | 10.7 | **13.0** | 13 | WORK |
+
+`V(QUIET) = 1/(1−0.9) = 10` exactly; `V(BUSY) = 4 + 0.9(10) = 13` exactly.
+
+**Result:** three independent routes agree.
+
+| Route | Agreement with the hand-derived answer |
+|---|---|
+| Bellman optimality residual on `HAND_COMPUTED_Q` (S&B eq. 3.20, no solver) | **1.78e-15** |
+| `agents/dp.value_iteration` on the action-padded MDP → V | matches to < 1e-12, final Δ < 1e-14 |
+| Q rebuilt from that V as `R(s,a) + γ·P[s,a]@V` | matches to < 1e-12 |
+
+Greedy policy from all routes: `[WAIT, WORK]`, as derived.
+
+**Mutation check — evidence the anchor can fail.** A test that cannot fail is worth nothing, so wrong values were injected deliberately:
+
+```
+residual, correct Q        : 1.776e-15
+residual, Q(BUSY,WORK)  13.0 -> 13.1: 0.1000
+residual, Q(QUIET,WAIT) 10.0 ->  9.9: 0.0900
+residual, Q(QUIET,WORK)  6.7 ->  6.8: 0.1000
+policy if Q(QUIET,WORK)=99 : [1 1] vs hand [0 1]
+```
+
+A 0.1 error sits **thirteen orders of magnitude** above the 1e-12 tolerance. No plausible wrong answer slips through.
+
+**What this does and does not establish.** It establishes a trusted `q_*` for a fixture the Phase 2 learners can be graded against, and it ties that fixture to `value_iteration`, already independently validated in E-005. It establishes **nothing** about Monte Carlo, SARSA or Q-learning — none of them exist yet. It also says nothing about the 576-state environment: the tiny MDP has exact, deterministic dynamics, whereas the real one is sampled and stochastic. A learner passing here has a correct update rule, not a working agent.
+
+**Negative result worth keeping.** Two earlier fixture designs were discarded for giving the optimal action a winning margin of only 0.1 and 0.3 on values near 10 — a 1–3% gap. A tabular learner within 3% of `q_*` is completely ordinary, so the greedy policy would have flipped at random and the test would have been flaky rather than strict. The margin, not the tidiness of the numbers, is what makes a fixture testable; the shipped design has margins of 3.3 and 2.3, frozen as `MIN_ACTION_GAP`. Recorded because "the test is flaky, mute it" is the wrong conclusion to reach later from a fixture that was mis-designed early.
+
+---
+
+## E-007 — Q-learning converges to the hand-derived q\* on the tiny MDP — 2026-08-16
+
+**Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_003 · **Decision:** D-015
+**Not a run on the real environment.** This is the tiny 2-state fixture only. No SOC episode was simulated, no eval seed was touched, and no Phase 2 exit criterion was tested.
+
+**What was run**
+
+```
+.\.venv\Scripts\python.exe -m pytest tests/test_tabular.py -q   ->  20 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q                  ->  47 passed in 2.56s
+```
+
+**Setup.** `QLearningAgent`, α = 0.1, γ = 0.9, ε: 1.0 → 0.1 at 0.99 per episode, 500 episodes × 200 steps, episode start state alternating at random so neither state is starved.
+
+**Result.** The learned Q-table reproduces the pen-and-paper answer of FEATURE_002:
+
+| | WAIT | WORK |
+|---|---|---|
+| QUIET | 10.000000 | 6.700000 |
+| BUSY | 10.700000 | 13.000000 |
+
+`max |Q − q*| = 9.237e-14`. Greedy policy `[WAIT, WORK]` — as derived.
+
+**Convergence speed (seed 0)**
+
+| Episodes | max \|Q − q\*\| | Policy correct |
+|---|---|---|
+| 10 | 6.248e-02 | **yes** |
+| 50 | 9.237e-14 | yes |
+| 500 | 9.237e-14 | yes |
+| 2000 | 9.237e-14 | yes |
+
+**The policy is right after 10 episodes; the values take ~50 to reach machine precision.** Behaviour converges well before value does — worth remembering, and worth expecting again on the real environment where it will be far less clean.
+
+**Across 5 seeds (500 episodes):** mean 9.237e-14, std **0.000e+00**, policy `[0 1]` every time.
+
+**The zero standard deviation was investigated before being accepted (CONSTRAINTS #5).** Identical results across seeds is exactly what a broken seed looks like. It is not broken: early trajectories genuinely diverge — first 20 actions were `10011101100100011001` for seed 0 against `11000011011010000110` for seed 1, with visibly different Q-tables after 3 episodes — and they converge to the same place. A deterministic MDP has no target noise and a unique fixed point, so exploration order changes the speed of convergence, not its destination. `test_different_seeds_explore_differently_but_reach_the_same_fixed_point` now asserts both halves.
+
+**Negative result worth keeping.** The convergence test was first written with a tolerance of `1e-2`, guessed from what a tabular learner "usually" achieves. The measured error is `9.24e-14` — twelve orders of magnitude tighter. A 1e-2 tolerance would have passed a materially wrong backup. Tightened to `1e-9`. Same lesson as E-006's action-gap finding: **measure the fixture, then set the tolerance.** A plausible-looking number chosen in advance is not a threshold, it is a guess that happens to be written in a test file.
+
+**What this does and does not establish.** It establishes that the Q-learning update rule is the textbook one (S&B §6.5) and that it is distinguishable from SARSA at the level of a single backup. It establishes **nothing** about the SOC environment: 2 states versus 576, deterministic versus stochastic, and 4 state-action pairs versus 2,880. Expect the real thing to be slower, noisier, and — on the evidence of E-004 — quite possibly to rediscover the bulk-close reward hack.
+
+---
+
+## E-008 — Q-learning on the real 576-state environment — 2026-08-16
+
+**Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_004 · **Decisions:** D-015, D-016
+**The first learning run on the real environment.** Everything before this was baselines, planning, or a 2-state fixture.
+
+**What was run**
+
+```
+.\.venv\Scripts\python.exe scripts\train.py
+  5 runs x 20000 episodes, alpha 0.1, gamma 0.99,
+  epsilon 1.0 -> 0.05 at 0.9995/episode (floor reached ~episode 6000)
+  training seeds 200000+ (D-016), one fresh shift per episode
+  training completed in 2.8 min
+```
+
+**Headline result — eval seeds 101–105, mean ± std across the 5 runs**
+
+| agent | recall@deadline | total reward | MTTD (min) |
+|---|---|---|---|
+| **q_learning** | **0.73 ± 0.03** | **270.9 ± 105.5** | **22.0 ± 15.6** |
+| severity_sort | 0.87 ± 0.16 | 153.7 ± 218.7 | 23.0 ± 12.4 |
+| oracle_greedy | 0.77 ± 0.13 | 214.1 ± 207.6 | 15.6 ± 6.5 |
+| dp (E-004) | 0.43 | 305.9 ± 127.6 | — |
+
+> The q_learning spread is across **training runs**; the baseline spreads are across **eval seeds** (one deterministic run each). Different quantities — not comparable as written. Fixing this presentation is a follow-up.
+
+**The Phase 2 exit criterion is NOT met.** It requires Q-learning to beat severity-sort on recall@deadline *and* MTTD. Recall: **0.73 vs 0.87 — fails.** MTTD: 22.0 vs 23.0 — marginally better, and well inside the spread. The gate is not met and is **not** being quietly restated here; see "Decision owed" below.
+
+### Finding 1 — the reward hack recurs, weaker, exactly as D-012 predicted
+
+Action distribution of the run-0 greedy policy over eval episodes:
+
+| action | steps | share |
+|---|---|---|
+| BULK_CLOSE_LOW_RISK | 297 | **62.3%** |
+| PULL_CHEAPEST | 97 | 20.3% |
+| PULL_HIGHEST_SEVERITY | 47 | 9.9% |
+| PULL_MOST_CRITICAL_ASSET | 28 | 5.9% |
+| PULL_OLDEST | 8 | 1.7% |
+
+DP used BULK_CLOSE ~97% of the time and scored recall 0.43. Q-learning uses it 62.3% and scores recall 0.73. **Same pathology, less extreme** — it earns more reward than severity-sort (270.9 vs 153.7) while catching fewer real incidents (0.73 vs 0.87).
+
+This is the outcome D-012 flagged in advance and declined to pre-empt. Two algorithms with nothing in common — exact planning on an estimated model, and model-free sampling — independently discover the same exploit. **That is direct evidence the pathology lives in the reward function, not in any one algorithm**, which is the strongest available motivation for learning a reward from human preferences in Phase 5. Recorded as a headline result, not a defect.
+
+### Finding 2 — the evaluation seed block is not representative *(this one is bigger)*
+
+The greedy diagnostic during training sat around 40–60 reward while the final eval-seed number was 270.9. That gap was investigated before the result was accepted (CONSTRAINTS #5). It is **not** an agent problem — the same agents score very differently on the two seed sets:
+
+| agent | train-diag seeds 1–10 | eval seeds 101–105 | gap |
+|---|---|---|---|
+| random | −201.1 ± 218.9 | −155.7 ± 148.9 | +45 |
+| severity_sort | **−78.7 ± 325.5** | **+153.7 ± 218.7** | **+232** |
+| oracle_greedy | +94.0 ± 317.3 | +214.1 ± 207.6 | +120 |
+
+**Every agent, including the oracle, scores far better on the eval seeds.** The five eval seeds are systematically easier than seeds 1–10, and the per-seed standard deviation is enormous — severity_sort's ±325.5 dwarfs the ~117-point difference between it and Q-learning that E-008 is otherwise reporting.
+
+This is not a Phase 2 problem. It affects **E-002, E-003, E-004 and E-008 alike**: every headline comparison in this project so far rests on 5 evaluation shifts drawn from a distribution whose spread is several times larger than the effects being measured. CONSTRAINTS #3 requires ≥5 seeds and that was honoured — but 5 turns out to be far too few for this environment's variance, which is a property nobody had measured until now.
+
+**No numbers were changed and no seed block was altered in response.** Widening the eval block would invalidate the comparability of every prior experiment and is a decision for the humans (see below).
+
+### Other observations
+
+- **The learning curve does not visibly converge.** After epsilon floors at 0.05 (~episode 6000), the greedy diagnostic keeps swinging between −262.9 and +121.3 with no trend. Given Finding 2, most of that is probably shift-to-shift variance rather than instability in the learner — but it has not been separated, and until it is, "Q-learning converged" is not a claim this run supports.
+- Curve saved to `results/q_learning_curve.png` (gitignored, regenerable).
+- Run-0 alone scores reward 113.6 / recall 0.68 on eval, against the 5-run mean of 270.9 — consistent with the ±105.5 spread, and a reminder that the single saved Q-table is not the reported result.
+
+**Decision owed to the humans (not taken here).** Three questions, in order of importance: (1) is the eval block widened, and if so, does every prior experiment get re-run for comparability? (2) is the Phase 2 gate restated on total reward, as Phase 1's was in D-012 — and if so, does the recall figure travel beside it under the same rule? (3) do the α/γ/ε ablations (ROADMAP box 7) run before or after that is settled? Following D-012's precedent, the gate is left **unmet and unamended** until a human decides.

@@ -156,6 +156,66 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — the first real result, and it's a mixed one
+
+The learning agent finally met the real simulated SOC. It practised on 20,000 shifts, five separate times over, and only looked at the five "exam" shifts once, right at the end — so nothing it learned could be secretly tuned to the exam.
+
+**What happened.** It earns far more reward than the sensible rule-of-thumb baseline: 271 against 154. But it catches **fewer** real incidents — 73% against 87%. The Phase 2 target was "beat the baseline at catching incidents", and it didn't. We are not moving the target to make it look like it did.
+
+**Why it happened** is the interesting part, and we predicted it two phases ago. Looking at what the agent actually *does*, 62% of its actions are hitting the bulk-close button — dismissing batches of alerts as low-risk. That is the same shortcut the Phase 1 planner discovered, except that planner used it 97% of the time and this one uses it 62%. Two completely different algorithms, one that plans with a map and one that learns by trial and error, independently found the same loophole.
+
+That is worth more than a passing grade would have been. It's direct evidence that the problem is **the reward we wrote by hand**, not any particular algorithm — which is exactly the argument for the human-feedback phase later in the project. If only the planner had cheated, you could blame the planner. When everything cheats, you have to blame the rules.
+
+**And then we found something bigger, by accident.**
+
+The agent was scoring much better on the exam shifts than on the practice ones. The obvious worry is that it had memorised the practice shifts, so we checked — and it hadn't. We tested the *baselines*, which learn nothing at all and can't memorise anything, on both sets of shifts. They showed the same gap. The rule-of-thumb baseline scores −79 on the practice shifts and +154 on the exam shifts. Even the theoretical best-possible agent gains 120 points just by switching sets.
+
+**The five exam shifts are simply easier than the practice shifts.** And worse: shifts vary so much from one to the next that the random noise is several times larger than the differences we've been reporting. When we say "271 beats 154", the shift-to-shift wobble on that baseline is about ±325.
+
+This is not a Phase 2 problem. It touches every comparison in the project so far, including the Phase 1 results we already wrote up. We have deliberately changed nothing, because fixing it means re-running everything and that is a decision for Pranav and Diya, not for the AI that found it.
+
+There's a general lesson here that's worth more than the result. We only found this because a number looked *odd*, not because a test failed. Everything was passing. The project's rule that a surprising result is a bug report until proven otherwise is what turned "huh, that's a bit high" into the most important finding of the session.
+
+### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — the first algorithm that actually learns
+
+Everything built before this point either planned using a map it was handed, or followed a fixed rule and never improved. This is the first agent that gets better from experience.
+
+It's called **Q-learning**, and the idea is small enough to say in a sentence. The agent keeps a big table: one row per situation, one column per action, each cell holding its current guess at how good that action is in that situation. Every time it acts and sees what happens, it nudges one cell toward "the reward I just got, plus my own best guess about what comes next." That single line of arithmetic is the whole algorithm — everything else in the file is bookkeeping.
+
+The clever part is the phrase *my own best guess about what comes next*. While it's learning, the agent deliberately does random things now and then, so it stumbles into options it would otherwise never try. But when it updates the table, it assumes it will play **perfectly** from the next step onward — not randomly. So it explores like an amateur and learns like an expert. That's what "off-policy" means, and it's the single difference from SARSA, the algorithm we write next. The two are easy to confuse, so we wrote a test whose only job is to make confusing them impossible.
+
+**We wrote the tests before the algorithm, and watched them fail.** That ordering isn't ceremony. A test written afterwards passes on its first run, which tells you only that it matches what the code does — not that it would have caught the code being wrong.
+
+On the two-state practice problem from earlier in the session, it reproduces the pen-and-paper answer to fourteen decimal places. More interestingly, it works out the right *strategy* after about ten practice runs, while the numbers themselves take about fifty runs to settle. Behaviour gets there before belief does — which is a genuinely useful thing to know, and a good viva answer.
+
+**Two honest caveats.**
+
+First: this has never been run on the real problem. Two situations versus 576, no randomness versus a lot of it. Passing here proves the arithmetic is right. It proves nothing about whether the agent is any good at triaging alerts.
+
+Second, and more interesting: one result looked *too* good. Every random seed gave byte-identical answers — zero variation, which is normally the signature of randomness that isn't actually switched on. So we stopped and checked instead of celebrating. It turned out to be correct: the practice problem is completely predictable and has exactly one right answer, so different random routes all arrive at the same destination. We proved the routes really were different (the agents took visibly different action sequences early on) before accepting it. That check is now a permanent test, so nobody has to redo the investigation.
+
+There was also a smaller lesson. The first version of the test said "close enough is within 1%." Measuring showed the real accuracy was about a trillion times better than that, meaning the test would have happily accepted a genuinely broken algorithm. Tightened. The general point: work out how accurate the thing actually is, then set the bar — don't pick a number that sounds reasonable and write it into a test.
+
+### Session 6 — 2026-08-16 — Claude Opus 5 — Phase 2 started: the measuring stick
+
+Phase 2 is where the project stops planning and starts *learning*. Three learning algorithms get written by hand — Monte Carlo, SARSA and Q-learning. Each one produces a big table of numbers saying "in this situation, this action is worth this much."
+
+The problem is that the table has 576 rows and 5 columns, and nobody can check 2,880 numbers by hand. So how would we ever know an algorithm is right? The obvious answer — write all three and see if they agree — does not work. Three algorithms built on the same misunderstanding will agree with each other perfectly and all be wrong together. Agreement is not correctness.
+
+So this session built a measuring stick first, before any of the learners.
+
+It is a miniature version of the same problem, shrunk until a person can solve it with a pen: **two** situations instead of 576, and **two** things you can do instead of five. The two situations are a calm queue and a backlogged one. The two things you can do are wait, or work an alert. Doing the arithmetic by hand gives four numbers — how good each choice is in each situation — and, importantly, the best move is *different* in the two situations: wait when things are calm, work when there's a backlog. That difference matters, because it means a lazy algorithm that always picks the same action can't accidentally pass the test.
+
+Those four numbers are now frozen in the code as the right answer. From here on, every learning algorithm has to reproduce them before we believe a word it says about the real problem.
+
+Two details worth knowing:
+
+**We checked the check.** A test that can't fail is worthless — it just makes you feel safe. So we deliberately typed wrong numbers in and confirmed the test noticed. It did, by a factor of roughly ten trillion. The correct answer registers as "off by 0.0000000000000018" (that's just the computer's rounding), and a wrong answer registers as "off by 0.1". There is no wrong answer that sneaks through.
+
+**We got the design wrong twice first, and the reason is interesting.** The first two versions of the miniature problem were arithmetically neat, but the best action only beat the second-best by about 1%. That sounds fine and is actually terrible: a learning algorithm that's within 1% of the right answer is completely normal, and it would pick the wrong action about half the time, at random. The test would have failed sometimes and passed other times — and a test like that gets ignored rather than trusted. The third design gives the best action a much wider lead. The lesson generalises: a test needs its right answer to be *far away* from the wrong ones, not merely different from them.
+
+Also swept a batch of stale documentation this session — the README still had the old computer's file path and claimed no code was written yet, and two other documents still described the project as an empty scaffold.
+
 ### Session 5 — 2026-08-16 — Claude Opus 5 — Phase 1 closed
 
 **What:** Two things — a hand-solvable five-state example that proves our Bellman maths is right, and the decision that finally closed Phase 1.
@@ -335,7 +395,11 @@ So the reward stays, the hack goes in the report as a headline result, and Phase
 
 ---
 
-## Part 10 — The five-state worked example (how we know our maths is right)
+## Part 10 — The worked examples (how we know our maths is right)
+
+> There are two of them now, and they check different things. The five-state one (below) checks the maths behind *planning* — working out how good each **situation** is. The two-state one (at the end of this part) checks the maths behind *learning* — working out how good each **action in each situation** is. The first guards Phase 1's code; the second guards Phase 2's.
+
+### The five-state worked example
 
 **The problem.** Our dynamic-programming code solves a problem with 576 states. Nobody can check 576 states by hand. We had two methods (value iteration and policy iteration) that agreed with each other 100% — but they share the same underlying equation, so if that equation were wrong, both would be confidently, identically wrong.
 
@@ -364,6 +428,36 @@ V(quiet) = 2.6 + 0.45 × V(quiet)   ⟹   0.55 × V(quiet) = 2.6   ⟹   V(quiet
 So the equation in our code is the textbook equation. Verified from outside, not by the code agreeing with itself.
 
 *Full derivation: `docs/features/FEATURE_001_mrp_worked_example.md`. Run it yourself: `python scripts/run_mrp_example.py`.*
+
+---
+
+### The two-state worked example (added session 6, for Phase 2)
+
+The five-state example above answers "how good is it to be *here*?" That was the right question for Phase 1. Phase 2's algorithms answer a harder one: "how good is it to *do this particular thing* from here?" — one number per situation-and-action pair. The five-state example cannot check that, because it has no actions in it at all. Hence a second, differently-shaped example.
+
+**The setup.** Two situations and two choices.
+
+| | If you WAIT | If you WORK |
+|---|---|---|
+| **Queue is calm** | stay calm, **+1** | you waste effort and a backlog builds, **−5** |
+| **Queue is backlogged** | it stays backlogged, **−1** | you clear it and things are calm again, **+4** |
+
+Future rewards count for 90% of present ones (that's the "discount" — a point tomorrow is worth 0.9 today).
+
+**The answer, by hand.** Being in a calm queue and staying there earns +1 every step, forever, each one worth 90% of the last. That's a geometric series and it adds to exactly **10**. Being backlogged and clearing it earns +4 now and then puts you in the calm situation, so it's worth 4 + 0.9 × 10 = exactly **13**. From there the four action-values fall out:
+
+| | WAIT | WORK |
+|---|---|---|
+| **Calm** | **10.0** ← best | 6.7 |
+| **Backlogged** | 10.7 | **13.0** ← best |
+
+**The bit that looks wrong.** Being backlogged (13) scores *higher* than being calm (10), even though backlogged is obviously the worse place to be. This trips up nearly everyone the first time and it's worth understanding, because it is the single most common misreading of what these numbers mean.
+
+The number is not a rating of how nice the situation is. It's the total future earnings available from there. From the backlog, one clean-up pays +4 **and** hands you the calm queue with all of its future earnings still intact — so you collect the bonus *on top of* everything the calm queue was already worth. What you cannot do is farm it: going back to the backlog on purpose costs −5, which is more than the 3.3 you'd gain. The arithmetic forbids the loop, which is exactly why the correct strategy is "stay calm."
+
+That last check was not optional, incidentally. Phase 1's big finding was that our main reward system *can* be gamed by an agent that games it (see Part 9). So the miniature example was checked for the same weakness before we agreed to trust it. It doesn't have one.
+
+**The trap hidden in it.** If you follow the best strategy, you stay in the calm situation and never visit the backlogged one — so you never learn anything about it. The only way a learning algorithm ever sees half of this problem is by occasionally doing something other than the best-known thing on purpose. That's called exploration, and this tiny example demonstrates in four numbers why it isn't optional. Any algorithm we test with exploration switched off will fail here, and it'll fail for that reason rather than because its maths is wrong — which is a genuinely confusing thing to debug, so it's written down in the test checklist.
 
 ---
 

@@ -30,6 +30,13 @@ sarsa:
 
 q_learning:
   alpha: 0.10
+  train_seed_start: 200000        # seeds 200000..200000+n_episodes-1 (D-016).
+                                  # Its own block, disjoint from train (1-10),
+                                  # eval (101-105), calibration (1000-3099) and
+                                  # DP estimation (10000-59999). One fresh shift
+                                  # per episode: cycling the 10 train seeds
+                                  # 2000x would let the agent memorise ten alert
+                                  # streams instead of learning to triage.
 
 dqn:
   hidden_layers: [128, 128]

@@ -3,7 +3,7 @@
 ROADMAP Phase 1, final box. The 576-state MDP cannot be checked by hand, so
 these tests check the Bellman machinery on the smallest object that can be:
 the five-state MRP in src/soc_triage/mrp_example.py, whose value function is
-derived with a pen in docs/features/phase1-mrp-worked-example.md.
+derived with a pen in docs/features/FEATURE_001_mrp_worked_example.md.
 
 The test that actually matters is `test_project_value_iteration_reproduces_hand_answer`
 — it runs `agents.dp.value_iteration`, the same function that produced the

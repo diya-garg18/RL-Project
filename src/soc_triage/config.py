@@ -385,9 +385,31 @@ class DPConfig:
 
 
 @dataclass(frozen=True)
+class EpsilonConfig:
+    """The exploration schedule, shared by every epsilon-greedy learner.
+
+    `decay` is applied once per EPISODE, not per step — see
+    `QLearningAgent.end_episode`. `min` stays above zero on purpose: queue
+    composition shifts during a shift, so a fully greedy agent stops adapting.
+    """
+
+    start: float
+    min: float
+    decay: float
+
+
+@dataclass(frozen=True)
+class QLearningConfig:
+    alpha: float
+    train_seed_start: int
+
+
+@dataclass(frozen=True)
 class TrainingConfig:
     common: CommonTrainingConfig
     dp: DPConfig
+    epsilon: EpsilonConfig
+    q_learning: QLearningConfig
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
@@ -413,8 +435,43 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         max_sweeps=int(_require(dp_raw, "max_sweeps", "dp")),
     )
 
+    # Phase 2 sections. Added when Phase 2 started, not before — the loader
+    # reads what the current phase needs and nothing more (no building ahead).
+    epsilon_raw = _require(raw, "epsilon", "training")
+    epsilon = EpsilonConfig(
+        start=float(_require(epsilon_raw, "start", "epsilon")),
+        min=float(_require(epsilon_raw, "min", "epsilon")),
+        decay=float(_require(epsilon_raw, "decay", "epsilon")),
+    )
+
+    q_learning_raw = _require(raw, "q_learning", "training")
+    q_learning = QLearningConfig(
+        alpha=float(_require(q_learning_raw, "alpha", "q_learning")),
+        train_seed_start=int(_require(q_learning_raw, "train_seed_start", "q_learning")),
+    )
+
     if not 0.0 < common.gamma <= 1.0:
         raise ConfigError("'common.gamma' must be in (0, 1]")
+
+    # These three fail loudly at load time on purpose. An out-of-range alpha
+    # produces a diverging Q-table, and an incoherent epsilon schedule produces
+    # an agent that never explores — both look like algorithm bugs and cost an
+    # afternoon to trace back to a typo in the YAML.
+    if not 0.0 < q_learning.alpha <= 1.0:
+        raise ConfigError("'q_learning.alpha' must be in (0, 1]")
+    if not 0.0 <= epsilon.min <= epsilon.start <= 1.0:
+        raise ConfigError(
+            "epsilon must satisfy 0 <= min <= start <= 1 "
+            f"(got start={epsilon.start}, min={epsilon.min})"
+        )
+    if not 0.0 < epsilon.decay <= 1.0:
+        raise ConfigError("'epsilon.decay' must be in (0, 1]")
+    if q_learning.train_seed_start < 100_000:
+        raise ConfigError(
+            "'q_learning.train_seed_start' must be >= 100000 to stay clear of the "
+            "train (1-10), eval (101-105), calibration (1000-3099), and DP "
+            "estimation (10000-59999) seed blocks"
+        )
     if dp.value_iteration_theta <= 0 or dp.policy_eval_theta <= 0:
         raise ConfigError("DP convergence thresholds must be positive")
     if dp.estimation_seed_start < 10_000:
@@ -422,4 +479,4 @@ def load_training_config(path: str | Path) -> TrainingConfig:
             "'dp.estimation_seed_start' must be >= 10000 to stay clear of the "
             "train (1-10), eval (101-105), and calibration (1000-3099) seed blocks"
         )
-    return TrainingConfig(common=common, dp=dp)
+    return TrainingConfig(common=common, dp=dp, epsilon=epsilon, q_learning=q_learning)

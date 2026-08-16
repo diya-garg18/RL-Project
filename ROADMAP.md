@@ -63,14 +63,23 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 - [ ] `agents/monte_carlo.py` — first-visit MC control with ε-greedy
 - [ ] `agents/sarsa.py` — on-policy TD control
-- [ ] `agents/q_learning.py` — off-policy TD control, ε-greedy with decay
-- [ ] Learning curves: reward per episode, smoothed over 100 episodes, 5 seeds each
+- [x] `agents/q_learning.py` — off-policy TD control, ε-greedy with decay *(FEATURE_003, E-007, D-015 — built test-first; reproduces the hand-derived `q_*` to 9.24e-14 on the tiny MDP, correct policy after 10 episodes. **Not yet run on the 576-state environment** — the update rule is verified, performance is not.)*
+- [x] Learning curves: reward per episode, smoothed over 100 episodes, 5 seeds each *(FEATURE_004, E-008 — `scripts/train.py`, `results/q_learning_curve.png`. **Caveat: the curve does not visibly converge** after epsilon floors; learner instability and environment variance have not been separated, so no convergence claim is made.)*
 - [ ] Convergence comparison against the Phase 1 DP solution (max-norm distance between Q-tables, and policy agreement %)
 - [ ] **Print the learned policy as a readable table** — for each `time_left` bucket, which action wins in which queue state. This is a headline figure for the report and the viva.
 - [ ] Ablations: learning rate, γ, ε-decay schedule
 - [ ] Tests: Q-learning converges on a tiny hand-checkable 2-state MDP with a known answer
+  - [x] **The 2-state MDP itself, hand-solved and verified** *(FEATURE_002, E-006, D-014 — `src/soc_triage/tiny_mdp.py`, 13 tests. `q_* = [[10.0, 6.7], [10.7, 13.0]]` derived on paper, Bellman-optimality residual 1.78e-15, and `agents/dp.value_iteration` reproduces it.)* **Built first, ahead of the learners** — deliberately out of box order, because an anchor built afterwards cannot say whether a disagreement is the learner's fault or its own (D-014).
+  - [x] **Q-learning measured against it** *(FEATURE_003, E-007 — `tests/test_tabular.py`, 20 tests. Includes the single-backup assertion that distinguishes Q-learning from SARSA, which no convergence test can.)*
+  - [ ] SARSA and Monte Carlo measured against it, in the same file
 
 **Exit criterion:** Q-learning beats severity-sort on recall@deadline and MTTD across 5 seeds (report mean ± std), and the printed policy table shows a *behaviourally interpretable* strategy shift as time runs out.
+
+> ❌ **MEASURED 2026-08-16 (E-008) — NOT MET.** Q-learning recall **0.73 ± 0.03** against severity-sort's **0.87** — fails. MTTD 22.0 vs 23.0 — marginally better, well inside the spread. Reward 270.9 vs 153.7 — wins clearly, on the metric the gate does not use.
+>
+> The flag below was right. BULK_CLOSE_LOW_RISK accounts for **62.3%** of the learned policy's actions (DP: ~97%). Same exploit, less extreme, found by a completely different algorithm — which is the evidence that the pathology is in the reward, not in DP.
+>
+> **The gate is left unmet and unamended, deliberately**, exactly as D-012 requires: a criterion contradicted by measurement gets decided by a human with real numbers in hand, not patched by whoever ran the experiment. **Two decisions are owed** — the gate itself, and the more serious eval-seed representativeness problem E-008 uncovered (every agent, oracle included, scores 120–230 higher on eval seeds than on train seeds, with per-seed spread several times the effect being measured). The second affects every experiment in the project, not just this phase.
 
 > ⚠ **Flagged, not yet amended (E-003 implication 2, E-004, D-012).** This gate has the same shape as the one Phase 1 had to restate: Q-learning maximises the *same exploitable reward* DP did, so it may well repeat the bulk-close hack and land below severity-sort on recall while winning on reward. **Do not pre-emptively weaken this criterion** — run Q-learning first, then decide with real numbers in hand, exactly as Phases 0 and 1 did. If the hack reappears, that is a *result* (it demonstrates the pathology is in the reward, not in the algorithm), and the gate gets restated on the objective with the recall gap recorded. If Q-learning beats severity-sort on recall anyway, that is the more interesting outcome and needs explaining, not just celebrating.
 

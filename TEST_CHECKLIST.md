@@ -37,7 +37,7 @@ python scripts/run_baselines.py           # eval seeds come from config seeds.ev
 ```bash
 pytest tests/ -v
 ```
-Required tests, by actual name (all passing 2026-08-14, 7 tests):
+Required tests, by actual name (the 7 Phase-0 tests, all passing; suite total is now 14 — the other 7 are Phase 1's `test_mrp_bellman.py`):
 - `test_env_deterministic_under_fixed_seed` — same seed ⟹ identical trajectory and outcome
 - `test_different_seeds_differ`
 - `test_reward_breakdown_sums_to_step_reward` — per-step breakdown sums exactly to the step reward
@@ -71,11 +71,30 @@ This is the only check in the project that validates the Bellman backup against 
 ## Phase 2 — Tabular
 
 ```bash
+pytest tests/test_tiny_mdp.py -v
+```
+**Must show:** 13 passing tests establishing the hand-derived `q_*` for the 2-state MDP, including `agents/dp.value_iteration` reproducing it. *Verified PASS 2026-08-16 (E-006): 13/13, Bellman optimality residual 1.78e-15 against a 1e-12 tolerance.*
+
+This is the Phase 2 counterpart of `test_mrp_bellman.py` and carries the same rule: **if it fails, fix the learner — never adjust the expected values.** They were derived by a human on paper (`docs/features/FEATURE_002_tiny_mdp_qstar.md`). The anchor is verified load-bearing: injecting a 0.1 error into any entry of `HAND_COMPUTED_Q` moves the residual to ~0.10, thirteen orders of magnitude above tolerance.
+
+```bash
 pytest tests/test_tabular.py -v
 ```
-- `test_q_learning_solves_toy_mdp` — converges to the known analytical answer on a hand-checkable 2-state MDP
-- `test_epsilon_decays_to_floor`
-- `test_q_table_shape` — (576, 5)
+**Q-learning: verified PASS 2026-08-16 (E-007) — 20 tests.** `max |Q − q*| = 9.237e-14`, correct policy after 10 episodes, identical across 5 seeds. Groups:
+
+- `test_q_learning_converges_to_the_hand_derived_q_star` — reproduces `tiny_mdp.HAND_COMPUTED_Q` to < 1e-9
+- `test_q_learning_recovers_the_optimal_policy` — the behaviour, checked separately from the values
+- `test_update_bootstraps_off_the_max_not_the_behaviour_action` — **the one that matters most.** Q-learning and SARSA converge to the same answer on this fixture, so `sarsa.py` pasted into `q_learning.py` would pass every convergence test. This pins the difference at a single backup: target 10.0, not 0.95.
+- `test_terminal_update_does_not_bootstrap` · `test_single_update_matches_hand_arithmetic` · `test_alpha_zero_learns_nothing`
+- `test_epsilon_decays_geometrically_and_stops_at_the_floor` · `test_epsilon_does_not_decay_on_update` (D-015)
+- `test_ties_break_toward_the_lower_action_index` — not an edge case; a zero-init table ties on step one of every run
+- `test_different_seeds_explore_differently_but_reach_the_same_fixed_point` — characterisation, guards a real investigation (E-007)
+- `test_q_table_shape` — (576, 5) · `test_q_table_starts_at_zero` — zero init, not optimistic
+- Config: alpha and epsilon range checks reject bad YAML at load time
+
+Still to write, same fixture: `test_sarsa_solves_toy_mdp` (on-policy) and `test_monte_carlo_solves_toy_mdp` (truncated at `tiny_mdp.HORIZON`).
+
+> Watch for one specific false pass here: under the tiny MDP's optimal policy the agent never leaves `QUIET`, so `BUSY` is reached only by exploring. A learner run with ε = 0 will never see half the MDP. If a learner passes on `Q(QUIET, ·)` and produces garbage on `Q(BUSY, ·)`, the exploration schedule is the suspect, not the update rule.
 
 ```bash
 python scripts/train.py --agent q_learning --seeds 5 --eval

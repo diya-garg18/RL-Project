@@ -2,13 +2,40 @@
 
 > Field Guide habit #4. Bugs live in the gaps between files. This traces what calls what, in what order.
 >
-> **Status:** planned flows — no code exists yet. Each flow is marked ⬜ (not built) or ✅ (built and verified). Update the marker and correct the detail the moment a flow becomes real.
+> **Status:** Flows B, C and C2 are built and verified. Flow A is partly built (env, runner, encoders — `scripts/train.py` still to come). Flows D and E are still planned. Each flow is marked ⬜ (not built) or ✅ (built and verified). Update the marker and correct the detail the moment a flow becomes real.
 
-**Last updated:** 2026-08-13
+**Last updated:** 2026-08-16
 
 ---
 
-## Flow A — One training run ⬜ *(env/runner/encoders built & tested 2026-08-14; runner has the learn=True hook; scripts/train.py itself arrives with the first learning agent)*
+## Flow A — One training run ✅ *(built & verified 2026-08-16 — FEATURE_004, E-008; entry point `scripts/train.py`)*
+
+**Three seed blocks, three different jobs — the part of this flow most worth getting right:**
+
+```
+scripts/train.py
+  └─ for repeat in 0..4:                       ← 5 runs; one run is not a result
+       ├─ agent = QLearningAgent(seed=repeat)
+       ├─ seed_base = q_learning.train_seed_start + repeat * n_episodes   (200000+, D-016)
+       ├─ for episode in 0..n_episodes-1:
+       │    ├─ runner.run_episode(env, agent, seed_base + episode, learn=True)
+       │    │      └─ ONE FRESH SHIFT PER EPISODE — never a replayed seed
+       │    ├─ keep only outcome.total_reward   ← 100k full EpisodeRecords will not fit in memory
+       │    └─ agent.end_episode()              ← THE epsilon decay (D-015). Omit it and
+       │                                          epsilon sticks at 1.0, silently, forever.
+       └─ every eval_every episodes:
+            └─ greedy_diagnostic(seeds 1-10)    ← epsilon pinned to 0, learn=False,
+                                                   TRAIN-diagnostic seeds only
+  └─ ONCE, at the end: evaluate on seeds 101-105 and print the comparison table
+```
+
+`greedy_diagnostic` saves and restores epsilon around the measurement — measuring must not change what is being measured.
+
+**Why the eval seeds are read exactly once, at the end.** Every training decision is already made by then, so nothing in the script can tune against them. Plotting the learning curve against eval seeds would be tuning against them *by eye*, which CONSTRAINTS #2 forbids just as firmly and which leaves no trace in code. Hence the separate train-diagnostic block.
+
+Measured: 2.8 min for 5 × 20,000 episodes. Result in E-008 — **the Phase 2 exit criterion is not met**, and E-008's second finding is that the eval seed block is not representative.
+
+### Flow A (original plan, for reference)
 
 The main loop. Everything else is a variation on this.
 
@@ -93,6 +120,47 @@ Note the direction of the arrow: `mrp_example.py` depends on `agents/dp.py`, nev
 
 All four routes must agree to ~1e-9. Measured disagreement: **7.11e-15**. If this test ever fails, the Bellman backup in `agents/dp.py` has been broken — fix `dp.py`, never the expected values (they came from a human with a pen; see `docs/features/FEATURE_001_mrp_worked_example.md`).
 
+### Flow C3 — the Phase 2 correctness anchor (E-006) ✅ *(built & verified 2026-08-16 — FEATURE_002)*
+
+Flow C2 checks the Bellman backup for **V**. The Phase 2 learners produce **Q**, which C2 cannot check at all — an MRP has no actions. This path establishes a `q_*` derived on paper, and ties it to the solver C2 already validated.
+
+```
+tests/test_tiny_mdp.py
+  └─ tiny_mdp.bellman_optimality_residual(HAND_COMPUTED_Q, P, R, γ)   (S&B eq. 3.20)
+  │     └─ must be 0 everywhere — checks the frozen constants with NO solver involved
+  ├─ tiny_mdp.greedy_from_q(HAND_COMPUTED_Q)  ──▶ π*  must equal HAND_COMPUTED_POLICY
+  └─ tiny_mdp.pad_actions(P, R, 5)            ──▶ (P_wide, R_wide) shaped (2,5,2)/(2,5)
+        └─ agents/dp.value_iteration(...)     ──▶ V   THE SHIPPED SOLVER, already
+                                                     trusted via Flow C2
+        └─ rebuild Q(s,a) = R(s,a) + γ·P[s,a]@V  and compare to HAND_COMPUTED_Q
+```
+
+Same dependency direction as C2: `tiny_mdp.py` depends on `agents/dp.py`, never the reverse.
+
+**Why `pad_actions` duplicates rather than invents.** `dp.value_iteration` loops over its module constant `N_ACTIONS = 5`, so a 2-action MDP must be widened first. The padding repeats the real actions cyclically (0,1,0,1,0), so the `max_a` ranges over copies of genuine actions only and `q_*` is provably unchanged. Padding with zero-reward self-loops would insert a *new* action worth 0 — harmless here where all values are positive, silently wrong in any MDP with negative values.
+
+Measured: Bellman residual on the hand-derived table **1.78e-15**; a deliberately injected 0.1 error moves it to **0.10**, thirteen orders of magnitude above the 1e-12 tolerance. The anchor detects wrong answers.
+
+Every learner enters this flow at the same point: train on `tiny_mdp.step()`, then compare the learned Q-table against `HAND_COMPUTED_Q`. Q-learning does so as of 2026-08-16 (E-007); SARSA and Monte Carlo will reuse the identical path.
+
+```
+tests/test_tabular.py
+  └─ for each episode:
+       ├─ state = random start        ← so neither state is starved
+       ├─ for HORIZON steps:
+       │    ├─ action = agent.act(state)                 ← epsilon-greedy
+       │    ├─ next_state, reward = tiny_mdp.step(...)
+       │    └─ agent.update(state, action, reward, next_state, done=False)
+       │                                                   ▲
+       │                        TRUNCATION, NOT TERMINATION ┘ — the task is
+       │                        continuing; done=True here would teach the
+       │                        agent the world ends every 200 steps
+       └─ agent.end_episode()          ← the ONLY place epsilon decays (D-015)
+  └─ compare agent.Q against HAND_COMPUTED_Q, agent.greedy_policy() against HAND_COMPUTED_POLICY
+```
+
+Measured: `max |Q − q*| = 9.24e-14` after 500 episodes; correct policy after 10.
+
 ---
 
 ## Flow D — RLHF (Phase 5) ⬜
@@ -151,4 +219,5 @@ The LLM only ever **describes** a decision the RL agent already made. It never i
 *Append here whenever a flow surprises you. This section is worth more than the diagrams above once the project is real.*
 
 - **The scaffold's `actions:` YAML block was structurally invalid** (a sequence and a `bulk_close:` mapping key at the same indent level). PyYAML rejected the whole file on the loader's very first run. Action names now live under `actions.names`. Lesson: parse configs before trusting them — the docs looked fine for a whole session while the YAML was unloadable. (2026-08-13)
+- **`python -c` with a PowerShell here-string loses its inner quotes.** Passing a multi-line Python snippet to `python -c` via `@'...'@` had PowerShell's native-command argument parsing strip the double quotes, so Python received `print(residual,` and died on an unclosed paren five lines in. The error points at the Python, but the bug is in the shell. Fix: write throwaway scripts to a file and run the file. This is the second quoting-related tooling failure in this project (the first being the stray zero-byte files created when written content contains a `>`), which is enough of a pattern to stop using inline shell snippets for anything non-trivial. (2026-08-16)
 - **Calibration lives outside the flows above.** `scripts/calibrate_generator.py` calls `generator.generate_shift` directly — no env, no agent — on its own seed block (1000+), disjoint from train (1–10) and eval (101–105) seeds. Built and verified ✅. (2026-08-13)

@@ -218,3 +218,73 @@ The discount factor deserves its own note: the example uses γ = 0.9, *not* the 
 - *Inlining the constants into `tests/test_mrp_bellman.py`.* Would satisfy "not in src", but then `scripts/run_mrp_example.py` could not import them for the report output, and the MRP would be untestable from anywhere else.
 
 **Consequences:** One module in `src/` contains hard-coded numbers, which will look like a #9 violation to anyone reading the constraint without this entry — hence the pointer to D-013 in the module docstring. If the example is ever changed, `FEATURE_001`'s derivation, `HAND_COMPUTED_V`, and the arithmetic asserted in `test_expected_rewards_match_hand_arithmetic` must all be redone together, or the tests will catch the mismatch immediately (which is the intended safety net).
+
+---
+
+## D-014 — Phase 2 gets its own hand-solved anchor, built before the learners
+
+**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+**Approved by:** Pranav (2026-08-16), before implementation.
+
+**Decision:** A second worked example, `src/soc_triage/tiny_mdp.py` — a two-state, two-action MDP whose optimal action-value function is derived on paper (FEATURE_002) — is built **first** in Phase 2, ahead of Monte Carlo, SARSA and Q-learning. Its constants live in code rather than config, extending D-013's narrow exception to CONSTRAINTS #9 to this file for identical reasons.
+
+**Why:** FEATURE_001's MRP checks the Bellman backup for `V`. It cannot check `Q` at all — an MRP has no actions — so Phase 2's three learners would otherwise have no external anchor whatsoever. Their only available check would be agreement with each other, and agreement is not correctness: three implementations of the same misunderstanding agree perfectly and are all wrong. That is precisely the failure mode this project's documentation exists to prevent.
+
+The ordering is the other half of the decision, and it is a deliberate departure from the written box order in `ROADMAP.md` (where the test is the last box, not the first). An anchor built *after* the learners is ambiguous — when Q-learning disagrees with it, either could be at fault. Built first and cross-checked against `agents.dp.value_iteration`, which Phase 1 already validated against an independently hand-derived answer (E-005), the anchor arrives pre-trusted and every later disagreement is unambiguously the learner's fault. The trust chain is: human arithmetic → `value_iteration` (E-005) → `tiny_mdp` (E-006) → the Phase 2 learners.
+
+The fixture's design was constrained by what each property rules out, not by what looks tidy: continuing rather than episodic (so a TD learner cannot pass without bootstrapping), differing optimal actions per state (so a constant-action stub fails), deterministic (so the assertions stay exact), and — the one that took three attempts — a **wide decision margin**. See the alternatives below.
+
+**Alternatives rejected:**
+- *Reuse the 5-state MRP.* Wrong shape: no actions, so no `Q` to check.
+- *Skip the anchor and cross-check the three learners against each other, and against the Phase 1 DP Q-table on the real environment.* This is the roadmap's other Phase 2 box and it is worth doing, but it is not a substitute. The DP Q-table is itself only optimal for an *estimated* model (D-004), so agreement with it confirms consistency, not correctness.
+- *A tidier reward design with a narrow margin.* The first two candidate MDPs gave the optimal action a winning margin of 0.1 and 0.3 on values around 10 — a 1–3% gap. A tabular learner sitting within 3% of `q_*` is entirely ordinary, and would flip the greedy policy at random, producing a flaky test that gets muted rather than a strict one that gets trusted. Rejected in favour of margins of 3.3 and 2.3, recorded as `MIN_ACTION_GAP` so a later edit cannot erode them silently.
+- *Padding the 2-action MDP to 5 actions with zero-reward self-loops* so `dp.value_iteration` (which loops over `N_ACTIONS = 5`) accepts it. Rejected: that adds a genuinely new action worth 0 — harmless in this MDP where all values are positive, silently wrong in any MDP with negative values. Duplicating the real actions cyclically can only tie the maximum, never beat it, so `q_*` is provably preserved.
+
+**Consequences:** Two modules in `src/` now contain hard-coded numbers and will look like CONSTRAINTS #9 violations to anyone reading the constraint without D-013 and this entry — both module docstrings carry the pointer. If the tiny MDP is ever changed, FEATURE_002's derivation, `HAND_COMPUTED_Q`, `HAND_COMPUTED_V`, `HAND_COMPUTED_POLICY`, `MIN_ACTION_GAP` and the per-entry arithmetic in `test_hand_computed_q_matches_the_pen_and_paper_arithmetic` must all be redone together — the tests catch the mismatch immediately, which is the intended safety net.
+
+One design consequence is worth flagging forward: under the tiny MDP's optimal policy the agent never leaves `QUIET`, so `BUSY` is reachable only by exploration. This makes the fixture a live demonstration of why ε > 0 is necessary — good teaching material, but also a trap. A learner tested with ε pinned to 0 will fail on `Q(BUSY, ·)` for a reason that has nothing to do with its update rule. Noted in `TEST_CHECKLIST.md` so the next session does not debug the wrong thing.
+
+---
+
+## D-015 — Epsilon decays in an explicit `end_episode()` hook, not inferred from `done`
+
+**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+
+**Decision:** `QLearningAgent` exposes `end_episode()`, which applies one geometric decay step to epsilon and floors it. The caller — `scripts/train.py`, once it exists — must invoke it once per episode. Decay is deliberately **not** performed inside `update()`, and **not** triggered by `done=True`.
+
+**Why:** `config/training_default.yaml` specifies `decay: 0.9995  # per episode`. A 480-step shift contains hundreds of `update()` calls, so applying the same factor per step would drive epsilon from 1.0 to its 0.05 floor inside a *single episode* instead of over ~6000. The agent would stop exploring almost immediately, and the symptom — a learning curve that rises briefly then flattens — reads as "the algorithm has converged", not as "the exploration schedule is broken by three orders of magnitude". Silent, plausible-looking failures are the expensive kind.
+
+Inferring the boundary from `done=True` was the tempting alternative because it needs no caller cooperation. It fails on continuing tasks: `tiny_mdp` (D-014) has no terminal state and never sets `done`, so epsilon would never decay at all in exactly the fixture used to verify the agent. Worse, it fuses two genuinely separate concepts — *termination*, which changes the Bellman target, and *episode boundary*, which changes the exploration schedule. On a truncated continuing task those two differ, and code that treats them as one is the source of the classic "agent learns the world ends every 200 steps" bug. Keeping them apart in the API keeps them apart in the students' heads, which is the point.
+
+**Alternatives rejected:**
+- *Decay inside `update()` per step.* Wrong by ~500x per episode, and invisible.
+- *Decay when `done=True`.* Breaks on continuing tasks; conflates termination with truncation.
+- *An episode counter inside the agent that the agent increments itself.* The agent cannot know where an episode ends without being told; this just hides the same coupling behind a less obvious interface.
+
+**Consequences:** Any training loop that forgets `end_episode()` runs at fixed `epsilon_start` forever — a real failure mode, mitigated by `test_epsilon_does_not_decay_on_update` documenting the intent and by this entry. `agents/base.py` was **not** modified to add `end_episode()` to the base `Agent` interface: baselines have no exploration schedule, and widening the interface to suit one subclass would push a no-op onto five agents that do not need it (CONSTRAINTS #18 — don't refactor what you weren't asked to touch). If SARSA and Monte Carlo both end up needing it, promoting it to the base class at that point is the right moment, not now.
+
+A second, smaller decision recorded here rather than separately: `load_training_config` now parses the `epsilon` and `q_learning` sections, which already existed in the YAML but went unread while Phase 1 needed only `common` and `dp`. Three range checks were added — `alpha` in (0, 1], `0 <= min <= start <= 1`, `decay` in (0, 1]. These fail at load time because an out-of-range alpha yields a diverging Q-table and an incoherent epsilon schedule yields an agent that never explores; both present as algorithm bugs and are expensive to trace back to a typo in a config file.
+
+---
+
+## D-016 — Q-learning trains on its own seed block, one fresh shift per episode
+
+**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+**Approved by:** Pranav (2026-08-16), before the first training run.
+
+**Decision:** Training episodes draw seeds from a dedicated block, `q_learning.train_seed_start: 200000`, giving one distinct shift per episode (20,000 per run, offset per repeat). The existing `seeds.train` list (1–10) is **retained but repurposed** as a *training diagnostic* set — the seeds the learning curve is measured on, never trained on. Evaluation seeds (101–105) remain untouched and are read exactly once, at the end of a run.
+
+**Why:** `config/training_default.yaml` specifies `n_episodes: 20000` against a `seeds.train` list of ten. Taken literally, a run replays the same ten alert streams 2,000 times each. A tabular agent with 2,880 state-action cells and 20,000 episodes of practice on ten fixed shifts is being invited to memorise those shifts rather than learn a triage policy, and the resulting eval-seed gap would be blamed on the algorithm rather than on the training distribution.
+
+The fix follows an existing precedent rather than inventing a convention: `dp.estimation_seed_start: 10000` exists for exactly this reason — Phase 1 needed 50,000 episodes and ten seeds could not supply them (D-004). Phase 2 needs 100,000 across five repeats. Blocks are disjoint by construction — train-diag 1–10, eval 101–105, calibration 1000–3099, DP estimation 10000–59999, Q-learning training 200000+ — and `load_training_config` now rejects a start below 100000 rather than trusting the comment, per CONSTRAINTS #2's requirement that seed separation be enforced in code.
+
+Keeping seeds 1–10 as the diagnostic set is the second half of the decision and matters just as much. The learning curve has to be plotted against *something*, and plotting it against the evaluation seeds would be tuning against them by eye — a violation of CONSTRAINTS #2 that leaves no trace in the code.
+
+**Alternatives rejected:**
+- *Cycle the ten train seeds 2,000 times.* The literal reading of the config, and the cheapest. Rejected: it makes memorisation the most likely explanation for any train/eval gap, which would contaminate the interpretation of every Phase 2 result.
+- *Cycle the ten, but measure and report the memorisation gap.* Genuinely tempting — it turns a weakness into evidence. Rejected because it spends the phase's headline result on a self-inflicted artefact rather than on the algorithm, and because the gap it would measure is confounded by the seed-difficulty effect discovered in E-008.
+- *Draw training seeds at random each episode.* Loses reproducibility: two runs would face different shifts and could not be compared.
+
+**Consequences:** Q-learning's training distribution is now far wider than DP's estimation distribution, so the two are not learning from equivalent experience — worth stating whenever E-004 and E-008 are compared. Any future learner (SARSA, Monte Carlo, DQN, REINFORCE) should use this same block, offset per algorithm, or its results will not be comparable to Q-learning's.
+
+E-008 then found something this decision did not anticipate and does not fix: **the eval block itself is unrepresentative.** Every agent, oracle included, scores 120–230 reward higher on seeds 101–105 than on seeds 1–10, with per-seed standard deviations several times larger than the differences being reported. That is a separate and more serious problem, it affects every experiment in the project rather than just Phase 2, and it is recorded in E-008 as an open decision for the humans rather than acted on here.
