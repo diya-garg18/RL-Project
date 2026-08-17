@@ -156,6 +156,30 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 6 (final) — 2026-08-16 — Claude Opus 5 — we checked our own ruler, and it was wrong
+
+This is the most important entry in this document so far, and it is not about an algorithm.
+
+**The problem.** To say "agent A is better than agent B", we run both on a set of test shifts and compare their average scores. We had been using **five** test shifts. Five is what our own rules demanded as a minimum, and we always reported the spread alongside the average, so it looked rigorous.
+
+But shifts in this simulator vary enormously — a quiet Tuesday and a breach-heavy Friday score hundreds of points apart. With only five samples, the *uncertainty* in our averages was roughly the same size as the *differences* we were excitedly reporting. We were reading tea leaves and writing them down as findings.
+
+**So we widened the test set from 5 shifts to 30 and re-ran everything.** Most of the numbers moved. One of them flipped sign.
+
+**The casualty is Phase 1's headline result.** The planning algorithm from Phase 1 — the one we reported as earning the highest score of any agent, +306 — actually scores **−201** on thirty shifts. It is not the best agent; it is the worst. It had simply been lucky on those five particular shifts, and its scores swing more wildly than any other agent's.
+
+So Phase 1 is reopened. We have not deleted the old result — the project's rules forbid that, and the old measurement was honestly made. What we have withdrawn is the *claim* built on it.
+
+**Phase 2 also fails, and we did not move the goalposts.** The three learning algorithms were supposed to beat the simple severity-sorting baseline at catching real incidents. They don't: 66–72% against 84%. And the consolation prize is gone too — on five shifts they seemed to earn far more reward than the baseline, and on thirty they don't.
+
+There was a real temptation here. The learners *do* beat everything else at one thing: **consistency.** Their shift-to-shift variation is about four times smaller than the baselines'. We could have rewritten the Phase 2 goal as "be more consistent" and declared victory. We didn't, because nobody set out to optimise consistency — noticing a thing you happen to be good at and then redefining success as that thing is precisely the self-deception this whole project is built to avoid. The consistency result is recorded as an interesting finding, in its proper place, and the phase is recorded as not having met its target.
+
+**What survives, and is arguably stronger.** The original story was "our hand-written scoring rule is exploitable, and every algorithm exploits it." That is still true — every agent sacrifices real incidents chasing the score. What is no longer true is that the exploit *works*. So the scoring rule isn't just pointing agents at the wrong goal; it's unstable enough that they don't even reliably achieve the wrong goal. That is a **better** argument for the later phase where we learn the scoring rule from human judgement, not a worse one.
+
+**The lesson, which will outlast every number in this project.** Every figure we reported was calculated correctly, came with its standard deviation printed right beside it, and reproduced exactly when re-run. And one of them had the wrong sign. The very first results table in this project printed a spread of ±219 next to an average of 154, and nobody — human or AI — stopped to notice that the uncertainty was larger than the thing being measured.
+
+Printing a standard deviation is not the same as reading it. The check that was missing takes ten seconds: **before believing a difference, ask whether it is bigger than the noise.** There is now a test that refuses to let the test-set shrink back below thirty shifts.
+
 ### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — Phase 2 finished, and a claim withdrawn
 
 The last two algorithms are written, so all three are now done.

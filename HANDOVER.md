@@ -12,125 +12,97 @@
 |---|---|
 | **Last session** | 2026-08-16 (session 6) |
 | **Model** | Claude Opus 5 |
-| **Current phase** | **Phase 2 — tabular model-free RL. ALL 8 BOXES BUILT. The phase is NOT closed** — the exit criterion is not met and two decisions are owed to the humans. Q-learning has now run on the real environment (E-008). **The Phase 2 exit criterion is NOT met, and two decisions are owed to the humans.** Phases 0 and 1 closed. |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. **Session 6's work is not yet committed** — see "Next session should do" #1. Last commit `4833775`. |
-| **Tests passing** | **71/71** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, 6.9 s) — was 14; +16 `test_tiny_mdp.py`, +23 `test_tabular.py`, +18 `test_on_policy.py` |
-| **Blockers** | **None technical.** Two decisions are owed by the humans before Phase 2 can close — see "Broken / blocked". |
+| **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
+| **Phase 1** | ⚠️ **REOPENED** — criterion 2 falsified by E-014. Decision owed. |
+| **Phase 2** | **CLOSED as built-but-not-passed** (D-020). All 8 boxes done; gate not met, deliberately not restated. |
+| **Phase 3** | Not started. Whether it proceeds now is a human decision. |
+| **Repo state** | `D:\RLPROJECT`, branch `master`. |
+| **Tests passing** | **76/76** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~8.5 s) |
+| **Blockers** | None technical. Four decisions owed before Phase 3. |
 
 ---
 
-## Reproduce the environment on this device
+## ⚠️ READ THIS FIRST — the eval block was widened and most numbers moved
+
+The two decisions left open last session were taken (**D-019**, **D-020**), and re-measuring **changed the project's conclusions**.
+
+`seeds.eval` went from 5 seeds to 30 (101–130, the original five kept inside so old results remain a sub-sample). Every agent was re-measured (**E-014**). Nothing was deleted — E-002 to E-013 stand as recorded (CONSTRAINTS #4).
+
+| agent | recall | reward (30 seeds) | reward std | reward on 5 seeds |
+|---|---|---|---|---|
+| oracle_greedy | **0.87** | **168.0** | ±232.9 | 214.1 |
+| q_learning | 0.72 | 47.6 | **±52.0** | 270.9 |
+| sarsa | 0.66 | 40.5 | **±49.4** | 324.1 |
+| severity_sort | 0.84 | 40.4 | ±220.1 | 153.7 |
+| monte_carlo | 0.70 | −16.4 | ±77.0 | 177.3 |
+| **dp** | **0.23** | **−201.2** | ±438.5 | **+305.9** |
+
+**Four consequences, in order of severity:**
+
+1. **Phase 1 is REOPENED.** DP inverted from best reward of any agent (+305.9) to worst (−201.2), recall 0.43 → 0.23. That falsifies D-012 criterion 2. Hypothesis, **untested**: D-004 + D-011 — DP is optimal for a model covering 133/576 states and has no useful guidance outside that core.
+2. **Phase 2 fails its gate on every count.** Recall 0.66–0.72 vs 0.84, *and* the reward advantage is gone (47.6 / 40.5 vs 40.4, inside a ±220 spread). **The gate was deliberately not restated** — D-020 explains why that differs from Phase 1's legitimate D-012 amendment. Restating it on reward *consistency*, where the learners genuinely win, was the tempting option and was rejected as goalpost-moving.
+3. **The reward-hacking narrative is restated, not abandoned.** Still true: the reward is exploitable and every agent trades recall away chasing it. No longer true: that the trade pays. That is a *stronger* case for Phase 5 — the objective is not merely misaligned, it is unstable.
+4. **One new positive finding, invisible at 5 seeds:** the learners are ~4× more consistent shift-to-shift than the heuristics (±50 vs ±220). Nothing in the reward function values that, which is itself evidence for learning one from humans.
+
+**Phase 0 still passes** its gate (oracle strictly best on total reward, 168.0 vs 40.4). But its amendment's *rationale* — "no honest greedy oracle can reliably out-recall severity-camping" — is weakened: on 30 seeds the oracle out-recalls it 0.87 to 0.84. Do not repeat that sentence as established.
+
+**The methodological lesson, which outlasts every number above.** Every figure was computed correctly, reported with its standard deviation, and reproduced deterministically — and one had **the wrong sign**. E-002 printed ±218.7 beside a mean of 153.7 and nobody drew the inference. **Reporting a standard deviation is not the same as reading it.** Compare spread to effect size *before* believing the effect. `tests/test_eval_protocol.py` now enforces the seed-count floor.
+
+---
+
+## What a human still has to decide
+
+1. **Phase 1's gate** — re-amend a second time, or accept it as "built, criterion falsified on better measurement" in the same shape as Phase 2? *Recommendation: accept it as built-but-falsified*; two amendments to one phase invites the goalpost-moving charge.
+2. **Investigate DP's collapse before Phase 3?** DP is the report's Phase 1 centrepiece and now scores worse than random on reward. The E-014 hypothesis is cheap to test: correlate per-seed DP reward against distance from the visited state core. *Recommendation: yes* — it is the difference between "DP failed" and "DP failed **for this reason**", and only the second is a result.
+3. **Phase 3 (DQN) now, or after #2?** It optimises the same unstable reward and will likely reproduce the pattern — a fifth data point on a question already answered. *Recommendation: do #2 first.*
+4. **Diya's countersign** on D-012 (still outstanding), plus D-019 and D-020. All three change what the report claims.
+
+---
+
+## Reproduce on this device
 
 ```powershell
 cd D:\RLPROJECT
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest tests/ -q          # expect 27 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 76 passed
+
+python scripts/run_baselines.py                                   # fast
+python scripts/run_dp.py                                          # ~2.5 min
+python scripts/train.py --agent {q_learning,sarsa,monte_carlo}     # ~4 min each
+python scripts/policy_table.py --agent <name>                      # box 6
+python scripts/compare_agents.py                                   # box 5
+python scripts/ablations.py                                        # ~4 min
 ```
-`results/` is gitignored — regenerate with `scripts/run_baselines.py` and `scripts/run_dp.py` (DP ≈ 2.1 min). Both were re-run on this device 2026-08-16 (session 5) and reproduce the recorded numbers exactly: baselines match E-003, DP matches E-004 (VI Δ 9.95e-05, 1075 sweeps, VI/PI 100%, coverage 133/576). Not re-run in session 6 — nothing session 6 touched can affect them.
 
-## Done
+`results/` is gitignored and every artefact above is regenerable. The pipeline is deterministic under its seeds — re-runs reproduced E-004 and E-011 exactly, and the ablation sweep row-for-row. **If a re-run does not reproduce the logged numbers, something changed that shouldn't have.**
 
-- **Phase 0 complete** (2026-08-14, Diya-approved; E-001 calibration, E-003 baselines)
-- **Phase 1 complete** (2026-08-16, session 5; E-004 DP, E-005 the MRP anchor, D-012, D-013)
-- **Phase 2 opened this session with the correctness anchor, built ahead of the learners** — FEATURE_002, E-006, D-014:
-  - `src/soc_triage/tiny_mdp.py` — a 2-state, 2-action, deterministic, continuing MDP, γ = 0.9. Hand-derived `q_* = [[10.0, 6.7], [10.7, 13.0]]`, `V* = [10, 13]`, `π* = [WAIT, WORK]`.
-  - `tests/test_tiny_mdp.py` — 13 tests. Bellman-optimality residual **1.78e-15**; `agents/dp.value_iteration` reproduces the hand answer.
-  - **Mutation-checked:** injecting a 0.1 error moves the residual to ~0.10, thirteen orders of magnitude above the 1e-12 tolerance. The anchor demonstrably detects wrong answers.
-  - `docs/features/FEATURE_002_tiny_mdp_qstar.md` — the full derivation and the two rejected designs.
-- **Q-learning, built test-first** — FEATURE_003, E-007, D-015:
-  - `src/soc_triage/agents/q_learning.py` — off-policy TD control (S&B §6.5). Explicit loops, own seeded RNG, no default hyperparameters.
-  - `tests/test_tabular.py` — 20 tests. RED verified first (`ModuleNotFoundError`), then GREEN.
-  - **Result:** reproduces `tiny_mdp.HAND_COMPUTED_Q` to **9.24e-14**; correct policy after **10 episodes**, machine precision by ~50; identical across 5 seeds.
-  - `src/soc_triage/config.py` — `epsilon` and `q_learning` sections now loaded (they already existed in the YAML, unread), with range validation.
-  - **Suspicious result investigated, not celebrated** (CONSTRAINTS #5): std across 5 seeds was exactly 0. Confirmed the seeds genuinely diverge early and converge to the same unique fixed point — correct for a deterministic MDP. Locked down in a test.
-- **`scripts/train.py` and the first real learning run** — FEATURE_004, E-008, D-016:
-  - Trains on a dedicated seed block (200000+, one fresh shift per episode), diagnoses on seeds 1–10, reads eval seeds 101–105 **exactly once, at the end**.
-  - 5 runs × 20,000 episodes in **2.8 min**. Baseline rows reproduce E-002/E-004 exactly — the eval path is unchanged and still gives the same answers.
-  - **Result: recall 0.73 ± 0.03, reward 270.9 ± 105.5, MTTD 22.0** vs severity_sort 0.87 / 153.7 / 23.0.
+## Done — Phase 2 in full
 
-- **The readable policy table** — FEATURE_005, E-009: `scripts/policy_table.py` → `results/policy_table.md`. The strategy shift is real and **monotonic across all three time buckets** (severity-first 34.9% → 28.0% → 15.4%; bulk-close 25.3% → 36.0% → 46.2%). Coverage 121/576 states; the crunch column rests on **13 states**. The agent now records per-(s,a) visit counts purely so 455 unvisited states print as `·` rather than as a confident `PULL_HIGHEST_SEVERITY` via the argmax tie-break.
-  - **Two readings of the shift, not separated by the data:** analyst-like escalation under deadline pressure, or the E-008 reward hack intensifying where end-of-shift miss charges bite. Both fit. Deliberately not resolved in favour of the flattering one.
-  - The re-run needed to capture visit counts reproduced E-008 to the digit — a free determinism check.
+All eight roadmap boxes:
 
-- **Phase 2 finished: SARSA, Monte Carlo, the DP comparison and the ablations** — FEATURE_006, E-010 to E-013, D-017, D-018. Also `agents/tabular.py` (shared base, extracted at the third learner) and `scripts/compare_agents.py`, `scripts/ablations.py`.
-
-**All three learners on eval seeds, mean ± std across 5 runs:**
-
-| agent | recall | reward | MTTD |
-|---|---|---|---|
-| sarsa | 0.74 ± 0.01 | **324.1 ± 81.6** | 23.3 ± 11.7 |
-| q_learning | 0.73 ± 0.03 | 270.9 ± 105.5 | 22.0 ± 15.6 |
-| monte_carlo | 0.71 ± 0.02 | 177.3 ± 91.7 | **18.6 ± 3.0** |
-| severity_sort | **0.87 ± 0.16** | 153.7 ± 218.7 | 23.0 ± 12.4 |
-
-**The agreement is the finding, not the ranking.** All three land at recall 0.71–0.74; all three fall short of severity-sort. With DP that is **four methods sharing no update rule converging on the same trade**. D-012's prediction, now the best-supported claim in the project. Do *not* report "SARSA is best" — the 177–324 spread is the same order as the measurement noise.
-
-- **E-013 partially retracts E-009 — read this before quoting the policy table.** The strategy shift does not replicate: Q-learning and MC bulk-close *more* into the crunch (→46.2%, →42.9%), **SARSA does the opposite (→25.0%)**. With 12–14 states per crunch bucket that is consistent with noise. Per-algorithm figures stand; the interpretation does not.
-- **E-012 ablations: none of α, γ or ε-decay clears the noise floor.** Between-config spread ≤ within-config spread in every sweep. The default config alone produced 75, −34, 47. Reported as a negative result rather than filled in.
-- **E-011 box 5:** policy agreement between agents is **22–44%** over commonly-visited states, but 83–86% if unvisited states are included — that higher number is manufactured by two agents "agreeing" where neither has ever been. Max-norm |ΔQ| 116–320 between agents whose performance differs by 0.03 recall.
-
-## The two things a human has to decide
-
-**1. The Phase 2 exit criterion is NOT met — and now BOTH halves fail.** The recall half fails for all three learners (0.71–0.74 vs 0.87), not just Q-learning. The policy-table half was reported satisfied in E-009 and **that assessment is withdrawn**: E-013 shows the shift reverses direction depending on which learner produced it, which is not a behavioural property of the task.
-
-The gate is left **unmet and unamended on purpose**, per D-012: a criterion contradicted by measurement is decided by a human with real numbers in hand, not patched by whoever ran the experiment. The reward hack recurred exactly as D-012 predicted — **BULK_CLOSE is 62.3% of the learned policy's actions** (DP: ~97%). Two unrelated algorithms finding the same exploit is the evidence that the pathology is in the reward, and it is the strongest possible setup for Phase 5. That is a result, not a defect.
-
-**2. The eval seed block is not representative — and this one is bigger than Phase 2.** Every agent, *including the oracle*, scores far better on seeds 101–105 than on seeds 1–10:
-
-| agent | seeds 1–10 | seeds 101–105 | gap |
-|---|---|---|---|
-| random | −201.1 ± 218.9 | −155.7 ± 148.9 | +45 |
-| severity_sort | −78.7 ± 325.5 | +153.7 ± 218.7 | **+232** |
-| oracle_greedy | +94.0 ± 317.3 | +214.1 ± 207.6 | +120 |
-
-Per-seed spread (±325 for severity_sort) is **several times larger** than the ~117-point effect E-008 reports. This affects **E-002, E-003, E-004 and E-008 alike** — every headline comparison in the project rests on 5 shifts from a distribution far noisier than the effects being measured. CONSTRAINTS #3's "at least 5 seeds" was honoured; 5 is simply too few for this environment, which nobody had measured until now.
-
-**Nothing was changed in response.** Widening the eval block invalidates the comparability of every prior experiment and means re-running them. That is the humans' call. Ask Diya at the same time as the D-012 countersign — it is the same kind of decision.
-
-- **Documentation sweep** (the user asked for docs to be updated as work lands, not at session end): `README.md` had the old Desktop path and still said "no code written yet"; `ARCHITECTURE.md` and `FLOW.md` still carried "no code exists yet" banners from 2026-08-13; `TEST_CHECKLIST.md` still said 7 tests. All corrected. Also fixed a docstring in `test_mrp_bellman.py` pointing at a filename that does not exist.
-
-## Broken / blocked
-
-**Nothing is blocked.**
-
-Three things are *owed* but block nothing:
-
-1. **Session 6's work is uncommitted.** Six new/modified files. Commit before anything else next session.
-2. **Diya's countersign on D-012** (carried over from session 5). Both Phase 0 amendments carried her approval; D-012 has Pranav's only. Get it before the report cites the Phase 1 gate. If she wants the reward patched instead, that is a CONSTRAINTS #15 change and invalidates E-002/E-003/E-004 — decide before Phase 2 training runs, not after.
-3. **The pen-and-paper half of both worked examples.** FEATURE_001's MRP and now FEATURE_002's tiny MDP are both ticked because the derivation and its verification exist. Neither means Pranav and Diya can reproduce them unaided, which is what the viva tests. Tracked under `TEST_CHECKLIST.md` → "The human check". FEATURE_002 is the more likely exam question of the two: two states, four numbers, γ = 0.9.
-
-## Next session should do
-
-1. **Commit session 6's work** — `git add` the paths explicitly (never `-A`, see below), message `phase2: hand-solved 2-state MDP anchor + tabular Q-learning + doc sweep`.
-2. **Get the two decisions above answered.** Everything else in Phase 2 is built; the phase cannot close without them. E-012 sharpens the eval-seed question considerably — hyperparameter effects are invisible under current measurement noise, so the noise is not a footnote, it is the binding constraint on every comparison the report wants to make.
-3. **Do not start Phase 3 (DQN) until the gate is settled.** Phase 3 optimises the same reward and will hit the same wall; starting it first just adds a fifth agent to a comparison whose ground rules are unresolved.
-4. Smaller open questions, none blocking: why MC has the best MTTD (18.6 ± 3.0) and tightest spread while being weakest on reward; why SARSA beats DP on reward (324.1 vs 305.9 — most likely D-004, not investigated); whether 22–44% policy agreement with near-identical performance means a broad plateau of equivalent strategies or metrics too coarse to separate them.
-5. The crunch-bucket reward decomposition is **downgraded** by E-013 — there may be no stable effect to explain.
+- **`tiny_mdp.py`** (FEATURE_002, E-006, D-014) — 2-state MDP with a pen-and-paper `q_*`, built *before* any learner so a disagreement is unambiguously the learner's fault. Bellman residual 1.78e-15; mutation-checked.
+- **Three learners, each test-first** — `q_learning.py` (FEATURE_003, S&B §6.5), `sarsa.py` and `monte_carlo.py` (FEATURE_006, §6.4 and §5.4), on a shared `tabular.py` base extracted at the third implementation.
+- **`train.py`** (FEATURE_004) — dedicated training seed block per algorithm (D-016), diagnostics on train seeds, eval seeds read once at the end.
+- **`policy_table.py`** (FEATURE_005) — marks unvisited states as `·` rather than letting the argmax tie-break invent a preference for 455 of 576 cells.
+- **`compare_agents.py`** (E-011) — policy agreement 22–44% over commonly-visited states; the naive 83–86% figure is manufactured by states neither agent visited.
+- **`ablations.py`** (E-012) — **none of α, γ or ε-decay clears the noise floor.** Reported as a negative result rather than filled in.
 
 ## Watch out for
 
-- **`scripts/train.py` MUST call `agent.end_episode()` once per episode** (D-015). Forget it and epsilon stays at 1.0 forever — the agent explores at random for the whole run and never converges, with no error message. This is the single most likely way to lose an afternoon in the next session.
-- **Q-learning's tiny-MDP number is a unit test, not a finding.** 9.24e-14 says the update rule is textbook-correct. The real-environment result is E-008, and it is a much more mixed picture. Never put the tiny-MDP figure in the report as a result.
-- **Do not read the two ± columns in `train.py`'s output table as comparable.** The `q_learning` row's spread is across training runs; the baseline rows' spread is across eval seeds. The script prints a warning about this; fixing the presentation is an open follow-up.
-- **Nothing has been re-run since the eval-seed finding.** Every number currently in the repo predates it. If the humans widen the eval block, E-002 / E-003 / E-004 / E-008 all need re-running before any of them can be quoted against each other.
-- **Do NOT "fix" SARSA or Monte Carlo to match `HAND_COMPUTED_Q`** (D-017). They are on-policy and correctly converge to `tiny_mdp.epsilon_soft_q(ε)`, which differs from q\* by more than 1.5 at ε = 0.1. Making them match q\* would mean breaking two correct algorithms.
-- **MC trains at `MC_HORIZON` (800), not `HORIZON` (200).** Not an inconsistency to tidy up: MC computes a return from every timestep, so a 200-step truncation biases it downward by up to 0.47.
-- **Any behavioural claim must be checked on all three learners before it is written down** (E-013). The Q-learning strategy-shift finding was monotonic, internally consistent and plausible — and SARSA reverses it. Replication across algorithms costs one command per agent now that the scripts take `--agent`.
-- **A reduced training run writes to `results/smoke/`** (D-018). If a script reports coverage that disagrees with the logged experiments, suspect a stale artefact before suspecting the script.
-- **The tiny MDP's exploration trap.** Under `π*` the agent never leaves `QUIET`, so `BUSY` is reachable only by exploring. A learner tested with ε pinned to 0 will produce garbage for `Q(BUSY, ·)` — and the cause is the exploration schedule, not the update rule. Do not debug the update rule first.
-- **Monte Carlo needs `tiny_mdp.HORIZON`.** The fixture is *continuing*, with no terminal state. MC must truncate at 200 steps (γ^200 ≈ 7e-10, negligible). **Truncation is not termination:** a TD learner must keep bootstrapping through the cut (`done=False`), or it learns that the world ends and drags every value toward the last reward it saw.
-- **If `test_tiny_mdp.py` or `test_mrp_bellman.py` ever fails, fix the code — never the expected values.** They came from a human with a pen. Editing them to make a test pass destroys the only external correctness anchors the project has.
-- **Expect the bulk-close reward hack to reappear in Phase 2.** Q-learning maximises the same exploitable reward DP did. If it recurs, that is a *result*, not a bug — it shows the pathology lives in the reward rather than in any one algorithm, which is the report's spine (DP hacks → Q-learning hacks → RLHF fixes). `ROADMAP.md` Phase 2's exit criterion is **flagged but deliberately not pre-emptively weakened** — run it first, decide on real numbers, exactly as Phases 0 and 1 did.
-- **The DP reward number must never be quoted without its recall beside it** (D-012). 305.9 reward with 0.43 recall is the finding; 305.9 alone is misleading.
-- **Stray zero-byte files: root cause now CONFIRMED — see `docs/bugs/BUG_001_stray_zero_byte_files.md`.** Eight appeared this session, each mapping by timestamp to a `>` in text being written. Four from Markdown (`0`, `6.8`, `There`, `Watch`) and — the new finding — four from **typed Python** (`list[int]`, `np.ndarray`, `expected`, `` ` ``), triggered by return annotations like `def draw() -> list[int]:`. The bug is not Markdown-specific, and since this project mandates type hints on every public function, **every future session will produce these.** Mitigation is unchanged and sufficient: **`git add <explicit paths>`, never `git add -A`**, and sweep before committing. All eight deleted. Note `Remove-Item` needs `-LiteralPath` for names containing `[ ]`.
-- **Shell quoting bites in the other direction too.** A `python -c` snippet passed through a PowerShell here-string had its inner quotes stripped and died with a Python syntax error pointing five lines away from the real problem. Write throwaway scripts to a file and run the file. Logged in `FLOW.md` gotchas.
-- **The default branch is `master`, not `main`.** The remote has exactly one head. "Push to main" means `master` here — don't create a second branch and split the history.
-- **Two modules in `src/` hold hard-coded numbers** — `mrp_example.py` (D-013) and `tiny_mdp.py` (D-014). Both look like CONSTRAINTS #9 violations and neither is; the docstrings carry the pointers. `tiny_mdp.py` uses γ = 0.9, not the project's 0.99. Deliberate — it keeps `V(QUIET) = 10` exact. Don't "fix" it to match config.
-- Seeds: train 1–10, eval 101–105, calibration 1000–3099, DP estimation 10000–59999. Any new purpose gets a fresh disjoint block (config enforces train/eval disjointness in code). The tiny MDP is deterministic and uses no seed at all.
+- **Do NOT quote a number without checking whether it is 5-seed or 30-seed.** E-002 to E-013 are 5-seed. E-014 onward is 30-seed. The two differ enough to reverse a conclusion.
+- **Do NOT "fix" SARSA or Monte Carlo to match `HAND_COMPUTED_Q`** (D-017). They are on-policy and correctly converge to `tiny_mdp.epsilon_soft_q(ε)`, which differs from q\* by >1.5 at ε = 0.1.
+- **MC trains at `MC_HORIZON` (800), not `HORIZON` (200).** Not an inconsistency to tidy: MC computes a return from every timestep, so a 200-step truncation biases it down by up to 0.47.
+- **`scripts/train.py` MUST call `agent.end_episode()` once per episode** (D-015). Forget it and ε stays at 1.0 forever, silently.
+- **Any behavioural claim must be replicated across all three learners before being written down** (E-013). The Q-learning strategy-shift finding was monotonic, internally consistent and plausible — and SARSA reverses it.
+- **A reduced training run writes to `results/smoke/`** (D-018). If a script reports coverage disagreeing with the logged experiments, suspect a stale artefact before suspecting the script.
+- **Stray zero-byte files** appear whenever `>` occurs in written content, including Python return annotations — see `docs/bugs/BUG_001`. Mitigation: **`git add <explicit paths>`, never `git add -A`**, and sweep before committing. `Remove-Item` needs `-LiteralPath` for names with `[ ]`.
+- **Never rewrite a source file through PowerShell's file cmdlets** — `Set-Content` mangled every em dash in `train.py` and added a BOM. Use the editor.
+- **The default branch is `master`, not `main`.** The remote has one head.
+- **Two modules in `src/` hold hard-coded numbers** — `mrp_example.py` (D-013) and `tiny_mdp.py` (D-014). Both look like CONSTRAINTS #9 violations and neither is. `tiny_mdp.py` uses γ = 0.9 deliberately, not the project's 0.99.
+- Seed blocks: train-diag 1–10 · **eval 101–130** · calibration 1000–3099 · DP estimation 10000–59999 · q_learning 200000+ · sarsa 400000+ · monte_carlo 600000+ · ablations 800000+. Disjointness is enforced in `config.py`, not trusted to comments.
 
-## Open questions for the humans
+## Still owed by the humans
 
-1. **Diya's countersign on D-012** (see Broken/blocked #2).
-2. KPMG analyst for preference labels — still open, needs lead time. Longest-lead item in the project; Phase 5 cannot start without it.
-3. Report format / team-size confirmation from Dr. Kaur — still open.
-4. Target demo date — still open.
+- **The pen-and-paper derivations.** FEATURE_001's MRP and FEATURE_002's tiny MDP are both ticked because the derivation and its verification exist — not because Pranav and Diya can reproduce them cold, which is what the viva tests. FEATURE_002 is the likelier exam question: two states, four numbers, γ = 0.9.
+- KPMG analyst contact for preference labels — longest-lead item in the project; Phase 5 cannot start without it.
+- Report format / team-size confirmation from Dr. Kaur; target demo date.

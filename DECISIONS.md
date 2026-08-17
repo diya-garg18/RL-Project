@@ -331,4 +331,64 @@ CONSTRAINTS #4 forbids deleting or overwriting an experiment result. That rule w
 - *Timestamp every artefact.* Solves overwriting but breaks every downstream script's fixed path, and clutters `results/` with runs nobody will read.
 - *Refuse to write anything on a reduced run.* Tempting, but smoke tests genuinely benefit from inspectable output; routing it to `results/smoke/` keeps that without the risk.
 
-**Consequences:** `results/smoke/` may accumulate stale files. It is gitignored along with the rest of `results/`, and nothing reads from it. Scripts that consume artefacts (`policy_table.py`, `compare_agents.py`) read only from `results/` and will fail loudly with the exact command needed if a full run has not been done — which is the correct behaviour, since a reduced run's Q-table is not a result.
+**Consequences (D-018):** `results/smoke/` may accumulate stale files. It is gitignored along with the rest of `results/`, and nothing reads from it. Scripts that consume artefacts (`policy_table.py`, `compare_agents.py`) read only from `results/` and will fail loudly with the exact command needed if a full run has not been done — which is the correct behaviour, since a reduced run's Q-table is not a result.
+
+---
+
+## D-019 — The evaluation seed block is widened from 5 seeds to 30
+
+**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 (consequences for 0 and 1) · **Status:** active
+**Approved by:** Pranav (2026-08-16), on the recommendation recorded in E-008. **Diya countersign: pending** — this is a larger change than D-012 and should carry her sign-off before the report cites any number affected by it.
+
+**Decision:** `seeds.eval` becomes `[101..130]`. The original five (101–105) are **kept inside** the block. Every agent in the project has been re-measured on the widened block (E-014). No prior experiment entry has been altered or deleted.
+
+**Why:** CONSTRAINTS #3 requires at least 5 seeds and that floor was honoured throughout — but nobody had checked whether 5 samples could resolve the effects being claimed, and they could not. Severity-sort's per-seed reward standard deviation is ±220 against inter-agent differences of ~100, so the standard error of a 5-seed mean was roughly the size of every finding built on it. Two independent lines of evidence forced the change: E-008 found that all agents including the oracle scored 120–230 higher on seeds 101–105 than on seeds 1–10, and E-012 found that deliberate order-of-magnitude hyperparameter changes could not be separated from run-to-run noise.
+
+Thirty was chosen from that arithmetic rather than by preference: 220/√30 ≈ 40, comfortably below the effects of interest, and it matches the 30-seed diagnostic already used in E-003 so the two are directly comparable.
+
+Keeping 101–105 inside the block is the second half of the decision and matters as much as the widening. It makes every pre-widening number a *sub-sample* of the new measurement, so old and new results can be discussed in the same breath and the change can be honestly described as adding seeds rather than replacing them. `tests/test_eval_protocol.py` asserts all five are still present.
+
+**Alternatives rejected:**
+- *Leave the block at 5 and add a caveat.* This was the status quo for one session and it is not viable: E-014 shows a 5-seed measurement did not merely widen the error bars on Phase 1's headline result, it got the **sign wrong**. A caveat on a number that is wrong by 500 reward is not honesty, it is decoration.
+- *Widen to a fresh, disjoint block (e.g. 200–229).* Cleaner in one sense — no overlap with anything previously reported — but it orphans every prior result, since old and new would share no seeds and could not be compared at all.
+- *Report on both 5 and 30 seeds side by side indefinitely.* Rejected as a permanent arrangement: it invites quoting whichever column is more flattering. The 5-seed column appears in E-014 exactly once, for the specific purpose of showing how badly it misled.
+
+**Consequences, and they are large:**
+
+1. **Phase 1's amended exit criterion is falsified.** D-012 criterion 2 required the DP policy to achieve the highest mean total reward of any agent. On 30 seeds DP scores **−201.2 ± 438.5, the worst of any planned or learned agent**, against +305.9 on 5 seeds. Phase 1's status is therefore **reopened** — see D-020.
+2. **Phase 2's exit criterion fails on both halves**, and more comprehensively than before: no learner reliably beats severity-sort on reward either. See D-020.
+3. **Phase 0's exit criterion still passes** (the oracle remains strictly best on total reward, 168.0 vs 40.4), so Phase 0 is not reopened. But the *rationale* attached to its second amendment — that no honest greedy oracle can reliably out-recall severity-camping — is weaker: on 30 seeds the oracle out-recalls it, 0.87 to 0.84. That sentence should not be repeated as established.
+4. **The reward-hacking narrative must be restated, not abandoned.** Still true: the reward is exploitable and every agent trades recall away chasing it. No longer true: that the trade pays. The exploit was profitable on five particular shifts and does not generalise — which is a *stronger* argument for Phase 5, since the objective turns out to be not merely misaligned but unstable.
+5. **One genuinely new positive finding**, invisible at 5 seeds: the learned policies are roughly four times more consistent shift-to-shift than the heuristics (±50 against ±220). Nothing in the reward function values that, which is itself evidence for learning a reward from humans.
+6. Every future experiment costs slightly more to evaluate. Negligible — evaluation was never the bottleneck; training is.
+
+**The lesson worth carrying, stated plainly:** every number in this project was computed correctly, reported with its standard deviation, and reproduced deterministically — and one of them had the wrong sign. E-002 printed ±218.7 beside a mean of 153.7 and nobody drew the inference. **Reporting a standard deviation is not the same as reading it.** Compare the spread to the size of the claimed effect *before* believing the effect.
+
+---
+
+## D-020 — Phase 2 closes with its exit criterion NOT met; Phase 1 is reopened
+
+**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+**Approved by:** Pranav (2026-08-16). **Diya countersign: pending**, together with D-019.
+
+**Decision:** Phase 2 is closed as **built but not passed**. All eight roadmap boxes are complete; the exit criterion is not met and **is not being restated to make it pass**. Phase 1 is **reopened**, its amended criterion 2 having been falsified by E-014.
+
+**Why the gate is not restated.** This is the decision that matters, and the temptation was real. Phase 1's gate was legitimately amended once (D-012) because the criterion asked a reward-maximiser to top a metric it does not optimise — a category error in the criterion. The same move is *not* available here. Phase 2's criterion asked the learners to beat severity-sort on recall and MTTD, and on an honest 30-seed measurement they lose on recall (0.66–0.72 vs 0.84) and are indistinguishable on reward. There is no category error to correct; the agents simply did not do the thing. Amending the gate now would be tuning the criterion to the result, which is the precise failure `CONSTRAINTS.md` and this project's whole thesis exist to prevent.
+
+The second half of the criterion — "the printed policy table shows a behaviourally interpretable strategy shift as time runs out" — was reported satisfied in E-009 and that assessment is **withdrawn** (E-013): the shift reverses direction depending on which learner produced it, so it is not a property of the task.
+
+**What Phase 2 did achieve**, and it is not nothing: three textbook algorithms written by hand and each verified against a pen-and-paper answer before touching the real environment; an ablation study honest enough to report that none of its effects clear the noise; a policy-rendering tool that marks absence of data rather than inventing a preference; and the discovery that the project's evaluation protocol was too weak to support its own conclusions. The last of those is worth more than a passed gate.
+
+**Why Phase 1 is reopened rather than quietly annotated.** CONSTRAINTS #4 forbids erasing a result, and E-004 stands as recorded. But leaving Phase 1 marked ✅ COMPLETE when its load-bearing criterion is known false would be a worse offence than the original error: it would mean the roadmap asserts something the log contradicts. Reopened means the phase's status is honest; it does not mean the work is discarded.
+
+**What the humans must now decide** (this is where it stops being mine to call):
+1. Whether Phase 1's gate is re-amended a second time, or Phase 1 is accepted as "built, criterion falsified on better measurement" in the same shape as Phase 2. Re-amending twice on the same phase deserves scrutiny — the more honest option is probably the latter.
+2. Whether DP's collapse is investigated before Phase 3. The hypothesis in E-014 (D-004 + D-011: DP is lost outside its 133-state estimated core) is testable by correlating per-seed DP reward against how far each shift strays from that core. It has **not** been tested, and DP is the report's Phase 1 centrepiece.
+3. Whether Phase 3 (DQN) proceeds now. It optimises the same unstable reward on the same environment, so it will likely reproduce the same pattern — which is informative, but it is a fifth data point on a question already answered rather than a new one.
+
+**Consequences:** the report's spine changes shape. It was "DP games the reward → the learners game it too → RLHF fixes it." It becomes "four methods all sacrifice recall to a hand-written reward, none of them reliably profits by it, and the measurement that made it look profitable was too small to trust — so the objective itself must be learned." That is a harder story to tell and a considerably more honest one.
+
+**Alternatives rejected:**
+- *Restate the Phase 2 gate on total reward, as D-012 did for Phase 1.* Fails on the facts: on 30 seeds the learners do not beat severity-sort on reward either (47.6 and 40.5 against 40.4, inside a ±220 spread). There is no metric on which they clearly win, so any restatement would be reverse-engineered from the result.
+- *Restate it on reward **consistency**, where the learners genuinely do win (±50 vs ±220).* This is the most tempting option and it is still goalpost-moving: nobody set out to optimise variance, no criterion mentioned it, and elevating a finding discovered after the fact into the gate it passes is exactly the pattern to avoid. It is recorded as a finding in E-014 and left there.
+- *Delay closing Phase 2 until the gate passes.* Open-ended, and there is no reason to expect a tabular method to close a 0.12–0.18 recall gap on this state encoding. Phase 3's function approximation is the designed answer to that.

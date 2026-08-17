@@ -522,3 +522,75 @@ E-009 reported that Q-learning's policy shows a monotonic strategy shift as the 
 **The honest position:** the *existence* of a consistent, interpretable end-of-shift strategy is **not established**. The per-algorithm figures stand as measured; the interpretation does not. Both readings E-009 offered are now under-supported, and the per-action reward decomposition that would have separated them is a lower priority than it looked, because there may be no stable effect to explain.
 
 **Why this was caught.** Nothing failed. The Q-learning figure was internally consistent, monotonic across three buckets, and had a plausible story attached. It took running the identical analysis on two more agents — which cost one command each once the script took an `--agent` flag — to find that the story does not replicate. Replication across algorithms should be the default for any behavioural claim in this project, not an afterthought.
+
+---
+
+## E-014 — Every result re-measured on 30 eval seeds. Most of them change. — 2026-08-16
+
+**Model:** Claude Opus 5 · **Phase:** 2 (with consequences for 0 and 1) · **Decision:** D-019
+**This is the most consequential entry in this log.** The evaluation seed block was widened from 5 seeds to 30 (D-019), and every agent in the project was re-measured. **No prior entry has been altered or deleted** (CONSTRAINTS #4); E-002 through E-013 stand as recorded, and the original five seeds are a subset of the new thirty, so old numbers are a sub-sample of these rather than being orphaned.
+
+Nothing about training changed — Q-tables and the E-011 comparison reproduced byte-identically, confirming the learners never saw the eval block.
+
+### The table
+
+Mean ± std over eval seeds 101–130. Learner rows are across 5 training runs; baseline and DP rows are across the 30 seeds.
+
+| agent | recall@deadline | total reward | MTTD | reward on 5 seeds (old) |
+|---|---|---|---|---|
+| oracle_greedy | **0.87 ± 0.16** | **168.0 ± 232.9** | 39.8 | 214.1 |
+| q_learning | 0.72 ± 0.04 | 47.6 ± 52.0 | 31.8 | 270.9 |
+| sarsa | 0.66 ± 0.04 | 40.5 ± 49.4 | 36.3 | 324.1 |
+| severity_sort | 0.84 ± 0.16 | 40.4 ± 220.1 | 28.3 | 153.7 |
+| monte_carlo | 0.70 ± 0.05 | −16.4 ± 77.0 | 42.6 | 177.3 |
+| **dp** | **0.23 ± 0.24** | **−201.2 ± 438.5** | 4.8 | **+305.9** |
+| random | 0.52 ± 0.25 | −304.0 ± 191.6 | 93.9 | — |
+| cheapest_first | 0.47 ± 0.25 | −318.5 ± 316.2 | 45.1 | — |
+| fifo | 0.16 ± 0.13 | −665.3 ± 228.8 | 196.2 | — |
+
+### Finding 1 — DP inverts completely: +305.9 becomes −201.2
+
+The DP policy was Phase 1's headline result and the highest reward of any agent in the project. On 30 seeds it is **the worst of every planned or learned agent**, at −201.2 ± 438.5, with recall collapsing from 0.43 to 0.23. Its standard deviation, ±438.5, is the largest of any agent — it is not merely worse, it is wildly inconsistent.
+
+**This falsifies criterion 2 of Phase 1's amended exit criterion** (D-012: "The DP policy achieves the highest mean total reward of any agent on the evaluation seeds"). That criterion was measured on five seeds and is false on thirty.
+
+The most likely explanation is D-004 compounded by D-011: DP's policy is optimal for a transition model estimated from 133 of 576 states, and on shifts that wander outside that estimated core it has no useful guidance and falls back to low-value actions. Five seeds happened not to expose that; thirty do. **This is a hypothesis, not a measurement** — it has not been tested by, for instance, correlating per-seed DP reward against how far each shift strays from the visited state core. That test is the obvious next step and has not been run.
+
+### Finding 2 — no learner beats severity-sort on reward any more
+
+On 5 seeds every learner appeared to beat severity-sort's 153.7 by a wide margin. On 30 seeds: q_learning 47.6, sarsa 40.5, severity_sort 40.4. Given severity-sort's ±220.1 spread, **these are indistinguishable.** Monte Carlo (−16.4) is worse.
+
+So the story that survived E-010 — "the learners buy more reward at the cost of recall" — **does not survive honest measurement.** They pay the recall (0.66–0.72 against 0.84) and get no reliable reward advantage for it. On this evidence the tabular learners are simply worse at this task than a severity sort.
+
+### Finding 3 — but the learners are far more *consistent* than the heuristics
+
+The one result that improves under widening, and it was invisible at 5 seeds:
+
+| agent | reward std |
+|---|---|
+| q_learning | **±52.0** |
+| sarsa | **±49.4** |
+| monte_carlo | ±77.0 |
+| severity_sort | ±220.1 |
+| oracle_greedy | ±232.9 |
+| dp | ±438.5 |
+
+The learned policies are **four times more consistent shift-to-shift** than severity-sort or even the oracle. A SOC lead choosing between a policy averaging 40 ± 220 and one averaging 48 ± 52 would not be indifferent, and nothing in the reward function expresses that preference. Recorded as a genuine finding, and as further evidence the hand-written reward does not capture what a human values.
+
+### Finding 4 — the oracle now out-recalls severity-sort, contradicting a Phase 0 rationale
+
+Oracle recall 0.87 against severity-sort 0.84. Phase 0's second gate amendment was justified partly by the claim that "in this deliberately coarse action space no honest greedy oracle can reliably out-recall severity-camping" (E-003). On 30 eval seeds the oracle does edge it out. Phase 0's gate as written still **passes** (it requires the oracle strictly best on total reward, which holds: 168.0 vs 40.4), so Phase 0 is not reopened — but the reasoning attached to the amendment is weaker than it was, and the report should not repeat that sentence as established.
+
+### What this says about the reward-hacking narrative
+
+The narrative is **not** destroyed, but it must be restated. What is still true: the reward is exploitable, and every agent trades recall away chasing it. What is no longer true: that the trade pays off. The exploit produced high reward on five particular shifts and does not generalise.
+
+That is arguably a *stronger* case for Phase 5, not a weaker one. A hand-written reward that merely gets gamed is bad. A hand-written reward that gets gamed *and* fails to deliver even the reward it was gamed for is worse — it means the objective is not just misaligned with what we want, it is unstable. Learning a reward from human preferences is the response to exactly that.
+
+### The methodological lesson, which is the real result
+
+Five seeds satisfied CONSTRAINTS #3's "at least 5 seeds". Every headline number in Phases 0, 1 and 2 was computed correctly, reported with a standard deviation, and reproduced deterministically — **and one of them had the wrong sign.** The constraint was met and the measurement was still misleading, because nobody had checked whether five samples could resolve the effects being claimed.
+
+The std was visible the whole time. E-002 reported severity-sort at ±218.7 next to a mean of 153.7 and nobody drew the inference. **Reporting a standard deviation is not the same as reading it.** The check that was missing is trivial: compare the spread to the size of the effect being claimed before believing the effect.
+
+`tests/test_eval_protocol.py` now encodes the seed-count floor so this cannot silently regress.

@@ -46,7 +46,7 @@ The first ten follow the *AI Collaboration Field Guide* ("Don't just trust the A
 cd D:\RLPROJECT
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest tests/ -q     # expect 71 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q     # expect 76 passed
 ```
 
 Python 3.13.1 confirmed on this machine. Verify the PyTorch install works before Phase 3 depends on it.
@@ -57,23 +57,32 @@ Python 3.13.1 confirmed on this machine. Verify the PyTorch install works before
 
 ## Current status
 
-**Phase 0 complete** (2026-08-14) · **Phase 1 complete** (2026-08-16) · **Phase 2 — all 8 boxes built (2026-08-16), exit criterion NOT met, phase not closed.**
+**Phase 0** closed (2026-08-14) · **Phase 1 REOPENED** · **Phase 2 closed as built-but-not-passed** (2026-08-16) · **Phase 3** not started.
 
-Built and tested: the simulator, the environment, both state encoders, five baselines, model-based Dynamic Programming (value iteration + policy iteration), and all three tabular learners — Q-learning, SARSA and first-visit Monte Carlo — each verified against a hand-solved MDP before touching the real one.
+Built and tested: the simulator, the environment, both state encoders, five baselines, model-based Dynamic Programming, and all three tabular learners — Q-learning, SARSA and first-visit Monte Carlo — each verified against a hand-solved MDP before touching the real one.
 
-**The headline finding is a negative one, and it is deliberate.** Four methods sharing no update rule between them — exact planning, off-policy TD, on-policy TD and Monte Carlo — independently discover the same exploit in the hand-written reward. Each earns far more reward than a severity-sort baseline while catching *fewer* real incidents:
+Results on the **30-seed** evaluation block (widened from 5 on 2026-08-16 — see below):
 
-| agent | recall@deadline | total reward |
-|---|---|---|
-| sarsa | 0.74 ± 0.01 | 324.1 ± 81.6 |
-| dp | 0.43 ± 0.17 | 305.9 ± 127.6 |
-| q_learning | 0.73 ± 0.03 | 270.9 ± 105.5 |
-| monte_carlo | 0.71 ± 0.02 | 177.3 ± 91.7 |
-| severity_sort | **0.87 ± 0.16** | 153.7 ± 218.7 |
+| agent | recall@deadline | total reward | reward std |
+|---|---|---|---|
+| oracle_greedy | **0.87 ± 0.16** | **168.0** | ±232.9 |
+| q_learning | 0.72 ± 0.04 | 47.6 | **±52.0** |
+| sarsa | 0.66 ± 0.04 | 40.5 | **±49.4** |
+| severity_sort | 0.84 ± 0.16 | 40.4 | ±220.1 |
+| monte_carlo | 0.70 ± 0.05 | −16.4 | ±77.0 |
+| dp | 0.23 ± 0.24 | −201.2 | ±438.5 |
 
-When every method games the reward the same way, the reward is the problem — which is the entire argument for learning one from human preferences in Phase 5. The exploitable reward was kept rather than patched. See `DECISIONS.md` D-012 and `EXPLAIN.md` Part 9.
+**Phase 2 did not pass its exit criterion, and the gate was deliberately not restated to make it pass** (`DECISIONS.md` D-020). Every learner loses to a severity sort on recall and none reliably beats it on reward. What the learners *do* win on — invisible until the eval block was widened — is **consistency**: roughly four times less shift-to-shift variance than the heuristics. Nothing in the hand-written reward values that, which is itself an argument for learning a reward from humans.
 
-**Two results the project is deliberately honest about:** the hyperparameter ablations show *no* effect that clears the measurement noise (E-012), and a strategy-shift claim made earlier was **partially retracted** when it failed to replicate across algorithms (E-013). Negative results and retractions are documented here, not deleted.
+### The finding the project is most defined by
+
+**The evaluation protocol was too weak to support the project's own conclusions, and fixing it reversed one of them.** On 5 seeds the DP policy earned the highest reward of any agent (+305.9) and that was Phase 1's headline result. On 30 seeds it earns the **worst of any agent (−201.2)**. Phase 1 is reopened; E-004 is not deleted (`CONSTRAINTS.md` #4) but its gate assessment is withdrawn.
+
+Every number involved was computed correctly, reported with its standard deviation, and reproduced deterministically — and one had the wrong sign. The very first baseline table printed ±218.7 beside a mean of 153.7 and nobody drew the inference. **Reporting a standard deviation is not the same as reading it.**
+
+The reward-hacking story survives in restated form: the reward *is* exploitable and every agent trades recall away chasing it, but the trade does not reliably pay. An objective that is both gameable and unstable is a stronger argument for RLHF than one that is merely gameable. See D-012, D-019, D-020 and `EXPLAIN.md` Part 9.
+
+**Also documented rather than deleted:** the hyperparameter ablations show *no* effect clearing the measurement noise (E-012), and a strategy-shift claim was **retracted** when it failed to replicate across algorithms (E-013).
 
 See `HANDOVER.md` for the live picture.
 

@@ -68,6 +68,20 @@ This is the only check in the project that validates the Bellman backup against 
 
 ---
 
+## The evaluation protocol itself
+
+```bash
+pytest tests/test_eval_protocol.py -v
+```
+**Verified PASS 2026-08-16 (E-014, D-019) — 5 tests.** These guard the measuring instrument, not any agent:
+
+- `test_eval_block_is_large_enough_to_resolve_the_effects_being_reported` — **at least 30 eval seeds.** Five satisfied CONSTRAINTS #3 and was still too few: severity-sort's per-seed reward std is ±220 against effects of ~100, so a 5-seed mean had a standard error the size of every finding built on it. One conclusion (DP's reward) came out with the **wrong sign**.
+- `test_the_original_five_eval_seeds_are_still_in_the_block` — 101–105 must stay inside 101–130, so every pre-widening result remains a sub-sample rather than being orphaned.
+- `test_eval_block_avoids_every_other_reserved_seed_range` — an eval seed colliding with a training block would mean evaluating on a shift the agent trained on. No test result would reveal it.
+- plus uniqueness and train/eval disjointness.
+
+> **Before believing any difference between agents, compare it to the spread.** Reporting a standard deviation is not the same as reading it — this project shipped ±218.7 beside a mean of 153.7 for three phases without drawing the inference.
+
 ## Phase 2 — Tabular
 
 ```bash

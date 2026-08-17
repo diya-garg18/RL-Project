@@ -91,4 +91,13 @@ metrics:
 seeds:
   # Disjoint by construction and enforced in code. Never tune on eval seeds.
   train: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  eval:  [101, 102, 103, 104, 105]
+  # Widened from [101..105] to [101..130] on 2026-08-16 (D-019). Five seeds
+  # could not resolve the effects being reported: per-seed reward std is ~218
+  # for severity-sort against differences of ~100, so the standard error of a
+  # 5-seed mean was the same size as the findings (E-008), and the E-012
+  # ablations could not separate any hyperparameter from noise.
+  # The original five are KEPT INSIDE the block, so every pre-widening result
+  # is a sub-sample of the new one rather than being orphaned.
+  eval:  [101, 102, 103, 104, 105, 106, 107, 108, 109, 110,
+          111, 112, 113, 114, 115, 116, 117, 118, 119, 120,
+          121, 122, 123, 124, 125, 126, 127, 128, 129, 130]

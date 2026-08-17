@@ -2,7 +2,13 @@
 
 Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not just written). Each phase ends with an **exit criterion** — a concrete, checkable statement. Do not start the next phase until the current one's exit criterion is met and `TEST_CHECKLIST.md` passes.
 
-**Current phase:** Phase 2 — tabular model-free RL. **All 8 boxes built (2026-08-16); the exit criterion is NOT met and the phase is NOT closed.** Two decisions are owed to the humans before it can be — the eval-seed block and the gate itself (E-008). Phases 0 and 1 are closed (2026-08-14, 2026-08-16).
+**Current status (2026-08-16):**
+- **Phase 0** — closed, gate **passes** on the 30-seed block (oracle strictly best on total reward, 168.0 vs 40.4). One piece of its amendment *rationale* is weakened by E-014, but the criterion itself holds.
+- **Phase 1** — **REOPENED.** Criterion 2 falsified by E-014: DP scores −201.2 on 30 seeds, not the +305.9 measured on 5. Decision owed to the humans (D-020).
+- **Phase 2** — **CLOSED as built-but-not-passed.** All 8 boxes complete; exit criterion not met and deliberately not restated (D-020).
+- **Phase 3** — not started. Whether it proceeds now is a human decision (D-020): it optimises the same unstable reward and will likely reproduce the same pattern.
+
+> **The eval seed block was widened 5 → 30 on 2026-08-16 (D-019) and every agent re-measured (E-014).** Any number in this file not marked "30-seed" predates that and may be a 5-seed figure. The lesson is worth more than any single result: every number was computed correctly, reported with its standard deviation, and reproduced deterministically — and one of them had **the wrong sign**. Reporting a standard deviation is not the same as reading it.
 
 ---
 
@@ -53,7 +59,17 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 *Why amended (same shape as the two Phase 0 amendments): the original asked DP to win on **recall**, but DP optimises the **reward**, and those are not the same objective. Requiring a reward-maximiser to top a metric it is not maximising is a category error in the gate, not a failure in the agent. E-004 showed the DP policy scores recall 0.43 vs severity-sort's 0.87 while earning the highest reward measured (306 > oracle 214 > severity 154), by using BULK_CLOSE as paid waiting ~97% of the time and abandoning 57% of real incidents. The hand-written reward genuinely rates this optimal — verified against per-step breakdowns and reproduced in the true environment, so it is not an artefact of the estimated model. `PROJECT_BRIEF.md` §3.5 says this trap is deliberate; patching the reward would delete the Phase 5 RLHF motivation, so the reward stands and the gate moves. Alternative rejected: treat the reward as a bug to fix — see D-012.*
 
-**✅ PHASE 1 COMPLETE — 2026-08-16.** Gate evidence, all five criteria met: VI converged Δ 9.95e-05 in 1075 sweeps with VI/PI agreement 100% (E-004) · DP total reward 305.9 ± 127.6 vs oracle 214.1 and severity-sort 153.7 on eval seeds 101–105 (E-004) · four-route Bellman verification agreeing to 7.11e-15, including the shipped `value_iteration` reproducing a hand-derived value function (FEATURE_001, E-005) · D-004/D-011 caveats written in `EXPLAIN.md` · the reward-hacking finding logged as E-004 and carried into Phase 5 as its primary motivation. 14 tests passing.
+> ⚠️ **PHASE 1 REOPENED — 2026-08-16 (E-014, D-019, D-020). Criterion 2 is FALSIFIED.**
+>
+> The amended criterion required the DP policy to achieve the **highest mean total reward of any agent** on the evaluation seeds. That was measured on 5 seeds. On the widened 30-seed block (D-019) the DP policy scores **−201.2 ± 438.5 — the worst of any planned or learned agent** — against the +305.9 recorded below, with recall falling 0.43 → 0.23 and the largest variance of any agent.
+>
+> E-004 is **not** retracted and not altered; it stands as recorded on the seeds it used (CONSTRAINTS #4). What is retracted is the claim that criterion 2 is satisfied.
+>
+> Likely cause (**hypothesis, untested**): D-004 compounded by D-011 — DP's policy is optimal for a model estimated over 133 of 576 states, so on shifts that stray outside that core it has no useful guidance. Testable by correlating per-seed DP reward against distance from the visited core. **Not done.**
+>
+> **Two decisions owed to the humans** (D-020): whether Phase 1's gate is re-amended a second time or accepted as "built, criterion falsified on better measurement"; and whether DP's collapse is investigated before Phase 3, given DP is the report's Phase 1 centrepiece.
+
+**⛔ SUPERSEDED — the assessment below was made on 5 eval seeds and criterion 2 no longer holds. Kept verbatim for the record.** ~~**✅ PHASE 1 COMPLETE — 2026-08-16.**~~ Gate evidence as assessed at the time, all five criteria then believed met: VI converged Δ 9.95e-05 in 1075 sweeps with VI/PI agreement 100% (E-004) · DP total reward 305.9 ± 127.6 vs oracle 214.1 and severity-sort 153.7 on eval seeds 101–105 (E-004) · four-route Bellman verification agreeing to 7.11e-15, including the shipped `value_iteration` reproducing a hand-derived value function (FEATURE_001, E-005) · D-004/D-011 caveats written in `EXPLAIN.md` · the reward-hacking finding logged as E-004 and carried into Phase 5 as its primary motivation. 14 tests passing.
 
 > **The finding this phase is actually remembered for:** exact planning found the reward exploit two phases before anyone was looking for it. Every later agent optimises the same reward, so expect the bulk-close hack to reappear in Phase 2 and Phase 3 — and *that continuity* (DP hacks → Q-learning hacks → RLHF fixes) is the report's spine.
 
@@ -78,11 +94,28 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 **Exit criterion:** Q-learning beats severity-sort on recall@deadline and MTTD across 5 seeds (report mean ± std), and the printed policy table shows a *behaviourally interpretable* strategy shift as time runs out.
 
-> **Both halves of the gate now fail.** The policy-table half was reported satisfied on 2026-08-16 (E-009) and that assessment is withdrawn: E-013 shows the "behaviourally interpretable strategy shift" does not replicate across algorithms — SARSA runs the opposite direction. A shift that reverses depending on which learner produced it is not a behavioural property of the task.
+**⛔ PHASE 2 CLOSED 2026-08-16 AS *BUILT BUT NOT PASSED* (D-020). All 8 boxes complete; the exit criterion is NOT met and is deliberately NOT restated.**
+
+Final assessment on the **30-seed** eval block (D-019, E-014):
+
+| agent | recall | reward | reward std |
+|---|---|---|---|
+| oracle_greedy | **0.87** | **168.0** | ±232.9 |
+| q_learning | 0.72 | 47.6 | **±52.0** |
+| sarsa | 0.66 | 40.5 | **±49.4** |
+| severity_sort | 0.84 | 40.4 | ±220.1 |
+| monte_carlo | 0.70 | −16.4 | ±77.0 |
+| dp | 0.23 | −201.2 | ±438.5 |
+
+> **Recall half — FAILS.** All three learners lose to severity-sort: 0.66–0.72 against 0.84.
 >
-> ❌ **MEASURED 2026-08-16 (E-008, E-010) — NOT MET.**
+> **Policy-table half — FAILS.** Reported satisfied in E-009; **withdrawn** by E-013 because the strategy shift reverses direction depending on which learner produced it, so it is not a property of the task.
 >
-> **All three learners fail the recall half, not just Q-learning:** sarsa 0.74, q_learning 0.73, monte_carlo 0.71, against severity-sort's 0.87. Four independent methods including DP now converge on the same trade — more reward, less recall — which is exactly the continuity D-012 predicted and the strongest evidence available that the pathology is in the reward rather than in any algorithm. Q-learning recall **0.73 ± 0.03** against severity-sort's **0.87** — fails. MTTD 22.0 vs 23.0 — marginally better, well inside the spread. Reward 270.9 vs 153.7 — wins clearly, on the metric the gate does not use.
+> **And the reward consolation prize is gone too.** On 5 seeds the learners appeared to beat severity-sort by 100+. On 30 seeds it is 47.6 and 40.5 against 40.4, inside a ±220 spread — indistinguishable. They pay the recall and get nothing reliable for it.
+>
+> **The gate is NOT restated, and that is the decision** (D-020). Phase 1's gate was legitimately amended because it contained a category error — it asked a reward-maximiser to top a metric it does not optimise. No such error exists here: the learners simply did not do the thing. Amending now would be tuning the criterion to the result, which is the exact failure this project exists to avoid. Restating it on reward *consistency*, where the learners genuinely do win (±50 vs ±220), was the most tempting option and was rejected for the same reason — nobody set out to optimise variance.
+>
+> **What Phase 2 achieved anyway:** three algorithms hand-written and each verified against a pen-and-paper answer before touching the real environment; an ablation study honest enough to report that none of its effects clear the noise (E-012); a policy renderer that marks absence of data rather than inventing a preference (E-009); a retraction when a finding failed to replicate (E-013); and the discovery that the project's own evaluation protocol was too weak to support its conclusions (E-014). That last one is worth more than a passed gate. Q-learning recall **0.73 ± 0.03** against severity-sort's **0.87** — fails. MTTD 22.0 vs 23.0 — marginally better, well inside the spread. Reward 270.9 vs 153.7 — wins clearly, on the metric the gate does not use.
 >
 > The flag below was right. BULK_CLOSE_LOW_RISK accounts for **62.3%** of the learned policy's actions (DP: ~97%). Same exploit, less extreme, found by a completely different algorithm — which is the evidence that the pathology is in the reward, not in DP.
 >
