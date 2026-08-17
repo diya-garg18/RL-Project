@@ -8,12 +8,14 @@ This project follows the *AI Collaboration Field Guide* ("Don't just trust the A
 
 ## Session start protocol
 
-Do these four things before writing any code:
+Do these six things before writing any code:
 
 1. Read `HANDOVER.md` — where things actually stand.
 2. Read `ROADMAP.md` — find the current phase and the next unchecked task.
 3. Read `CONSTRAINTS.md` — the hard boundaries.
-4. State the plan in prose and **wait for approval before implementing** (Field Guide habit #11: ask *why* before *what*).
+4. **Confirm which machine and which teammate this is** — `git config user.name`. The two students alternate machines, and the answer changes who should be committing.
+5. **Run `python scripts/commit_balance.py` and report the result** (CONSTRAINTS #26). If the person at this keyboard is the one *ahead*, say so immediately and recommend handing over before starting new work.
+6. State the plan in prose and **wait for approval before implementing** (Field Guide habit #11: ask *why* before *what*).
 
 Skim `ARCHITECTURE.md` if the task touches more than one module.
 
@@ -27,6 +29,28 @@ Do all of these before the session closes. This is not optional and it is not "i
 4. Update `FLOW.md` if execution paths changed.
 5. Update `ARCHITECTURE.md` if a module was added or its responsibility changed.
 6. Log any training run in `docs/experiments/EXPERIMENT_LOG.md`.
+7. **Commit in meaningful pieces, not one lump** (CONSTRAINTS #24). One logical change per commit, message explaining what and why.
+8. **Run `python scripts/commit_balance.py` again and report it.** State plainly whether the work should move to the other teammate (CONSTRAINTS #26).
+9. **Leave the repo transfer-ready** — see the machine-transfer checklist below. The next session may be on the other person's laptop.
+
+---
+
+## Machine transfer — the handover checklist
+
+The two students alternate machines continuously. **Assume every session is the last one on this machine.** Before the session closes, all of these must be true (CONSTRAINTS #25):
+
+| Check | Command |
+|---|---|
+| Tests pass | `.\.venv\Scripts\python.exe -m pytest tests/ -q` |
+| Nothing uncommitted | `git status --porcelain` returns nothing |
+| Nothing unpushed | `git status -sb` shows no `ahead` |
+| No stray zero-byte files staged | see `docs/bugs/BUG_001` |
+| `HANDOVER.md` describes the true current state | read it back and check it |
+| Commit balance reported | `python scripts/commit_balance.py` |
+
+**What the other machine needs to reproduce the work:** `results/` is gitignored and every artefact in it is regenerable — the commands are listed in `HANDOVER.md` → "Reproduce on this device". Nothing in `results/` should ever be needed to continue; if it is, that is a bug in the scripts, not a reason to commit binaries.
+
+**Anything that only exists on one machine must be written down, not remembered.** A path, a tool version, an install workaround, a `pip` failure and its fix — those go in `HANDOVER.md` under "Watch out for", because the other person cannot see this terminal.
 
 ---
 

@@ -63,6 +63,20 @@
 
 ---
 
+## Collaboration and contribution history
+
+> Added 2026-08-17 at Pranav's request (D-021). This project is built by two students who alternate machines, and the git history is part of what gets evaluated.
+
+24. **Every phase is divided into meaningful commits, and both teammates must have real commits in the history.** A "meaningful" commit is one logical change with a message explaining *what and why* — not a daily dump, and not a cosmetic edit made to inflate a count.
+
+    **The split must be genuine, not cosmetic.** A commit under a name is a claim that that person did the work and can explain it. An examiner may ask either student to walk through any commit bearing their name, and they must be able to. So the way the history is kept even is by **handing over the work at the right time**, never by attributing one person's work to the other, committing on their behalf, or manufacturing filler commits. Balance the real work; do not decorate the record.
+
+25. **Never hand over a broken or half-documented state.** Before the machine changes hands, the working tree must be committed and pushed, the test suite must pass, and `HANDOVER.md` must describe where things stand. A handover mid-feature with failing tests costs the other person more than the balance was worth. Finish the logical change first, then hand over.
+
+26. **Claude must report the commit balance at the start and end of every session** by running `python scripts/commit_balance.py`, and must say plainly when the work should move to the other person. Hand over when one teammate is more than **3 commits** ahead. Claude raises this without being asked — the humans will not notice the drift on their own, and by the time they do it is expensive to correct.
+
+---
+
 ## Ethical / scope boundaries
 
 21. **This is a defensive-security project and stays defensive.** It prioritises alerts for human analysts. It does not generate attacks, evade detection, or act autonomously on a real network.

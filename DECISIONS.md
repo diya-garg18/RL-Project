@@ -392,3 +392,28 @@ The second half of the criterion — "the printed policy table shows a behaviour
 - *Restate the Phase 2 gate on total reward, as D-012 did for Phase 1.* Fails on the facts: on 30 seeds the learners do not beat severity-sort on reward either (47.6 and 40.5 against 40.4, inside a ±220 spread). There is no metric on which they clearly win, so any restatement would be reverse-engineered from the result.
 - *Restate it on reward **consistency**, where the learners genuinely do win (±50 vs ±220).* This is the most tempting option and it is still goalpost-moving: nobody set out to optimise variance, no criterion mentioned it, and elevating a finding discovered after the fact into the gate it passes is exactly the pattern to avoid. It is recorded as a finding in E-014 and left there.
 - *Delay closing Phase 2 until the gate passes.* Open-ended, and there is no reason to expect a tabular method to close a 0.12–0.18 recall gap on this state encoding. Phase 3's function approximation is the designed answer to that.
+
+---
+
+## D-021 — Phase work is split into meaningful commits, alternating between teammates, with the balance tracked in code
+
+**Date:** 2026-08-17 · **Model:** Claude Opus 5 · **Phase:** cross-cutting · **Status:** active
+**Requested by:** Pranav (2026-08-17). Added as CONSTRAINTS #24–26 with his explicit authorisation to edit that file.
+
+**Decision:** Every phase is divided into meaningful commits. The two students alternate machines, and **each must have real commits in the history**. Claude reports the balance via `scripts/commit_balance.py` at the start and end of every session and says plainly when the work should move to the other person. Handover threshold: **3 commits**. A `.mailmap` collapses split author identities so the measurement is accurate.
+
+**Why:** The git history is part of what gets evaluated, and it will not reflect an even split by accident. Whoever happens to be at the keyboard during a long session accumulates commits fast — measured at the time of this decision, the split was **Diya 17 / Pranav 7**, with Phase 0 entirely Diya's (12 commits) and Phase 2 entirely Pranav's (4). Neither student chose that; it is just what happened. Nobody notices the drift while it is happening, and by the time it is visible it is expensive to correct, which is why the check is automated and Claude raises it unprompted rather than waiting to be asked.
+
+The `.mailmap` matters more than it looks: Diya had committed under two identities (her personal address and the GitHub web-editor noreply address), which split her contributions across two names in `git shortlog` and GitHub's contributor graph — making the imbalance look *worse* than it was. The mailmap rewrites nothing; it only tells git how to collapse identities when summarising.
+
+**The boundary, stated explicitly because it is the whole risk in this decision.** The requirement is that the *work* be evenly split, not that the *record* be made to look even. A commit under a name is a claim that the person did that work and can explain it; an examiner may ask either student to walk through any commit bearing their name. So the history is balanced by **handing over at the right time** — never by committing on someone's behalf, re-attributing authorship, or padding with cosmetic commits. `CONSTRAINTS.md` #24 says this in the constraint itself, and `scripts/commit_balance.py` repeats it in its own docstring, because that is where someone tempted to shortcut it will be looking.
+
+**Alternatives rejected:**
+- *Rewrite the existing history to rebalance authorship.* This would have equalised the count in one command. Rejected on two grounds: the commits are already pushed, so it needs a force-push over shared history; and it would attribute work to whoever the rebalance favoured regardless of who did it, which is the exact misrepresentation #24 forbids.
+- *Track the balance by eye.* Tried implicitly for five sessions and it produced a 17/7 split. The point of a script is that it runs whether or not anyone remembers to care.
+- *A tighter threshold than 3 commits.* Rejected because it would force handovers mid-feature, and CONSTRAINTS #25 exists precisely because a handover with failing tests costs more than the balance gains.
+- *Counting lines changed rather than commits.* More faithful to effort in principle, but trivially gamed by documentation volume — this project writes a great deal of prose — and GitHub's contributor view counts commits, which is what will actually be looked at.
+
+**Consequences:** Pranav is 10 commits behind at the time of writing, so **Phase 3 should run on his machine** until the gap closes to within 3. Phase 3 is DQN and naturally divides into several commits (network, replay buffer, target network, training loop, the two required ablations), so it can absorb that without padding. Future phases should be planned with the split in mind rather than corrected afterwards.
+
+One honest limitation: commit *count* is a weak proxy for contribution. Two students could satisfy this constraint perfectly while one did the thinking and the other typed. The constraint is worth having anyway — it makes the obvious failure visible — but it is not a substitute for both students being able to explain the code, which is what `INTERVIEW_PREP.md` and the teaching constraint in `CLAUDE.md` exist for.

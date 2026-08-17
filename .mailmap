@@ -1,0 +1,14 @@
+# Canonical author identities.
+#
+# Diya committed under two identities early on — her personal address and the
+# GitHub noreply address the web UI uses when editing in the browser. Left
+# alone, GitHub's contributor graph and `git shortlog` split her work across two
+# names, which makes the contribution split look more uneven than it is.
+#
+# This file is the non-destructive fix: it rewrites nothing, it only tells git
+# how to collapse identities when summarising. `git shortlog -sn` and
+# `scripts/commit_balance.py` both honour it.
+#
+# Format: Canonical Name <canonical@email> <other@email>
+
+Diya Garg <garg2005.diya@gmail.com> <166951132+diya-garg18@users.noreply.github.com>

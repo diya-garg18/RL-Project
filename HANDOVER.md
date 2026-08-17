@@ -59,6 +59,39 @@ The two decisions left open last session were taken (**D-019**, **D-020**), and 
 
 ---
 
+## Whose turn is it — read before starting work
+
+**Measured 2026-08-17 (`python scripts/commit_balance.py`, D-021 / CONSTRAINTS #24–26):**
+
+| author | commits | share |
+|---|---|---|
+| Diya Garg | 17 | 70.8% |
+| Pranav Upadhyay | 7 | 29.2% |
+
+Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 5 (Diya 3, Pranav 2) · **Phase 2** 4 (all Pranav).
+
+> ⚠️ **IMBALANCED — Diya is 10 commits ahead. Phase 3 should run on Pranav's machine** until the gap is inside the 3-commit threshold, i.e. roughly the next 7–10 commits.
+>
+> Phase 3 (DQN) divides naturally into that many meaningful commits — network, replay buffer, target network, training loop, the two required ablations, docs — so no padding is needed. **Do not manufacture commits to close the gap**, and do not commit on the other person's behalf: the split must be real, because an examiner may ask either student to explain any commit under their name (CONSTRAINTS #24).
+
+`.mailmap` collapses Diya's two author identities (personal + GitHub noreply), so these counts are accurate where a raw `git shortlog` would over-split her.
+
+## Before the machine changes hands
+
+Assume every session is the last one on this machine. All of these must be true (CONSTRAINTS #25):
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/ -q     # must pass
+git status --porcelain                             # must be empty
+git status -sb                                     # must show no "ahead"
+python scripts/commit_balance.py                   # report it, act on it
+```
+Plus: `HANDOVER.md` (this file) actually describes the current state, and no stray zero-byte files are staged (`docs/bugs/BUG_001`).
+
+**Nothing in `results/` is ever needed to continue** — it is gitignored and fully regenerable by the commands below. If the other machine ever needs a file from `results/`, that is a bug in the scripts.
+
+**Anything that exists only on one machine gets written down, not remembered** — install workarounds, tool versions, path quirks. The other person cannot see this terminal. Put it under "Watch out for".
+
 ## Reproduce on this device
 
 ```powershell
