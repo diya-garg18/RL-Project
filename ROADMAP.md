@@ -2,7 +2,7 @@
 
 Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not just written). Each phase ends with an **exit criterion** — a concrete, checkable statement. Do not start the next phase until the current one's exit criterion is met and `TEST_CHECKLIST.md` passes.
 
-**Current phase:** Phase 2 — tabular model-free RL. Phases 0 and 1 are closed (2026-08-14, 2026-08-16).
+**Current phase:** Phase 2 — tabular model-free RL. **All 8 boxes built (2026-08-16); the exit criterion is NOT met and the phase is NOT closed.** Two decisions are owed to the humans before it can be — the eval-seed block and the gate itself (E-008). Phases 0 and 1 are closed (2026-08-14, 2026-08-16).
 
 ---
 
@@ -61,16 +61,16 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 ## Phase 2 — Tabular model-free RL (Week 2) — CO2
 
-- [ ] `agents/monte_carlo.py` — first-visit MC control with ε-greedy
-- [ ] `agents/sarsa.py` — on-policy TD control
+- [x] `agents/monte_carlo.py` — first-visit MC control with ε-greedy *(FEATURE_006, E-010, D-017 — recall 0.71±0.02, reward 177.3±91.7, best MTTD 18.6±3.0. Verified on the tiny MDP against the ε-soft target, not q\*.)*
+- [x] `agents/sarsa.py` — on-policy TD control *(FEATURE_006, E-010, D-017 — recall 0.74±0.01, reward 324.1±81.6, the highest of any agent in the project.)*
 - [x] `agents/q_learning.py` — off-policy TD control, ε-greedy with decay *(FEATURE_003, E-007, D-015 — built test-first; reproduces the hand-derived `q_*` to 9.24e-14 on the tiny MDP, correct policy after 10 episodes. **Not yet run on the 576-state environment** — the update rule is verified, performance is not.)*
 - [x] Learning curves: reward per episode, smoothed over 100 episodes, 5 seeds each *(FEATURE_004, E-008 — `scripts/train.py`, `results/q_learning_curve.png`. **Caveat: the curve does not visibly converge** after epsilon floors; learner instability and environment variance have not been separated, so no convergence claim is made.)*
-- [ ] Convergence comparison against the Phase 1 DP solution (max-norm distance between Q-tables, and policy agreement %)
+- [x] Convergence comparison against the Phase 1 DP solution (max-norm distance between Q-tables, and policy agreement %) *(FEATURE_006, E-011 — `scripts/compare_agents.py`. Policy agreement over commonly-visited states is **22–44%**, max-norm |ΔQ| 116–320. The naive 'all 576' figure of 83–86% is manufactured by states neither agent visited, where both fall back to a convention.)*
 - [x] **Print the learned policy as a readable table** — for each `time_left` bucket, which action wins in which queue state. This is a headline figure for the report and the viva. *(FEATURE_005, E-009 — `scripts/policy_table.py` → `results/policy_table.md`.)*
-  - **The strategy shift exists and is monotonic across all three buckets:** working alerts by severity falls 34.9% → 28.0% → 15.4% as time runs out; bulk-closing rises 25.3% → 36.0% → 46.2%.
-  - **Two readings, not separated by the data.** Either an analyst-like escalation under deadline pressure, or the E-008 reward hack intensifying where end-of-shift miss charges make it most profitable. Both fit; a per-action reward decomposition inside the crunch bucket would settle it.
+  - For **Q-learning**, bulk-closing rises 25.3% → 36.0% → 46.2% into the crunch while severity-first falls 34.9% → 28.0% → 15.4%.
+  - ⚠️ **PARTIALLY RETRACTED 2026-08-16 (E-013).** Running the same figure for the other two learners shows the trend **does not replicate**: Monte Carlo rises like Q-learning (23.1% → 28.6% → 42.9%), but **SARSA falls — 47.4% → 51.9% → 25.0%, the opposite direction**, on the same environment and reward. With only 12–14 visited states per crunch bucket, a direction disagreement across algorithms is fully consistent with noise. **The per-algorithm figures stand; the claim that there is a consistent interpretable strategy shift does not.** Both readings E-009 offered are now under-supported.
   - **Caveat:** coverage is 121/576 states, and the crunch column rests on **13 states**. 455 unvisited states would have printed as a confident `PULL_HIGHEST_SEVERITY` via the argmax tie-break — the agent now records visit counts purely so they print as `·` instead.
-- [ ] Ablations: learning rate, γ, ε-decay schedule
+- [x] Ablations: learning rate, γ, ε-decay schedule *(FEATURE_006, E-012 — `scripts/ablations.py`, measured on train-diagnostic seeds, never eval.* **None of the three clears the noise floor.** *Between-config spread is smaller than or comparable to within-config spread in every sweep; the default config alone produced 75, −34 and 47. Reported as a negative result rather than filled in.)*
 - [ ] Tests: Q-learning converges on a tiny hand-checkable 2-state MDP with a known answer
   - [x] **The 2-state MDP itself, hand-solved and verified** *(FEATURE_002, E-006, D-014 — `src/soc_triage/tiny_mdp.py`, 13 tests. `q_* = [[10.0, 6.7], [10.7, 13.0]]` derived on paper, Bellman-optimality residual 1.78e-15, and `agents/dp.value_iteration` reproduces it.)* **Built first, ahead of the learners** — deliberately out of box order, because an anchor built afterwards cannot say whether a disagreement is the learner's fault or its own (D-014).
   - [x] **Q-learning measured against it** *(FEATURE_003, E-007 — `tests/test_tabular.py`, 20 tests. Includes the single-backup assertion that distinguishes Q-learning from SARSA, which no convergence test can.)*
@@ -78,9 +78,11 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 **Exit criterion:** Q-learning beats severity-sort on recall@deadline and MTTD across 5 seeds (report mean ± std), and the printed policy table shows a *behaviourally interpretable* strategy shift as time runs out.
 
-> **Second half of the gate — the policy table — IS satisfied** (E-009): the shift is present, monotonic, and interpretable. The recall half is not.
+> **Both halves of the gate now fail.** The policy-table half was reported satisfied on 2026-08-16 (E-009) and that assessment is withdrawn: E-013 shows the "behaviourally interpretable strategy shift" does not replicate across algorithms — SARSA runs the opposite direction. A shift that reverses depending on which learner produced it is not a behavioural property of the task.
 >
-> ❌ **MEASURED 2026-08-16 (E-008) — NOT MET.** Q-learning recall **0.73 ± 0.03** against severity-sort's **0.87** — fails. MTTD 22.0 vs 23.0 — marginally better, well inside the spread. Reward 270.9 vs 153.7 — wins clearly, on the metric the gate does not use.
+> ❌ **MEASURED 2026-08-16 (E-008, E-010) — NOT MET.**
+>
+> **All three learners fail the recall half, not just Q-learning:** sarsa 0.74, q_learning 0.73, monte_carlo 0.71, against severity-sort's 0.87. Four independent methods including DP now converge on the same trade — more reward, less recall — which is exactly the continuity D-012 predicted and the strongest evidence available that the pathology is in the reward rather than in any algorithm. Q-learning recall **0.73 ± 0.03** against severity-sort's **0.87** — fails. MTTD 22.0 vs 23.0 — marginally better, well inside the spread. Reward 270.9 vs 153.7 — wins clearly, on the metric the gate does not use.
 >
 > The flag below was right. BULK_CLOSE_LOW_RISK accounts for **62.3%** of the learned policy's actions (DP: ~97%). Same exploit, less extreme, found by a completely different algorithm — which is the evidence that the pathology is in the reward, not in DP.
 >

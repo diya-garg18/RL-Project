@@ -23,10 +23,12 @@ dp:                              # Phase 1 — model-based DP on an estimated mo
 
 monte_carlo:
   alpha: 0.05
-  first_visit: true
+  first_visit: true              # every-visit MC is not implemented; the loader rejects false
+  train_seed_start: 600000       # own block (D-016) — see q_learning.train_seed_start
 
 sarsa:
   alpha: 0.10
+  train_seed_start: 400000       # own block (D-016)
 
 q_learning:
   alpha: 0.10

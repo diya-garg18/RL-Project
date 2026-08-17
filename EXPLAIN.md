@@ -156,6 +156,30 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — Phase 2 finished, and a claim withdrawn
+
+The last two algorithms are written, so all three are now done.
+
+**SARSA** is Q-learning's more honest sibling. Q-learning updates its beliefs assuming it will play perfectly from the next step onward — even though it knows it sometimes acts at random. SARSA accounts for its own randomness. On a cliff-edge problem SARSA learns to walk away from the edge, precisely because it knows it will occasionally stumble.
+
+**Monte Carlo** doesn't guess at all. Where the other two update after every single step using their own estimate of what comes next, Monte Carlo waits until the shift is completely over and uses what actually happened. Never wrong on average, but wildly variable — one unlucky shift moves all its opinions at once.
+
+**All three end up in the same place, and that is the result.** Each earns far more reward than the sensible rule-of-thumb baseline while catching *fewer* real incidents — 71–74% against the baseline's 87%. Add the Phase 1 planner and that's **four completely different methods, sharing no maths between them, all finding the same loophole.** When every player cheats the same way, the problem is the rules. That is now the best-supported claim in the whole project, and it's the argument for the human-feedback phase.
+
+What we are deliberately *not* saying is which algorithm is best. SARSA scores highest on reward, but the gap between the three is about the same size as the random variation between repeat runs of the same one. Picking a winner from that would be reading noise.
+
+**Then we withdrew something we said last session.**
+
+We had reported that the agent visibly changes strategy as the shift runs out — working alerts properly early on, mass-dismissing them near the deadline — with a tidy story about analysts under time pressure. Running that exact same check on the two new algorithms was the obvious thing to do, and it had not been done.
+
+Monte Carlo agrees with Q-learning. **SARSA does the opposite** — it bulk-closes *less* as the deadline approaches, not more. Same simulator, same rewards, same procedure.
+
+So the claim is withdrawn. The measurements are all still correct and still in the log; what doesn't survive is the interpretation laid on top of them. Each of those end-of-shift figures rests on only about a dozen situations, and when one of three algorithms runs the trend backwards, the honest reading is that there may be no real pattern there at all.
+
+Nothing broke to reveal this. Every test passed throughout. The original figure was internally consistent, moved steadily in one direction across three time periods, and had a believable explanation attached — which is exactly what a convincing wrong answer looks like. It took repeating an analysis we had already done once and been pleased with. **From now on, any claim about how an agent behaves gets checked on all three algorithms before it gets written down.**
+
+**We also tested whether the standard tuning knobs matter — and none of them does.** We varied the learning rate, the discount factor and the exploration schedule across sensible ranges. In every case the difference between settings was smaller than the difference between three repeat runs of the *same* setting. The default configuration alone scored 75, then −34, then 47. So the honest answer to "which hyperparameters are best?" is: this measurement cannot tell you, and anyone who reports a winner from it is reporting a coin flip. That independently confirms the seed problem found earlier — the noise in this simulator is large enough to swallow deliberate, tenfold changes to how the agent learns.
+
 ### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — turning the agent's knowledge into a picture
 
 Everything the agent learned lives in a table of 2,880 numbers. Nobody can read that. So we turned it into a picture: for every situation the agent might face, which of its five options does it pick — laid out so you can see how its answer changes as the end of the shift approaches.

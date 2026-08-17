@@ -381,3 +381,144 @@ It establishes what the learned policy does, per state, with data coverage made 
 ---
 
 *(E-008's open decisions are recorded at the end of E-008, above.)*
+
+---
+
+## E-010 — SARSA and Monte Carlo on the real environment — 2026-08-16
+
+**Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_006 · **Decision:** D-017
+Same protocol as E-008: 5 runs × 20,000 episodes, own seed block per algorithm (D-016), eval seeds read once at the end. SARSA 3.4 min, Monte Carlo 3.0 min.
+
+**All three learners, eval seeds 101–105, mean ± std across 5 training runs**
+
+| agent | recall@deadline | total reward | MTTD (min) |
+|---|---|---|---|
+| **sarsa** | 0.74 ± 0.01 | **324.1 ± 81.6** | 23.3 ± 11.7 |
+| q_learning | 0.73 ± 0.03 | 270.9 ± 105.5 | 22.0 ± 15.6 |
+| monte_carlo | 0.71 ± 0.02 | 177.3 ± 91.7 | **18.6 ± 3.0** |
+| dp (E-004) | 0.43 ± 0.17 | 305.9 ± 127.6 | 6.3 |
+| severity_sort | **0.87 ± 0.16** | 153.7 ± 218.7 | 23.0 ± 12.4 |
+| oracle_greedy | 0.77 ± 0.13 | 214.1 ± 207.6 | 15.6 ± 6.5 |
+
+**SARSA earns the highest reward of any agent in the project — 324.1, above even DP's 305.9.** That is worth pausing on: DP computes the exact optimum *for its estimated model*, and a model-free learner beat it. The most likely explanation is D-004 rather than anything remarkable about SARSA — DP's optimum is only as good as a transition model estimated from 50k random rollouts covering 133 of 576 states, whereas SARSA learned directly from 100,000 real shifts. Not investigated further; recorded as the reading, not the conclusion.
+
+**The result that matters is the agreement, not the ranking.** All three learners land at recall 0.71–0.74, and **all three fall short of severity-sort's 0.87**. Three algorithms — off-policy TD, on-policy TD, and Monte Carlo, which share no update rule between them — trained on disjoint seed blocks, converge on the same trade: substantially more reward, meaningfully less recall.
+
+Combined with DP (E-004), that is **four independent methods finding the same exploit**. The reward function, not the algorithm, is what selects this behaviour. This was D-012's prediction and it is now the single best-supported claim in the project.
+
+**Monte Carlo has the best MTTD (18.6 ± 3.0) and by far the tightest spread.** Unexplained. It is also the weakest on reward. Worth a look before the report, not chased here.
+
+### What this does not establish
+
+Nothing about ranking the three against each other. The differences between them (177 to 324 reward) are of the same order as the eval-seed variance E-008 measured (severity_sort's own per-seed std is ±218.7). **Do not report "SARSA is the best tabular method" from this table.** It is one draw from a noisy measurement, and E-012 below shows that even deliberate hyperparameter changes fail to clear that noise.
+
+---
+
+## E-011 — Cross-agent comparison against DP (ROADMAP box 5) — 2026-08-16
+
+**Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_006
+`scripts/compare_agents.py`. DP's Q-table was reconstructed from the converged V and saved by `scripts/run_dp.py` (re-run; reproduced E-004 exactly — 133/576 coverage, 1075 sweeps, final Δ 9.95e-05, VI/PI 100%).
+
+**Coverage — states each agent actually visited, of 576**
+
+| agent | states | state-action pairs |
+|---|---|---|
+| dp | 133 | 589/2880 |
+| q_learning | 121 | 480/2880 |
+| monte_carlo | 120 | 530/2880 |
+| sarsa | 115 | 517/2880 |
+
+**Policy agreement and max-norm Q distance**
+
+| pair | agree (both visited) | agree (all 576) | max \|ΔQ\| |
+|---|---|---|---|
+| sarsa vs dp | **43.9%** | 85.9% | 306.7 |
+| q_learning vs dp | 36.8% | 84.4% | 320.0 |
+| monte_carlo vs dp | 30.1% | 82.8% | 309.8 |
+| q_learning vs sarsa | 29.5% | 85.4% | 116.2 |
+| q_learning vs monte_carlo | 25.0% | 84.4% | 203.5 |
+| sarsa vs monte_carlo | 21.8% | 83.5% | 172.7 |
+
+### Finding — the "all 576" column is a manufactured number
+
+Agreement looks like 83–86% across the board until unvisited states are excluded, at which point it collapses to **22–44%**. The difference is entirely states neither agent has ever seen, where both fall back to a convention that is not a decision: the learners to the argmax tie-break on an all-zero row (FEATURE_005), DP to the D-011 absorbing self-loop. Two agents that have never visited a state "agree" there, and with ~450 such states that artefact dominates.
+
+Any future comparison in this project must exclude unvisited states or it is measuring conventions. This is the third time the same class of error has appeared — D-011, FEATURE_005/E-009, and now here — always as a defensible internal default that becomes a false claim when displayed or compared.
+
+### Finding — near-identical performance from very different Q-tables
+
+Max-norm Q distances of 116–320 between agents whose eval performance sits within 0.03 recall of each other, and policy agreement as low as 21.8% between SARSA and Monte Carlo. The agents are not converging on a common solution; they are finding **different policies of similar value**. Either the reward has a broad plateau of near-equivalent strategies, or the metrics cannot distinguish them. Both readings would matter for the report and neither has been tested.
+
+---
+
+## E-012 — Hyperparameter ablations (ROADMAP box 7) — 2026-08-16
+
+**Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_006
+`scripts/ablations.py`, 3 runs × 6,000 episodes per configuration, own seed block (800000+), **measured on the train-diagnostic seeds 1–10 — never on the eval seeds.** An ablation is tuning, and CONSTRAINTS #2 forbids tuning against evaluation seeds whether a program or a human does the reading. Sweep took 4.1 min.
+
+Reduced budget relative to a headline run (20,000 × 5). These numbers rank configurations; they are **not** comparable to E-008/E-010.
+
+| sweep | value | greedy reward on train-diag | individual runs |
+|---|---|---|---|
+| **alpha** | 0.02 | 76.0 ± 50.0 | [6, 115, 107] |
+| | 0.10 *(default)* | 29.2 ± 46.2 | [75, −34, 47] |
+| | 0.30 | 4.0 ± 46.0 | [68, −39, −17] |
+| **gamma** | 0.90 | 24.0 ± 54.4 | [100, −7, −22] |
+| | 0.95 | 55.3 ± 6.0 | [47, 59, 60] |
+| | 0.99 *(default)* | 29.2 ± 46.2 | [75, −34, 47] |
+| **epsilon_decay** | 0.999 | 111.4 ± 41.1 | [138, 143, 53] |
+| | 0.9995 *(default)* | 29.2 ± 46.2 | [75, −34, 47] |
+| | 0.9999 | −105.9 ± 139.0 | [−234, −171, 87] |
+
+### Headline: NONE of the three ablations clears the noise floor
+
+The script computes this rather than leaving it to the reader — the spread *between* configuration means against the typical spread *within* a configuration's repeats:
+
+| sweep | between-config spread | within-config spread | verdict |
+|---|---|---|---|
+| alpha | 29.9 | 47.4 | **not distinguishable from noise** |
+| gamma | 13.7 | 35.5 | **not distinguishable from noise** |
+| epsilon_decay | 89.6 | 75.4 | **not distinguishable from noise** |
+
+Every sweep's between-config variation is smaller than, or comparable to, the variation between repeats of the *same* configuration. Look at the individual runs: the default configuration alone produced 75, −34 and 47 — a range of 109, wider than the gap between any two alpha settings.
+
+**This is the roadmap box being answered honestly rather than filled in.** The tempting write-up — "alpha=0.02 is best, gamma=0.95 is best, slower epsilon decay helps" — would be reading three random draws as three findings. The epsilon-decay sweep is the only one even suggestive (0.999 at 111.4 against 0.9999 at −105.9), and its between/within ratio is 1.19, nowhere near enough.
+
+The clearest single illustration is alpha=0.02's three runs: **6, 115 and 107**. The same configuration, differing only in seed, spans 109 reward — wider than the gap between any two alpha values in the sweep. Whatever this table appears to say about alpha, that spread says louder that it cannot say it yet.
+
+The sweep is deterministic under its seeds and was re-run to confirm: every row reproduced exactly.
+
+**A negative result, and a useful one.** It is independent confirmation of E-008's variance finding, arrived at from a different direction: this environment's shift-to-shift noise is large enough to swallow deliberate, order-of-magnitude hyperparameter changes. Any future tuning needs far more repeats — or a lower-variance evaluation protocol — before it can claim anything. Recorded so nobody re-runs this sweep expecting a different answer.
+
+---
+
+## E-013 — The strategy shift does not replicate across algorithms — 2026-08-16
+
+**Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_006
+**This entry partially retracts an interpretation offered in E-009.** `scripts/policy_table.py --agent {sarsa,monte_carlo}`.
+
+E-009 reported that Q-learning's policy shows a monotonic strategy shift as the shift runs out — bulk-closing rising 25.3% → 36.0% → 46.2% while severity-first falls 34.9% → 28.0% → 15.4% — and offered two readings (analyst-like escalation, or the reward hack intensifying). Running the same figure for the other two learners was the obvious check and it had not been done.
+
+**Bulk-close share by time bucket, per algorithm**
+
+| agent | >240m (early) | 60–240m | <60m (crunch) | direction |
+|---|---|---|---|---|
+| q_learning | 25.3% | 36.0% | **46.2%** | rises into the crunch |
+| monte_carlo | 23.1% | 28.6% | **42.9%** | rises |
+| **sarsa** | 47.4% | 51.9% | **25.0%** | **falls — the opposite** |
+
+**Severity-first share, same buckets**
+
+| agent | >240m | 60–240m | <60m |
+|---|---|---|---|
+| q_learning | 34.9% | 28.0% | 15.4% |
+| monte_carlo | 26.9% | 25.0% | 7.1% |
+| **sarsa** | 17.1% | 22.2% | **50.0%** |
+
+**SARSA learned the reverse trend**, on the same environment, the same reward and the same protocol. Two of three agree; one contradicts. That is not a robust behavioural property.
+
+**What this means for E-009's claim.** "There is a behaviourally interpretable strategy shift as time runs out" was over-read from a single algorithm. It holds for Q-learning and Monte Carlo and fails for SARSA. Given each crunch bucket rests on only 12–14 visited states — a limitation E-009 did state — a direction disagreement across algorithms is entirely consistent with the trends being noise at that sample size.
+
+**The honest position:** the *existence* of a consistent, interpretable end-of-shift strategy is **not established**. The per-algorithm figures stand as measured; the interpretation does not. Both readings E-009 offered are now under-supported, and the per-action reward decomposition that would have separated them is a lower priority than it looked, because there may be no stable effect to explain.
+
+**Why this was caught.** Nothing failed. The Q-learning figure was internally consistent, monotonic across three buckets, and had a plausible story attached. It took running the identical analysis on two more agents — which cost one command each once the script took an `--agent` flag — to find that the story does not replicate. Replication across algorithms should be the default for any behavioural claim in this project, not an afterthought.

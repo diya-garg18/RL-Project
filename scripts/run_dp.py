@@ -111,7 +111,24 @@ def main() -> None:
               f"reward {tr['mean']:7.1f}±{tr['std']:.1f}   mttd {m['mean']:6.1f}")
 
     np.save(ROOT / "results" / "dp_policy.npy", policy_vi)
+
+    # Reconstruct the full action-value table from the converged V:
+    #     Q(s,a) = R_hat(s,a) + gamma * sum_s' P_hat(s'|s,a) V(s')
+    # Value iteration returns V, but ROADMAP Phase 2 box 5 compares Q-tables, and
+    # P_hat/R_hat exist only inside this script. Saved here so the comparison does
+    # not have to re-estimate the model (50k episodes) just to get Q.
+    # Visit counts go with it: a DP "preference" on a state-action pair never
+    # observed is the D-011 self-loop convention, not a decision, and the
+    # comparison must be able to exclude those (same principle as FEATURE_005).
+    Q_dp = np.zeros((N_STATES, 5), dtype=np.float64)
+    for s in range(N_STATES):
+        for a in range(5):
+            Q_dp[s, a] = R_hat[s, a] + tcfg.common.gamma * (P_hat[s, a] @ V_vi)
+    np.save(ROOT / "results" / "dp_Q.npy", Q_dp)
+    np.save(ROOT / "results" / "dp_visits.npy", visits)
     print(f"\npolicy saved -> results/dp_policy.npy (gitignored, regenerable by this script)")
+    print(f"Q-table      -> results/dp_Q.npy      (for ROADMAP box 5)")
+    print(f"visit counts -> results/dp_visits.npy")
 
 
 if __name__ == "__main__":

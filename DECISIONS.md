@@ -287,4 +287,48 @@ Keeping seeds 1–10 as the diagnostic set is the second half of the decision an
 
 **Consequences:** Q-learning's training distribution is now far wider than DP's estimation distribution, so the two are not learning from equivalent experience — worth stating whenever E-004 and E-008 are compared. Any future learner (SARSA, Monte Carlo, DQN, REINFORCE) should use this same block, offset per algorithm, or its results will not be comparable to Q-learning's.
 
+D-016 note added 2026-08-16: SARSA (400000+) and Monte Carlo (600000+) received their own blocks under the same rule, and `load_training_config` now rejects duplicate or too-close blocks rather than trusting the YAML comments.
+
 E-008 then found something this decision did not anticipate and does not fix: **the eval block itself is unrepresentative.** Every agent, oracle included, scores 120–230 reward higher on seeds 101–105 than on seeds 1–10, with per-seed standard deviations several times larger than the differences being reported. That is a separate and more serious problem, it affects every experiment in the project rather than just Phase 2, and it is recorded in E-008 as an open decision for the humans rather than acted on here.
+
+---
+
+## D-017 — On-policy learners are graded against an ε-soft target, not against q\*
+
+**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+
+**Decision:** SARSA and first-visit Monte Carlo are tested against `tiny_mdp.epsilon_soft_q(epsilon)` — the action-value function of the ε-greedy policy they actually follow — rather than against `HAND_COMPUTED_Q`. Q-learning continues to be graded against `HAND_COMPUTED_Q`.
+
+**Why:** Q-learning is off-policy and converges to q\* (S&B §6.5). SARSA (§6.4) and MC control (§5.4) are on-policy: their fixed point is q_π for the ε-greedy policy being followed, which is **not** q\* whenever ε > 0. On the tiny MDP at ε = 0.1 the two differ by more than 1.5 — `q*(QUIET,WAIT) = 10.0` against an ε-soft value of 8.54. A correct SARSA graded against q\* would have looked badly broken, and the obvious "fix" would have been to break SARSA until it matched.
+
+The new target is not allowed to float free. `epsilon_soft_q(0.0)` must reproduce `HAND_COMPUTED_Q` to machine precision, because at ε = 0 the ε-greedy policy *is* the greedy policy and the backup reduces to the Bellman optimality equation. `test_epsilon_soft_q_collapses_to_q_star_as_epsilon_goes_to_zero` asserts exactly that, which keeps the on-policy target anchored to the same pen-and-paper answer everything else in Phase 2 is anchored to.
+
+It is also a genuinely independent computation: `epsilon_soft_q` takes the exact expectation over next actions, whereas SARSA samples one. Agreement between them is evidence, not tautology.
+
+**Alternatives rejected:**
+- *Grade SARSA and MC against `HAND_COMPUTED_Q` with a loose tolerance.* The gap is not error, it is a real property of the algorithms; hiding it behind a tolerance would teach the students the opposite of the on-policy/off-policy distinction the report is meant to explain.
+- *Drive ε to ~0 during the test so all three converge to q\*.* Textbook GLIE, and it would work — but on this fixture BUSY is only reachable by exploring, so ε → 0 starves half the MDP and the test would fail for an unrelated reason.
+- *Compare only policies, not values.* Robust but weak: it would pass an agent whose values were wildly wrong as long as their ranking survived.
+
+**Consequences:** Tolerances differ by algorithm and were set from measurement, not assumption — Q-learning 1e-9 (measured 9.24e-14), SARSA 0.15 (worst 0.100 over 8 seeds), MC 0.40 (worst 0.272). The looser two are not slack: SARSA's residual is constant-α noise, which shrinks with α (0.113 → 0.080 → 0.041 for α 0.05 → 0.01 → 0.002) but *not* with more episodes, and MC is the higher-variance estimator by construction.
+
+**A related correction, recorded here because it invalidated a committed comment.** `tiny_mdp.HORIZON = 200` was documented as harmless for truncation on the grounds that γ²⁰⁰ ≈ 7e-10. That reasoning is right for the return measured from t=0 and **wrong for Monte Carlo**, which computes a return from *every* timestep — at t=199 the missing tail is the entire value. Measured bias against the ε-soft target: 2.75 at HORIZON=50, 0.47 at 200, 0.09 at 800. `MC_HORIZON = 800` was added, set where the bias falls below the constant-α noise the TD learners already carry. The original comment was not a typo; it was a plausible argument applied to the wrong quantity, which is why it survived review.
+
+---
+
+## D-018 — A reduced training run may not overwrite a full run's artefacts
+
+**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+
+**Decision:** `scripts/train.py` writes `results/<agent>_Q.npy` and `_visits.npy` only when the run matches the configured budget (full `n_episodes`, full `eval_every`, ≥ 5 repeats). Any reduced run writes to `results/smoke/` instead and says so.
+
+**Why:** This is a bug fix disguised as a policy, and the bug is worth recording. A `--episodes 200 --repeats 1` smoke test silently replaced the artefacts of a completed 20,000-episode run. Nothing errored. The stale file was a valid `.npy` of the right shape, and the corruption surfaced only later and indirectly, as an unexplained drop in state coverage — 121 states in E-009 against 81 in the first run of `compare_agents.py` — which initially looked like a bug in the comparison script.
+
+CONSTRAINTS #4 forbids deleting or overwriting an experiment result. That rule was written with "don't delete a run that looked worse" in mind, but the more likely failure is this one: an accidental overwrite by a routine command, with no warning and no error. Making the config-faithful path the only one that can write to `results/` moves the constraint from a rule people must remember into the code.
+
+**Alternatives rejected:**
+- *Remember not to smoke-test with the same output paths.* This is precisely the class of discipline that fails under time pressure, and it had already failed once within an hour of the script being written.
+- *Timestamp every artefact.* Solves overwriting but breaks every downstream script's fixed path, and clutters `results/` with runs nobody will read.
+- *Refuse to write anything on a reduced run.* Tempting, but smoke tests genuinely benefit from inspectable output; routing it to `results/smoke/` keeps that without the risk.
+
+**Consequences:** `results/smoke/` may accumulate stale files. It is gitignored along with the rest of `results/`, and nothing reads from it. Scripts that consume artefacts (`policy_table.py`, `compare_agents.py`) read only from `results/` and will fail loudly with the exact command needed if a full run has not been done — which is the correct behaviour, since a reduced run's Q-table is not a result.

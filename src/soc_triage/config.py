@@ -405,11 +405,26 @@ class QLearningConfig:
 
 
 @dataclass(frozen=True)
+class SarsaConfig:
+    alpha: float
+    train_seed_start: int
+
+
+@dataclass(frozen=True)
+class MonteCarloConfig:
+    alpha: float
+    first_visit: bool
+    train_seed_start: int
+
+
+@dataclass(frozen=True)
 class TrainingConfig:
     common: CommonTrainingConfig
     dp: DPConfig
     epsilon: EpsilonConfig
     q_learning: QLearningConfig
+    sarsa: SarsaConfig
+    monte_carlo: MonteCarloConfig
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
@@ -450,8 +465,32 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         train_seed_start=int(_require(q_learning_raw, "train_seed_start", "q_learning")),
     )
 
+    sarsa_raw = _require(raw, "sarsa", "training")
+    sarsa = SarsaConfig(
+        alpha=float(_require(sarsa_raw, "alpha", "sarsa")),
+        train_seed_start=int(_require(sarsa_raw, "train_seed_start", "sarsa")),
+    )
+
+    mc_raw = _require(raw, "monte_carlo", "training")
+    monte_carlo = MonteCarloConfig(
+        alpha=float(_require(mc_raw, "alpha", "monte_carlo")),
+        first_visit=bool(_require(mc_raw, "first_visit", "monte_carlo")),
+        train_seed_start=int(_require(mc_raw, "train_seed_start", "monte_carlo")),
+    )
+
     if not 0.0 < common.gamma <= 1.0:
         raise ConfigError("'common.gamma' must be in (0, 1]")
+    for name, alpha in (("sarsa", sarsa.alpha), ("monte_carlo", monte_carlo.alpha)):
+        if not 0.0 < alpha <= 1.0:
+            raise ConfigError(f"'{name}.alpha' must be in (0, 1]")
+    if not monte_carlo.first_visit:
+        # Every-visit MC is a real algorithm, but it is not the one this project
+        # implements, documents or tests. Flipping the flag would silently make
+        # MonteCarloAgent disagree with its own docstring and with S&B §5.1.
+        raise ConfigError(
+            "'monte_carlo.first_visit' must be true — every-visit MC is not "
+            "implemented (see agents/monte_carlo.py and DECISIONS D-017)"
+        )
 
     # These three fail loudly at load time on purpose. An out-of-range alpha
     # produces a diverging Q-table, and an incoherent epsilon schedule produces
@@ -466,12 +505,23 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         )
     if not 0.0 < epsilon.decay <= 1.0:
         raise ConfigError("'epsilon.decay' must be in (0, 1]")
-    if q_learning.train_seed_start < 100_000:
-        raise ConfigError(
-            "'q_learning.train_seed_start' must be >= 100000 to stay clear of the "
-            "train (1-10), eval (101-105), calibration (1000-3099), and DP "
-            "estimation (10000-59999) seed blocks"
-        )
+    # Every learner trains on its own block of shifts (D-016). Enforced here
+    # rather than trusted to the YAML comments, per CONSTRAINTS #2's requirement
+    # that seed separation live in code.
+    seed_starts = {
+        "q_learning": q_learning.train_seed_start,
+        "sarsa": sarsa.train_seed_start,
+        "monte_carlo": monte_carlo.train_seed_start,
+    }
+    for name, start in seed_starts.items():
+        if start < 100_000:
+            raise ConfigError(
+                f"'{name}.train_seed_start' must be >= 100000 to stay clear of the "
+                "train (1-10), eval (101-105), calibration (1000-3099), and DP "
+                "estimation (10000-59999) seed blocks"
+            )
+    if len(set(seed_starts.values())) != len(seed_starts):
+        raise ConfigError(f"learner training seed blocks must be distinct: {seed_starts}")
     if dp.value_iteration_theta <= 0 or dp.policy_eval_theta <= 0:
         raise ConfigError("DP convergence thresholds must be positive")
     if dp.estimation_seed_start < 10_000:
@@ -479,4 +529,11 @@ def load_training_config(path: str | Path) -> TrainingConfig:
             "'dp.estimation_seed_start' must be >= 10000 to stay clear of the "
             "train (1-10), eval (101-105), and calibration (1000-3099) seed blocks"
         )
-    return TrainingConfig(common=common, dp=dp, epsilon=epsilon, q_learning=q_learning)
+    return TrainingConfig(
+        common=common,
+        dp=dp,
+        epsilon=epsilon,
+        q_learning=q_learning,
+        sarsa=sarsa,
+        monte_carlo=monte_carlo,
+    )

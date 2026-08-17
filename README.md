@@ -46,7 +46,7 @@ The first ten follow the *AI Collaboration Field Guide* ("Don't just trust the A
 cd D:\RLPROJECT
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest tests/ -q     # expect 50 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q     # expect 71 passed
 ```
 
 Python 3.13.1 confirmed on this machine. Verify the PyTorch install works before Phase 3 depends on it.
@@ -57,11 +57,23 @@ Python 3.13.1 confirmed on this machine. Verify the PyTorch install works before
 
 ## Current status
 
-**Phase 0 complete** (2026-08-14) · **Phase 1 complete** (2026-08-16) · **Phase 2 — tabular model-free RL, in progress.**
+**Phase 0 complete** (2026-08-14) · **Phase 1 complete** (2026-08-16) · **Phase 2 — all 8 boxes built (2026-08-16), exit criterion NOT met, phase not closed.**
 
-Built and tested: the simulator, the environment, both state encoders, five baselines, and model-based Dynamic Programming (value iteration + policy iteration) with an external correctness check against a hand-solved 5-state MRP.
+Built and tested: the simulator, the environment, both state encoders, five baselines, model-based Dynamic Programming (value iteration + policy iteration), and all three tabular learners — Q-learning, SARSA and first-visit Monte Carlo — each verified against a hand-solved MDP before touching the real one.
 
-The headline finding so far is a negative one, and it is deliberate: the DP policy earns the **highest total reward of any agent (305.9)** while catching **fewer than half the real incidents (recall 0.43)**. It games the hand-written reward. We kept the exploitable reward rather than patching it, because a reward nobody can write correctly by hand is the entire argument for learning one from human preferences in Phase 5. See `DECISIONS.md` D-012 and `EXPLAIN.md` Part 9.
+**The headline finding is a negative one, and it is deliberate.** Four methods sharing no update rule between them — exact planning, off-policy TD, on-policy TD and Monte Carlo — independently discover the same exploit in the hand-written reward. Each earns far more reward than a severity-sort baseline while catching *fewer* real incidents:
+
+| agent | recall@deadline | total reward |
+|---|---|---|
+| sarsa | 0.74 ± 0.01 | 324.1 ± 81.6 |
+| dp | 0.43 ± 0.17 | 305.9 ± 127.6 |
+| q_learning | 0.73 ± 0.03 | 270.9 ± 105.5 |
+| monte_carlo | 0.71 ± 0.02 | 177.3 ± 91.7 |
+| severity_sort | **0.87 ± 0.16** | 153.7 ± 218.7 |
+
+When every method games the reward the same way, the reward is the problem — which is the entire argument for learning one from human preferences in Phase 5. The exploitable reward was kept rather than patched. See `DECISIONS.md` D-012 and `EXPLAIN.md` Part 9.
+
+**Two results the project is deliberately honest about:** the hyperparameter ablations show *no* effect that clears the measurement noise (E-012), and a strategy-shift claim made earlier was **partially retracted** when it failed to replicate across algorithms (E-013). Negative results and retractions are documented here, not deleted.
 
 See `HANDOVER.md` for the live picture.
 

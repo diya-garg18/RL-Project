@@ -43,6 +43,7 @@ from soc_triage.tiny_mdp import (  # noqa: E402
     WAIT,
     WORK,
     bellman_optimality_residual,
+    epsilon_soft_q,
     greedy_from_q,
     pad_actions,
     step,
@@ -210,6 +211,46 @@ def test_project_value_iteration_reproduces_hand_answer():
     # A self-loop on QUIET means the value has to be accumulated over many
     # sweeps, not back-substituted in one.
     assert len(deltas) > 1
+
+
+def test_epsilon_soft_q_collapses_to_q_star_as_epsilon_goes_to_zero():
+    """The on-policy target. At epsilon = 0 it must BE the hand-derived q_*.
+
+    SARSA and first-visit Monte Carlo are on-policy: they converge to q_pi for
+    the epsilon-greedy policy they follow, not to q_*. Grading them against
+    HAND_COMPUTED_Q would be grading them against an answer they are not trying
+    to reach — they would look broken while being correct.
+
+    This helper computes that on-policy fixed point exactly. Anchoring it: at
+    epsilon = 0 the epsilon-greedy policy IS the greedy policy, so the fixed
+    point must coincide with q_* to machine precision. That ties the new target
+    back to the pen-and-paper answer rather than letting it float free.
+    """
+    assert np.allclose(epsilon_soft_q(0.0), HAND_COMPUTED_Q, atol=TOL)
+
+
+def test_epsilon_soft_q_is_worth_less_than_q_star_when_exploring():
+    """Forced randomness costs value — and the cost must land in the right place.
+
+    Under epsilon-greedy the agent sometimes takes the action it knows is worse,
+    so every entry is worth no more than under q_*. The loss is largest in
+    QUIET, where the wrong move (WORK, -5) is expensive; that asymmetry is the
+    intuition for why SARSA is called the more 'cautious' algorithm.
+    """
+    soft = epsilon_soft_q(0.1)
+    assert (soft <= HAND_COMPUTED_Q + TOL).all(), f"exploration gained value:\n{soft}"
+    assert soft[QUIET, WAIT] < HAND_COMPUTED_Q[QUIET, WAIT] - 1e-6
+
+
+def test_epsilon_soft_q_preserves_the_optimal_policy_at_this_epsilon():
+    """At epsilon = 0.1 the ranking of actions is unchanged, so the greedy
+    policy read off the soft values is still [WAIT, WORK].
+
+    This is what makes the fixture usable for on-policy learners: their *values*
+    are allowed to differ from q_*, but their *policy* must not. Any test
+    asserting SARSA recovers HAND_COMPUTED_POLICY depends on this holding.
+    """
+    assert np.array_equal(greedy_from_q(epsilon_soft_q(0.1)), HAND_COMPUTED_POLICY)
 
 
 def test_value_iteration_reconstructs_the_full_q_table():

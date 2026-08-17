@@ -88,16 +88,38 @@ WAIT, WORK = 0, 1
 # that has to be copied from output. Same reasoning as mrp_example.GAMMA.
 GAMMA = 0.9
 
-# The horizon used when an *episodic* learner (first-visit Monte Carlo) is run
-# on this continuing task. 200 steps with gamma = 0.9 leaves a tail worth
-# 0.9^200 ~ 7e-10 of a step's reward, far below any tolerance here, so a
-# truncated return is indistinguishable from the infinite one.
+# The horizon used when this continuing task is run in episodes.
 #
-# The distinction matters and is a classic bug: truncation is NOT termination.
-# A TD learner must still bootstrap through the cut (done=False at the
-# horizon), or it will learn that the world ends and drive every value toward
-# the last reward it happened to see.
+# For a TD learner, 200 steps is ample: gamma^200 ~ 7e-10, so the discarded
+# tail is worth nothing.
+#
+# The distinction that matters here is a classic bug: truncation is NOT
+# termination. A TD learner must still bootstrap through the cut (done=False at
+# the horizon), or it will learn that the world ends and drive every value
+# toward the last reward it happened to see.
 HORIZON = 200
+
+# Monte Carlo needs a MUCH longer horizon, and the reason is worth understanding
+# because the obvious argument for 200 is wrong.
+#
+# "gamma^200 ~ 7e-10, so truncation is harmless" is true for the return measured
+# from t=0. But MC computes a return from EVERY timestep in the episode. The
+# state visited at t=199 gets a return of one reward with no future at all,
+# against a true value near 10. Roughly the last ~50 steps of any 200-step
+# episode carry materially truncated returns, so ~25% of MC's samples are biased
+# downward — and unlike variance, that bias does not average out with more
+# episodes.
+#
+# Measured on this fixture (mean signed error against the epsilon-soft target,
+# 5 seeds, alpha=0.01, 3000 episodes):
+#     HORIZON =  50  ->  max |error| 2.75, every entry negative
+#     HORIZON = 200  ->  max |error| 0.47
+#     HORIZON = 800  ->  max |error| 0.09   (comparable to SARSA's noise floor)
+#
+# The bias shrinks with horizon exactly as the explanation predicts. 800 is
+# where it drops below the constant-alpha noise the TD learners already carry,
+# so it is the point past which lengthening the episode buys nothing.
+MC_HORIZON = 800
 
 # P[s, a, s'] = probability of landing in s' after taking a in s. Deterministic,
 # so every row is a single 1.0 — written as a full matrix anyway so it plugs
@@ -220,6 +242,69 @@ def greedy_from_q(Q: np.ndarray) -> np.ndarray:
                 best_a = a
         policy[s] = best_a
     return policy
+
+
+def epsilon_soft_q(
+    epsilon: float,
+    tol: float = 1e-14,
+    max_sweeps: int = 100_000,
+) -> np.ndarray:
+    """The action-value function an ON-POLICY learner actually converges to.
+
+    Q-learning is off-policy and converges to q_* (S&B §6.5). SARSA (§6.4) and
+    first-visit Monte Carlo control (§5.4) are on-policy: they converge to
+    q_pi for the epsilon-greedy policy they are following, which is *not* q_*
+    whenever epsilon > 0. Grading them against HAND_COMPUTED_Q would mark a
+    correct implementation as broken.
+
+    This computes that on-policy fixed point by iterating the expected-SARSA
+    backup to convergence:
+
+        Q(s,a) <- R(s,a) + gamma * sum_s' P(s'|s,a) * sum_a' pi_e(a'|s') Q(s',a')
+
+    where pi_e is epsilon-greedy with respect to the current Q:
+
+        pi_e(a|s) = 1 - epsilon + epsilon/n   for the greedy action
+                  = epsilon/n                 otherwise
+
+    Note this is a *different* computation from what SARSA does — SARSA samples
+    the next action, this one takes the exact expectation — so agreement
+    between them is evidence, not tautology. And at epsilon = 0 it reduces to
+    the Bellman optimality equation, so it must reproduce HAND_COMPUTED_Q
+    exactly; `test_epsilon_soft_q_collapses_to_q_star_as_epsilon_goes_to_zero`
+    asserts precisely that, which is what keeps this target tied to the
+    pen-and-paper answer instead of floating free.
+
+    Explicit loops throughout (CONSTRAINTS #14) — this is the definition of
+    on-policy value, and it should read like one.
+    """
+    Q = np.zeros((N_TINY_STATES, N_TINY_ACTIONS), dtype=np.float64)
+    for _ in range(max_sweeps):
+        delta = 0.0
+        for s in range(N_TINY_STATES):
+            for a in range(N_TINY_ACTIONS):
+                expectation = 0.0
+                for s_next in range(N_TINY_STATES):
+                    greedy_next = 0
+                    best = -np.inf
+                    for a_next in range(N_TINY_ACTIONS):
+                        if Q[s_next, a_next] > best:
+                            best = Q[s_next, a_next]
+                            greedy_next = a_next
+                    # expected value of s' under the epsilon-greedy policy
+                    value_next = 0.0
+                    for a_next in range(N_TINY_ACTIONS):
+                        prob = epsilon / N_TINY_ACTIONS
+                        if a_next == greedy_next:
+                            prob += 1.0 - epsilon
+                        value_next += prob * Q[s_next, a_next]
+                    expectation += P_TINY[s, a, s_next] * value_next
+                updated = R_TINY[s, a] + GAMMA * expectation
+                delta = max(delta, abs(updated - Q[s, a]))
+                Q[s, a] = updated
+        if delta < tol:
+            return Q
+    raise RuntimeError(f"epsilon-soft fixed point did not converge in {max_sweeps} sweeps")
 
 
 def pad_actions(

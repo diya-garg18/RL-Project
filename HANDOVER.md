@@ -12,9 +12,9 @@
 |---|---|
 | **Last session** | 2026-08-16 (session 6) |
 | **Model** | Claude Opus 5 |
-| **Current phase** | **Phase 2 — tabular model-free RL.** 5 of 8 boxes done. Q-learning has now run on the real environment (E-008). **The Phase 2 exit criterion is NOT met, and two decisions are owed to the humans.** Phases 0 and 1 closed. |
+| **Current phase** | **Phase 2 — tabular model-free RL. ALL 8 BOXES BUILT. The phase is NOT closed** — the exit criterion is not met and two decisions are owed to the humans. Q-learning has now run on the real environment (E-008). **The Phase 2 exit criterion is NOT met, and two decisions are owed to the humans.** Phases 0 and 1 closed. |
 | **Repo state** | `D:\RLPROJECT`, branch `master`. **Session 6's work is not yet committed** — see "Next session should do" #1. Last commit `4833775`. |
-| **Tests passing** | **50/50** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, 2.34 s) — was 14; +13 `test_tiny_mdp.py`, +23 `test_tabular.py` |
+| **Tests passing** | **71/71** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, 6.9 s) — was 14; +16 `test_tiny_mdp.py`, +23 `test_tabular.py`, +18 `test_on_policy.py` |
 | **Blockers** | **None technical.** Two decisions are owed by the humans before Phase 2 can close — see "Broken / blocked". |
 
 ---
@@ -52,9 +52,26 @@ cd D:\RLPROJECT
   - **Two readings of the shift, not separated by the data:** analyst-like escalation under deadline pressure, or the E-008 reward hack intensifying where end-of-shift miss charges bite. Both fit. Deliberately not resolved in favour of the flattering one.
   - The re-run needed to capture visit counts reproduced E-008 to the digit — a free determinism check.
 
+- **Phase 2 finished: SARSA, Monte Carlo, the DP comparison and the ablations** — FEATURE_006, E-010 to E-013, D-017, D-018. Also `agents/tabular.py` (shared base, extracted at the third learner) and `scripts/compare_agents.py`, `scripts/ablations.py`.
+
+**All three learners on eval seeds, mean ± std across 5 runs:**
+
+| agent | recall | reward | MTTD |
+|---|---|---|---|
+| sarsa | 0.74 ± 0.01 | **324.1 ± 81.6** | 23.3 ± 11.7 |
+| q_learning | 0.73 ± 0.03 | 270.9 ± 105.5 | 22.0 ± 15.6 |
+| monte_carlo | 0.71 ± 0.02 | 177.3 ± 91.7 | **18.6 ± 3.0** |
+| severity_sort | **0.87 ± 0.16** | 153.7 ± 218.7 | 23.0 ± 12.4 |
+
+**The agreement is the finding, not the ranking.** All three land at recall 0.71–0.74; all three fall short of severity-sort. With DP that is **four methods sharing no update rule converging on the same trade**. D-012's prediction, now the best-supported claim in the project. Do *not* report "SARSA is best" — the 177–324 spread is the same order as the measurement noise.
+
+- **E-013 partially retracts E-009 — read this before quoting the policy table.** The strategy shift does not replicate: Q-learning and MC bulk-close *more* into the crunch (→46.2%, →42.9%), **SARSA does the opposite (→25.0%)**. With 12–14 states per crunch bucket that is consistent with noise. Per-algorithm figures stand; the interpretation does not.
+- **E-012 ablations: none of α, γ or ε-decay clears the noise floor.** Between-config spread ≤ within-config spread in every sweep. The default config alone produced 75, −34, 47. Reported as a negative result rather than filled in.
+- **E-011 box 5:** policy agreement between agents is **22–44%** over commonly-visited states, but 83–86% if unvisited states are included — that higher number is manufactured by two agents "agreeing" where neither has ever been. Max-norm |ΔQ| 116–320 between agents whose performance differs by 0.03 recall.
+
 ## The two things a human has to decide
 
-**1. The Phase 2 exit criterion is NOT met.** It requires beating severity-sort on recall *and* MTTD. Recall 0.73 < 0.87 — fails. MTTD marginally better, inside the spread. Reward wins clearly (270.9 vs 153.7) on the metric the gate does not use.
+**1. The Phase 2 exit criterion is NOT met — and now BOTH halves fail.** The recall half fails for all three learners (0.71–0.74 vs 0.87), not just Q-learning. The policy-table half was reported satisfied in E-009 and **that assessment is withdrawn**: E-013 shows the shift reverses direction depending on which learner produced it, which is not a behavioural property of the task.
 
 The gate is left **unmet and unamended on purpose**, per D-012: a criterion contradicted by measurement is decided by a human with real numbers in hand, not patched by whoever ran the experiment. The reward hack recurred exactly as D-012 predicted — **BULK_CLOSE is 62.3% of the learned policy's actions** (DP: ~97%). Two unrelated algorithms finding the same exploit is the evidence that the pathology is in the reward, and it is the strongest possible setup for Phase 5. That is a result, not a defect.
 
@@ -85,10 +102,10 @@ Three things are *owed* but block nothing:
 ## Next session should do
 
 1. **Commit session 6's work** — `git add` the paths explicitly (never `-A`, see below), message `phase2: hand-solved 2-state MDP anchor + tabular Q-learning + doc sweep`.
-2. **Get the two decisions above answered** before spending compute on ablations. Box 7's α/γ/ε sweep is close to meaningless while the measurement noise is several times the effect size — that would be tuning against noise, and the results would have to be thrown away if the eval block changes.
-3. **Settle the two readings of the strategy shift** with a per-action reward decomposition inside the crunch bucket (E-009). Cheap, needs no decisions, and it feeds the report's central argument — is the agent learning analyst-like escalation, or intensifying the reward hack? Highest-value remaining analysis.
-4. **The DP convergence comparison** (box 5): max-norm distance between the Q-learning and DP Q-tables plus policy agreement %. Both tables already exist (`results/q_learning_Q.npy`, `results/dp_policy.npy`), and `scripts/policy_table.py` can be pointed at the DP policy for a cell-by-cell comparison.
-5. Then `agents/sarsa.py` and `agents/monte_carlo.py` — verify each on `tiny_mdp` first (reuse `_train_on_tiny_mdp` in `tests/test_tabular.py`), then run through `scripts/train.py`. Both should use the D-016 seed block, offset per algorithm, or their numbers will not be comparable to Q-learning's.
+2. **Get the two decisions above answered.** Everything else in Phase 2 is built; the phase cannot close without them. E-012 sharpens the eval-seed question considerably — hyperparameter effects are invisible under current measurement noise, so the noise is not a footnote, it is the binding constraint on every comparison the report wants to make.
+3. **Do not start Phase 3 (DQN) until the gate is settled.** Phase 3 optimises the same reward and will hit the same wall; starting it first just adds a fifth agent to a comparison whose ground rules are unresolved.
+4. Smaller open questions, none blocking: why MC has the best MTTD (18.6 ± 3.0) and tightest spread while being weakest on reward; why SARSA beats DP on reward (324.1 vs 305.9 — most likely D-004, not investigated); whether 22–44% policy agreement with near-identical performance means a broad plateau of equivalent strategies or metrics too coarse to separate them.
+5. The crunch-bucket reward decomposition is **downgraded** by E-013 — there may be no stable effect to explain.
 
 ## Watch out for
 
@@ -96,6 +113,10 @@ Three things are *owed* but block nothing:
 - **Q-learning's tiny-MDP number is a unit test, not a finding.** 9.24e-14 says the update rule is textbook-correct. The real-environment result is E-008, and it is a much more mixed picture. Never put the tiny-MDP figure in the report as a result.
 - **Do not read the two ± columns in `train.py`'s output table as comparable.** The `q_learning` row's spread is across training runs; the baseline rows' spread is across eval seeds. The script prints a warning about this; fixing the presentation is an open follow-up.
 - **Nothing has been re-run since the eval-seed finding.** Every number currently in the repo predates it. If the humans widen the eval block, E-002 / E-003 / E-004 / E-008 all need re-running before any of them can be quoted against each other.
+- **Do NOT "fix" SARSA or Monte Carlo to match `HAND_COMPUTED_Q`** (D-017). They are on-policy and correctly converge to `tiny_mdp.epsilon_soft_q(ε)`, which differs from q\* by more than 1.5 at ε = 0.1. Making them match q\* would mean breaking two correct algorithms.
+- **MC trains at `MC_HORIZON` (800), not `HORIZON` (200).** Not an inconsistency to tidy up: MC computes a return from every timestep, so a 200-step truncation biases it downward by up to 0.47.
+- **Any behavioural claim must be checked on all three learners before it is written down** (E-013). The Q-learning strategy-shift finding was monotonic, internally consistent and plausible — and SARSA reverses it. Replication across algorithms costs one command per agent now that the scripts take `--agent`.
+- **A reduced training run writes to `results/smoke/`** (D-018). If a script reports coverage that disagrees with the logged experiments, suspect a stale artefact before suspecting the script.
 - **The tiny MDP's exploration trap.** Under `π*` the agent never leaves `QUIET`, so `BUSY` is reachable only by exploring. A learner tested with ε pinned to 0 will produce garbage for `Q(BUSY, ·)` — and the cause is the exploration schedule, not the update rule. Do not debug the update rule first.
 - **Monte Carlo needs `tiny_mdp.HORIZON`.** The fixture is *continuing*, with no terminal state. MC must truncate at 200 steps (γ^200 ≈ 7e-10, negligible). **Truncation is not termination:** a TD learner must keep bootstrapping through the cut (`done=False`), or it learns that the world ends and drags every value toward the last reward it saw.
 - **If `test_tiny_mdp.py` or `test_mrp_bellman.py` ever fails, fix the code — never the expected values.** They came from a human with a pen. Editing them to make a test pass destroys the only external correctness anchors the project has.

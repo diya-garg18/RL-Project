@@ -141,7 +141,18 @@ Same dependency direction as C2: `tiny_mdp.py` depends on `agents/dp.py`, never 
 
 Measured: Bellman residual on the hand-derived table **1.78e-15**; a deliberately injected 0.1 error moves it to **0.10**, thirteen orders of magnitude above the 1e-12 tolerance. The anchor detects wrong answers.
 
-Every learner enters this flow at the same point: train on `tiny_mdp.step()`, then compare the learned Q-table against `HAND_COMPUTED_Q`. Q-learning does so as of 2026-08-16 (E-007); SARSA and Monte Carlo will reuse the identical path.
+Every learner enters this flow at the same point — but **not against the same target** (D-017):
+
+```
+                              Q-learning (off-policy)  ──▶  HAND_COMPUTED_Q   (q*)
+tiny_mdp.step()  ──▶  train  ─┤
+                              SARSA / Monte Carlo      ──▶  epsilon_soft_q(ε)  (q_π)
+                              (on-policy)                    │
+                                                             └─ anchored: at ε=0 it
+                                                                reproduces q* exactly
+```
+
+On-policy learners evaluate the ε-greedy policy they follow, so their fixed point is `q_π`, not `q*` — at ε = 0.1 the two differ by more than 1.5 on this fixture. Grading SARSA against `HAND_COMPUTED_Q` would mark a correct implementation as broken.
 
 ```
 tests/test_tabular.py
@@ -219,5 +230,7 @@ The LLM only ever **describes** a decision the RL agent already made. It never i
 *Append here whenever a flow surprises you. This section is worth more than the diagrams above once the project is real.*
 
 - **The scaffold's `actions:` YAML block was structurally invalid** (a sequence and a `bulk_close:` mapping key at the same indent level). PyYAML rejected the whole file on the loader's very first run. Action names now live under `actions.names`. Lesson: parse configs before trusting them — the docs looked fine for a whole session while the YAML was unloadable. (2026-08-13)
+- **Never rewrite a source file through PowerShell's file cmdlets.** `Set-Content -Encoding utf8` on `scripts/train.py` re-encoded every non-ASCII character (each em dash became `â€”`) and prepended a BOM. Python still parsed it, so nothing failed — the damage was visible only on reading the file. Repaired by targeted replacement of the mangled sequences. Use the editor for source edits; reserve PowerShell for running things. (2026-08-16)
+- **A reduced training run used to overwrite a full one's artefacts.** `--episodes 200` silently replaced a completed 20000-episode Q-table with a valid, correctly-shaped, wrong file. It surfaced later as unexplained coverage loss (121 states → 81) in `compare_agents.py` and first looked like a bug there. Fixed structurally: reduced runs now write to `results/smoke/` (D-018). (2026-08-16)
 - **`python -c` with a PowerShell here-string loses its inner quotes.** Passing a multi-line Python snippet to `python -c` via `@'...'@` had PowerShell's native-command argument parsing strip the double quotes, so Python received `print(residual,` and died on an unclosed paren five lines in. The error points at the Python, but the bug is in the shell. Fix: write throwaway scripts to a file and run the file. This is the second quoting-related tooling failure in this project (the first being the stray zero-byte files created when written content contains a `>`), which is enough of a pattern to stop using inline shell snippets for anything non-trivial. (2026-08-16)
 - **Calibration lives outside the flows above.** `scripts/calibrate_generator.py` calls `generator.generate_shift` directly — no env, no agent — on its own seed block (1000+), disjoint from train (1–10) and eval (101–105) seeds. Built and verified ✅. (2026-08-13)

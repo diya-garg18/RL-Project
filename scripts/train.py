@@ -31,7 +31,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from soc_triage.agents.baselines import make_baselines
+from soc_triage.agents.monte_carlo import MonteCarloAgent
 from soc_triage.agents.q_learning import QLearningAgent
+from soc_triage.agents.sarsa import SarsaAgent
+from soc_triage.agents.tabular import TabularAgent
 from soc_triage.config import EnvConfig, TrainingConfig, load_env_config, load_training_config
 from soc_triage.env import SOCTriageEnv
 from soc_triage.evaluation.metrics import summarise
@@ -40,13 +43,30 @@ from soc_triage.state import N_STATES
 
 N_ACTIONS = 5
 
+# Each learner's class, plus where its alpha and its training-seed block live.
+# Separate seed blocks are required (D-016): if two algorithms trained on the
+# same alert streams, a difference between their results could be the algorithm
+# or could be a luckier draw, with no way to tell them apart.
+AGENTS: dict[str, type[TabularAgent]] = {
+    "q_learning": QLearningAgent,
+    "sarsa": SarsaAgent,
+    "monte_carlo": MonteCarloAgent,
+}
 
-def build_agent(tcfg: TrainingConfig, seed: int) -> QLearningAgent:
+
+def agent_settings(tcfg: TrainingConfig, name: str) -> tuple[float, int]:
+    """(alpha, train_seed_start) for a named learner, straight from config."""
+    section = getattr(tcfg, name)
+    return section.alpha, section.train_seed_start
+
+
+def build_agent(tcfg: TrainingConfig, name: str, seed: int) -> TabularAgent:
     """Every hyperparameter comes from config; only the seed is injected here."""
-    return QLearningAgent(
+    alpha, _ = agent_settings(tcfg, name)
+    return AGENTS[name](
         n_states=N_STATES,
         n_actions=N_ACTIONS,
-        alpha=tcfg.q_learning.alpha,
+        alpha=alpha,
         gamma=tcfg.common.gamma,
         epsilon_start=tcfg.epsilon.start,
         epsilon_min=tcfg.epsilon.min,
@@ -57,7 +77,7 @@ def build_agent(tcfg: TrainingConfig, seed: int) -> QLearningAgent:
 
 def greedy_diagnostic(
     env: SOCTriageEnv,
-    agent: QLearningAgent,
+    agent: TabularAgent,
     cfg: EnvConfig,
     cfg_hash: str,
 ) -> float:
@@ -89,10 +109,11 @@ def train_one_run(
     cfg: EnvConfig,
     tcfg: TrainingConfig,
     cfg_hash: str,
+    agent_name: str,
     repeat_index: int,
     n_episodes: int,
     eval_every: int,
-) -> tuple[QLearningAgent, list[float], list[tuple[int, float]]]:
+) -> tuple[TabularAgent, list[float], list[tuple[int, float]]]:
     """One complete training run. Returns (agent, per-episode rewards, diagnostic curve).
 
     Each repeat gets its own agent seed AND its own slice of the training seed
@@ -102,8 +123,9 @@ def train_one_run(
     real variability.
     """
     env = SOCTriageEnv(cfg)
-    agent = build_agent(tcfg, seed=repeat_index)
-    seed_base = tcfg.q_learning.train_seed_start + repeat_index * n_episodes
+    agent = build_agent(tcfg, agent_name, seed=repeat_index)
+    _, train_seed_start = agent_settings(tcfg, agent_name)
+    seed_base = train_seed_start + repeat_index * n_episodes
 
     episode_rewards: list[float] = []
     curve: list[tuple[int, float]] = []
@@ -138,7 +160,9 @@ def smooth(values: list[float], window: int) -> np.ndarray:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train a tabular Q-learning agent.")
+    parser = argparse.ArgumentParser(description="Train a tabular RL agent.")
+    parser.add_argument("--agent", choices=sorted(AGENTS), default="q_learning",
+                        help="which tabular learner to train")
     parser.add_argument("--episodes", type=int, default=None,
                         help="override common.n_episodes (for smoke tests)")
     parser.add_argument("--repeats", type=int, default=5,
@@ -155,20 +179,21 @@ def main() -> None:
     n_episodes = args.episodes if args.episodes is not None else tcfg.common.n_episodes
     eval_every = args.eval_every if args.eval_every is not None else tcfg.common.eval_every
 
-    print(f"Q-learning: {args.repeats} runs x {n_episodes} episodes")
-    print(f"  alpha {tcfg.q_learning.alpha}  gamma {tcfg.common.gamma}  "
+    alpha, train_seed_start = agent_settings(tcfg, args.agent)
+    print(f"{args.agent}: {args.repeats} runs x {n_episodes} episodes")
+    print(f"  alpha {alpha}  gamma {tcfg.common.gamma}  "
           f"eps {tcfg.epsilon.start} -> {tcfg.epsilon.min} @ {tcfg.epsilon.decay}/episode")
-    print(f"  training seeds from {tcfg.q_learning.train_seed_start} "
+    print(f"  training seeds from {train_seed_start} "
           f"(disjoint from train-diag {list(cfg.seeds.train)} and eval {list(cfg.seeds.eval)})")
 
-    agents: list[QLearningAgent] = []
+    agents: list[TabularAgent] = []
     all_rewards: list[list[float]] = []
     all_curves: list[list[tuple[int, float]]] = []
 
     t_start = time.perf_counter()
     for repeat in range(args.repeats):
         agent, rewards, curve = train_one_run(
-            cfg, tcfg, cfg_hash, repeat, n_episodes, eval_every
+            cfg, tcfg, cfg_hash, args.agent, repeat, n_episodes, eval_every
         )
         agents.append(agent)
         all_rewards.append(rewards)
@@ -183,11 +208,11 @@ def main() -> None:
             ax.plot(range(len(smoothed)), smoothed, alpha=0.7, linewidth=1, label=f"run {repeat}")
         ax.set_xlabel(f"episode (trailing mean over {tcfg.common.log_smoothing_window})")
         ax.set_ylabel("total reward per episode")
-        ax.set_title(f"Q-learning on SOC triage — {args.repeats} runs, alpha={tcfg.q_learning.alpha}")
+        ax.set_title(f"{args.agent} on SOC triage — {args.repeats} runs, alpha={alpha}")
         ax.legend(fontsize=8)
         fig.tight_layout()
         (ROOT / "results").mkdir(exist_ok=True)
-        plot_path = ROOT / "results" / "q_learning_curve.png"
+        plot_path = ROOT / "results" / f"{args.agent}_curve.png"
         fig.savefig(plot_path, dpi=120)
         print(f"learning curve -> {plot_path}")
 
@@ -208,10 +233,10 @@ def main() -> None:
         means = [s[metric]["mean"] for s in per_run_summaries]
         return float(np.mean(means)), float(np.std(means))
 
-    print(f"\nQ-learning vs references on eval seeds "
+    print(f"\n{args.agent} vs references on eval seeds "
           f"(mean ± std across {args.repeats} runs):")
     rows: dict[str, tuple[tuple[float, float], tuple[float, float], tuple[float, float]]] = {
-        "q_learning": (
+        args.agent: (
             across_runs("recall_at_deadline"),
             across_runs("total_reward"),
             across_runs("mttd_min"),
@@ -232,16 +257,35 @@ def main() -> None:
               f"reward {reward[0]:7.1f}±{reward[1]:.1f}   mttd {mttd[0]:6.1f}±{mttd[1]:.1f}")
 
     print("\n  NOTE: the baseline rows show std across EVAL SEEDS (one deterministic")
-    print("  run each); the q_learning row shows std across TRAINING RUNS. Different")
+    print("  run each); the learner row shows std across TRAINING RUNS. Different")
     print("  quantities — do not read the two spreads as comparable.")
 
     # Visits are saved alongside Q because the policy table is not honest without
     # them: an unvisited state has an all-zero Q row, so argmax returns action 0
     # and thousands of never-seen states would print as a confident preference.
-    np.save(ROOT / "results" / "q_learning_Q.npy", agents[0].Q)
-    np.save(ROOT / "results" / "q_learning_visits.npy", agents[0].visits)
-    print(f"\nrun-0 Q-table  -> results/q_learning_Q.npy (gitignored, regenerable)")
-    print(f"run-0 visits   -> results/q_learning_visits.npy")
+    # A reduced run must NEVER overwrite the artefacts of a full one. This bit
+    # the project once: a `--episodes 200` smoke test silently replaced a real
+    # 20000-episode Q-table, and the corruption only surfaced later as an
+    # unexplained drop in state coverage (121 states -> 81) in
+    # scripts/compare_agents.py. Nothing errored, and the stale file looked
+    # entirely valid. CONSTRAINTS #4 forbids overwriting an experiment result;
+    # this makes the config-faithful path the only one that can.
+    is_full_run = (
+        n_episodes == tcfg.common.n_episodes
+        and eval_every == tcfg.common.eval_every
+        and args.repeats >= 5
+    )
+    out_dir = ROOT / "results" if is_full_run else ROOT / "results" / "smoke"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    np.save(out_dir / f"{args.agent}_Q.npy", agents[0].Q)
+    np.save(out_dir / f"{args.agent}_visits.npy", agents[0].visits)
+    rel = out_dir.relative_to(ROOT).as_posix()
+    print(f"\nrun-0 Q-table  -> {rel}/{args.agent}_Q.npy (gitignored, regenerable)")
+    print(f"run-0 visits   -> {rel}/{args.agent}_visits.npy")
+    if not is_full_run:
+        print("  REDUCED RUN — written to results/smoke/ so it cannot be mistaken")
+        print("  for, or overwrite, a full run's artefacts.")
 
 
 if __name__ == "__main__":

@@ -94,7 +94,35 @@ pytest tests/test_tabular.py -v
 
 - `test_visits_are_counted_per_state_action` · `test_unvisited_states_are_reported_as_unvisited_not_as_action_zero` — **display-honesty tests** (FEATURE_005). Unvisited states have all-zero Q rows, so `argmax` returns action 0; without the visit count, 455 of 576 cells in the headline policy table would print as a confident `PULL_HIGHEST_SEVERITY` the agent never chose.
 
-Still to write, same fixture: `test_sarsa_solves_toy_mdp` (on-policy) and `test_monte_carlo_solves_toy_mdp` (truncated at `tiny_mdp.HORIZON`).
+```bash
+pytest tests/test_on_policy.py -v
+```
+**SARSA and Monte Carlo: verified PASS 2026-08-16 (E-010) — 18 tests.** Split from `test_tabular.py` at the 500-line limit, and because these two share something Q-learning does not.
+
+> ⚠️ **They are NOT graded against `HAND_COMPUTED_Q`** (D-017). Both are on-policy and converge to `tiny_mdp.epsilon_soft_q(ε)`, which at ε = 0.1 differs from q\* by more than 1.5. If a future session "fixes" them to match q\*, it will have broken two correct algorithms. The soft target is anchored by `test_epsilon_soft_q_collapses_to_q_star_as_epsilon_goes_to_zero`.
+
+- `test_sarsa_bootstraps_off_a_worse_action_when_exploration_picks_one` — **the SARSA/Q-learning separator.** Target 0.95, not 5.00. Without it, `sarsa.py` could be a copy of `q_learning.py` and every convergence test would still pass.
+- `test_sarsa_actually_takes_the_action_it_bootstrapped_off` — the on-policy invariant. A leaked commitment yields an off-policy hybrid that still converges.
+- `test_monte_carlo_is_first_visit_not_every_visit` — the MC separator. 2.615, not 2.8075, from identical episode data.
+- `test_monte_carlo_learns_nothing_until_the_episode_ends` · `test_monte_carlo_clears_its_buffer_between_episodes`
+- `test_every_learner_has_its_own_training_seed_block` — D-016, enforced in code
+
+**Tolerances differ by algorithm and were all set from measurement:** Q-learning 1e-9 (measured 9.24e-14), SARSA 0.15 (worst 0.100 over 8 seeds), MC 0.40 (worst 0.272). The looser two are not slack — SARSA's residual is constant-α noise that shrinks with α but not with more episodes, and MC is the higher-variance estimator.
+
+**MC trains at `MC_HORIZON` (800), not `HORIZON` (200).** MC computes a return from every timestep, so a 200-step truncation biases it downward by up to 0.47 (2.75 at HORIZON=50). Do not "simplify" the two horizons into one.
+
+### Phase 2 analysis scripts
+
+```bash
+python scripts/train.py --agent {q_learning,sarsa,monte_carlo}   # ~3 min each
+python scripts/policy_table.py --agent <name>                    # box 6
+python scripts/compare_agents.py                                 # box 5, needs run_dp.py first
+python scripts/ablations.py                                      # box 7, ~4 min
+```
+
+**A reduced run (`--episodes`, `--repeats < 5`) writes to `results/smoke/` and cannot overwrite a full run's artefacts** (D-018). If `compare_agents.py` reports coverage that disagrees with E-009/E-011, suspect a stale artefact first.
+
+**Replication rule, learned the hard way (E-013):** any *behavioural* claim about a learned policy must be checked on all three learners before it is written down. The Q-learning strategy-shift finding was internally consistent, monotonic and plausible — and SARSA runs the opposite direction.
 
 ### Regenerating the Phase 2 artefacts
 
