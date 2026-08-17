@@ -1,7 +1,7 @@
 # FEATURE_005 — The learned policy as a readable table
 
 **Status:** done
-**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-16 · **Finished:** 2026-08-16
+**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-17 · **Finished:** 2026-08-17
 **Model(s) used:** Claude Opus 5.
 
 ---

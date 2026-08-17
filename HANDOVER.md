@@ -10,7 +10,7 @@
 
 | | |
 |---|---|
-| **Last session** | 2026-08-16 (session 6) |
+| **Last session** | 2026-08-17 (session 6) |
 | **Model** | Claude Opus 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | ⚠️ **REOPENED** — criterion 2 falsified by E-014. Decision owed. |

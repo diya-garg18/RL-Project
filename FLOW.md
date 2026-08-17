@@ -4,11 +4,11 @@
 >
 > **Status:** Flows B, C and C2 are built and verified. Flow A is partly built (env, runner, encoders — `scripts/train.py` still to come). Flows D and E are still planned. Each flow is marked ⬜ (not built) or ✅ (built and verified). Update the marker and correct the detail the moment a flow becomes real.
 
-**Last updated:** 2026-08-16
+**Last updated:** 2026-08-17
 
 ---
 
-## Flow A — One training run ✅ *(built & verified 2026-08-16 — FEATURE_004, E-008; entry point `scripts/train.py`)*
+## Flow A — One training run ✅ *(built & verified 2026-08-17 — FEATURE_004, E-008; entry point `scripts/train.py`)*
 
 **Three seed blocks, three different jobs — the part of this flow most worth getting right:**
 
@@ -120,7 +120,7 @@ Note the direction of the arrow: `mrp_example.py` depends on `agents/dp.py`, nev
 
 All four routes must agree to ~1e-9. Measured disagreement: **7.11e-15**. If this test ever fails, the Bellman backup in `agents/dp.py` has been broken — fix `dp.py`, never the expected values (they came from a human with a pen; see `docs/features/FEATURE_001_mrp_worked_example.md`).
 
-### Flow C3 — the Phase 2 correctness anchor (E-006) ✅ *(built & verified 2026-08-16 — FEATURE_002)*
+### Flow C3 — the Phase 2 correctness anchor (E-006) ✅ *(built & verified 2026-08-17 — FEATURE_002)*
 
 Flow C2 checks the Bellman backup for **V**. The Phase 2 learners produce **Q**, which C2 cannot check at all — an MRP has no actions. This path establishes a `q_*` derived on paper, and ties it to the solver C2 already validated.
 
@@ -230,7 +230,7 @@ The LLM only ever **describes** a decision the RL agent already made. It never i
 *Append here whenever a flow surprises you. This section is worth more than the diagrams above once the project is real.*
 
 - **The scaffold's `actions:` YAML block was structurally invalid** (a sequence and a `bulk_close:` mapping key at the same indent level). PyYAML rejected the whole file on the loader's very first run. Action names now live under `actions.names`. Lesson: parse configs before trusting them — the docs looked fine for a whole session while the YAML was unloadable. (2026-08-13)
-- **Never rewrite a source file through PowerShell's file cmdlets.** `Set-Content -Encoding utf8` on `scripts/train.py` re-encoded every non-ASCII character (each em dash became `â€”`) and prepended a BOM. Python still parsed it, so nothing failed — the damage was visible only on reading the file. Repaired by targeted replacement of the mangled sequences. Use the editor for source edits; reserve PowerShell for running things. (2026-08-16)
-- **A reduced training run used to overwrite a full one's artefacts.** `--episodes 200` silently replaced a completed 20000-episode Q-table with a valid, correctly-shaped, wrong file. It surfaced later as unexplained coverage loss (121 states → 81) in `compare_agents.py` and first looked like a bug there. Fixed structurally: reduced runs now write to `results/smoke/` (D-018). (2026-08-16)
-- **`python -c` with a PowerShell here-string loses its inner quotes.** Passing a multi-line Python snippet to `python -c` via `@'...'@` had PowerShell's native-command argument parsing strip the double quotes, so Python received `print(residual,` and died on an unclosed paren five lines in. The error points at the Python, but the bug is in the shell. Fix: write throwaway scripts to a file and run the file. This is the second quoting-related tooling failure in this project (the first being the stray zero-byte files created when written content contains a `>`), which is enough of a pattern to stop using inline shell snippets for anything non-trivial. (2026-08-16)
+- **Never rewrite a source file through PowerShell's file cmdlets.** `Set-Content -Encoding utf8` on `scripts/train.py` re-encoded every non-ASCII character (each em dash became `â€”`) and prepended a BOM. Python still parsed it, so nothing failed — the damage was visible only on reading the file. Repaired by targeted replacement of the mangled sequences. Use the editor for source edits; reserve PowerShell for running things. (2026-08-17)
+- **A reduced training run used to overwrite a full one's artefacts.** `--episodes 200` silently replaced a completed 20000-episode Q-table with a valid, correctly-shaped, wrong file. It surfaced later as unexplained coverage loss (121 states → 81) in `compare_agents.py` and first looked like a bug there. Fixed structurally: reduced runs now write to `results/smoke/` (D-018). (2026-08-17)
+- **`python -c` with a PowerShell here-string loses its inner quotes.** Passing a multi-line Python snippet to `python -c` via `@'...'@` had PowerShell's native-command argument parsing strip the double quotes, so Python received `print(residual,` and died on an unclosed paren five lines in. The error points at the Python, but the bug is in the shell. Fix: write throwaway scripts to a file and run the file. This is the second quoting-related tooling failure in this project (the first being the stray zero-byte files created when written content contains a `>`), which is enough of a pattern to stop using inline shell snippets for anything non-trivial. (2026-08-17)
 - **Calibration lives outside the flows above.** `scripts/calibrate_generator.py` calls `generator.generate_shift` directly — no env, no agent — on its own seed block (1000+), disjoint from train (1–10) and eval (101–105) seeds. Built and verified ✅. (2026-08-13)

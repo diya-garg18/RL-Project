@@ -57,11 +57,11 @@ Python 3.13.1 confirmed on this machine. Verify the PyTorch install works before
 
 ## Current status
 
-**Phase 0** closed (2026-08-14) · **Phase 1 REOPENED** · **Phase 2 closed as built-but-not-passed** (2026-08-16) · **Phase 3** not started.
+**Phase 0** closed (2026-08-14) · **Phase 1 REOPENED** · **Phase 2 closed as built-but-not-passed** (2026-08-17) · **Phase 3** not started.
 
 Built and tested: the simulator, the environment, both state encoders, five baselines, model-based Dynamic Programming, and all three tabular learners — Q-learning, SARSA and first-visit Monte Carlo — each verified against a hand-solved MDP before touching the real one.
 
-Results on the **30-seed** evaluation block (widened from 5 on 2026-08-16 — see below):
+Results on the **30-seed** evaluation block (widened from 5 on 2026-08-17 — see below):
 
 | agent | recall@deadline | total reward | reward std |
 |---|---|---|---|

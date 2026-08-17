@@ -1,7 +1,7 @@
 # BUG_001 — Stray zero-byte files appear in the repo root during doc-writing sessions
 
 **Status:** root cause confirmed · mitigated by convention · not fixed at source
-**Phase:** spans 1–2 · **First seen:** 2026-08-14 (session 4) · **Root cause confirmed:** 2026-08-16 (session 6)
+**Phase:** spans 1–2 · **First seen:** 2026-08-14 (session 4) · **Root cause confirmed:** 2026-08-17 (session 6)
 **Model(s) used:** Claude Fable 5 (sessions 3–4, first observed), Claude Opus 5 (session 6, diagnosis)
 
 ---
@@ -16,12 +16,12 @@ Observed across three sessions:
 |---|---|---|
 | 4 | 2026-08-14 | *(logged in `HANDOVER.md` at the time, names not preserved)* |
 | 5 | 2026-08-16 | `This`, `V(QUIET)` |
-| 6 | 2026-08-16 | `0`, `6.8`, `There`, `Watch` *(doc sweep + FEATURE_002)* |
-| 6 | 2026-08-16 | `` ` ``, `expected`, `list[int]`, `np.ndarray` *(Q-learning + `test_tabular.py`)* |
+| 6 | 2026-08-17 | `0`, `6.8`, `There`, `Watch` *(doc sweep + FEATURE_002)* |
+| 6 | 2026-08-17 | `` ` ``, `expected`, `list[int]`, `np.ndarray` *(Q-learning + `test_tabular.py`)* |
 
 Sessions 4 and 5 both recorded the phenomenon and both recorded the root cause as **not confirmed**, with a standing hypothesis that "something in the tooling chain interprets a `>` inside written content as a shell redirect."
 
-## Root cause — confirmed 2026-08-16
+## Root cause — confirmed 2026-08-17
 
 The hypothesis was right. Session 6 confirmed it by correlating each stray filename against the exact text written, with file creation timestamps:
 
@@ -41,7 +41,7 @@ The common triggers are all ordinary, legitimate content:
 1. **Blockquote lines** — `> Watch out for…`. Every Field Guide document in this repo opens with one, which is why doc-heavy sessions produce the most strays.
 2. **ASCII arrows in code output and tables** — `6.7 ->  6.8`.
 3. **Comparison operators in prose** — `ε > 0`, `Δ > 1e-4`.
-4. **Python return-type annotations** — `def draw() -> list[int]:`. Added 2026-08-16 after writing `q_learning.py` and `test_tabular.py` produced strays named `list[int]` and `np.ndarray`.
+4. **Python return-type annotations** — `def draw() -> list[int]:`. Added 2026-08-17 after writing `q_learning.py` and `test_tabular.py` produced strays named `list[int]` and `np.ndarray`.
 
 **Trigger 4 matters more than the others** and was not known when this file was first written. It means the bug is **not Markdown-specific** — it fires on ordinary typed Python, which this project requires on every public function (`CLAUDE.md` → Code → "Type hints on all public functions"). Any session writing typed Python will produce strays. That removes the last trace of an argument for "just avoid the trigger": the trigger is mandatory project style.
 

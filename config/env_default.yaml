@@ -91,7 +91,7 @@ metrics:
 seeds:
   # Disjoint by construction and enforced in code. Never tune on eval seeds.
   train: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  # Widened from [101..105] to [101..130] on 2026-08-16 (D-019). Five seeds
+  # Widened from [101..105] to [101..130] on 2026-08-17 (D-019). Five seeds
   # could not resolve the effects being reported: per-seed reward std is ~218
   # for severity-sort against differences of ~100, so the standard error of a
   # 5-seed mean was the same size as the findings (E-008), and the E-012

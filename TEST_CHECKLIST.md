@@ -37,7 +37,7 @@ python scripts/run_baselines.py           # eval seeds come from config seeds.ev
 ```bash
 pytest tests/ -v
 ```
-Required tests, by actual name (the 7 Phase-0 tests, all passing; suite total is now 14 — the other 7 are Phase 1's `test_mrp_bellman.py`):
+Required tests, by actual name (the 7 Phase-0 tests, all passing; **suite total is now 76** — see the Phase 1, Phase 2 and evaluation-protocol blocks below):
 - `test_env_deterministic_under_fixed_seed` — same seed ⟹ identical trajectory and outcome
 - `test_different_seeds_differ`
 - `test_reward_breakdown_sums_to_step_reward` — per-step breakdown sums exactly to the step reward
@@ -56,7 +56,9 @@ python scripts/run_dp.py
 **Must show:** value iteration converged with Δ < 1e-4; the sweep count; state coverage (how many of 576 states were visited, and the minimum visit count); and **value iteration and policy iteration agreeing on ≥95% of states**. Disagreement means one is wrong — investigate, don't average.
 *Verified PASS 2026-08-14 (E-004); re-verified 2026-08-16: Δ 9.95e-05 in 1075 sweeps, VI/PI agreement 100%, coverage 133/576 states and 589/2880 pairs.*
 
-**Also must show — and must be read, not skipped:** the DP row's **total reward beside its recall**. Currently reward 305.9 ± 127.6 (highest of any agent) with recall 0.43 ± 0.17 (below random's 0.52). That pair is the E-004 reward-hacking finding. Quoting the reward alone is misleading and D-012 forbids it.
+**Also must show — and must be read, not skipped:** the DP row's **total reward beside its recall**.
+
+> ⚠️ **The 5-seed figures once quoted here are superseded.** On the 30-seed block (D-019, E-014) DP scores **reward −201.2 ± 438.5 with recall 0.23 ± 0.24 — the worst of any planned or learned agent**, not the +305.9 / 0.43 measured on 5 seeds. Phase 1 is reopened on that basis. Quoting either number alone is misleading and D-012 forbids it; quoting the 5-seed pair at all now requires saying it is superseded.
 
 ```bash
 pytest tests/test_mrp_bellman.py -v
@@ -73,7 +75,7 @@ This is the only check in the project that validates the Bellman backup against 
 ```bash
 pytest tests/test_eval_protocol.py -v
 ```
-**Verified PASS 2026-08-16 (E-014, D-019) — 5 tests.** These guard the measuring instrument, not any agent:
+**Verified PASS 2026-08-17 (E-014, D-019) — 5 tests.** These guard the measuring instrument, not any agent:
 
 - `test_eval_block_is_large_enough_to_resolve_the_effects_being_reported` — **at least 30 eval seeds.** Five satisfied CONSTRAINTS #3 and was still too few: severity-sort's per-seed reward std is ±220 against effects of ~100, so a 5-seed mean had a standard error the size of every finding built on it. One conclusion (DP's reward) came out with the **wrong sign**.
 - `test_the_original_five_eval_seeds_are_still_in_the_block` — 101–105 must stay inside 101–130, so every pre-widening result remains a sub-sample rather than being orphaned.
@@ -87,14 +89,14 @@ pytest tests/test_eval_protocol.py -v
 ```bash
 pytest tests/test_tiny_mdp.py -v
 ```
-**Must show:** 13 passing tests establishing the hand-derived `q_*` for the 2-state MDP, including `agents/dp.value_iteration` reproducing it. *Verified PASS 2026-08-16 (E-006): 13/13, Bellman optimality residual 1.78e-15 against a 1e-12 tolerance.*
+**Must show:** 13 passing tests establishing the hand-derived `q_*` for the 2-state MDP, including `agents/dp.value_iteration` reproducing it. *Verified PASS 2026-08-17 (E-006): 13/13, Bellman optimality residual 1.78e-15 against a 1e-12 tolerance.*
 
 This is the Phase 2 counterpart of `test_mrp_bellman.py` and carries the same rule: **if it fails, fix the learner — never adjust the expected values.** They were derived by a human on paper (`docs/features/FEATURE_002_tiny_mdp_qstar.md`). The anchor is verified load-bearing: injecting a 0.1 error into any entry of `HAND_COMPUTED_Q` moves the residual to ~0.10, thirteen orders of magnitude above tolerance.
 
 ```bash
 pytest tests/test_tabular.py -v
 ```
-**Q-learning: verified PASS 2026-08-16 (E-007) — 20 tests.** `max |Q − q*| = 9.237e-14`, correct policy after 10 episodes, identical across 5 seeds. Groups:
+**Q-learning: verified PASS 2026-08-17 (E-007) — 20 tests.** `max |Q − q*| = 9.237e-14`, correct policy after 10 episodes, identical across 5 seeds. Groups:
 
 - `test_q_learning_converges_to_the_hand_derived_q_star` — reproduces `tiny_mdp.HAND_COMPUTED_Q` to < 1e-9
 - `test_q_learning_recovers_the_optimal_policy` — the behaviour, checked separately from the values
@@ -111,7 +113,7 @@ pytest tests/test_tabular.py -v
 ```bash
 pytest tests/test_on_policy.py -v
 ```
-**SARSA and Monte Carlo: verified PASS 2026-08-16 (E-010) — 18 tests.** Split from `test_tabular.py` at the 500-line limit, and because these two share something Q-learning does not.
+**SARSA and Monte Carlo: verified PASS 2026-08-17 (E-010) — 18 tests.** Split from `test_tabular.py` at the 500-line limit, and because these two share something Q-learning does not.
 
 > ⚠️ **They are NOT graded against `HAND_COMPUTED_Q`** (D-017). Both are on-policy and converge to `tiny_mdp.epsilon_soft_q(ε)`, which at ε = 0.1 differs from q\* by more than 1.5. If a future session "fixes" them to match q\*, it will have broken two correct algorithms. The soft target is anchored by `test_epsilon_soft_q_collapses_to_q_star_as_epsilon_goes_to_zero`.
 
@@ -144,7 +146,7 @@ python scripts/ablations.py                                      # box 7, ~4 min
 python scripts/train.py           # 5 runs x 20000 episodes, ~2.8 min
 python scripts/policy_table.py    # reads results/*.npy, writes results/policy_table.md
 ```
-`results/` is gitignored. The pipeline is deterministic under its seeds: the second training run of 2026-08-16 reproduced E-008 to the digit (recall 0.73 ± 0.03, reward 270.9 ± 105.5, MTTD 22.0 ± 15.6). **If a re-run does not reproduce those numbers, something has changed that shouldn't have — investigate before using any new figure.**
+`results/` is gitignored. The pipeline is deterministic under its seeds: the second training run of 2026-08-17 reproduced E-008 to the digit (recall 0.73 ± 0.03, reward 270.9 ± 105.5, MTTD 22.0 ± 15.6). **If a re-run does not reproduce those numbers, something has changed that shouldn't have — investigate before using any new figure.**
 
 `scripts/policy_table.py` self-checks its own `encode`/`decode` over all 576 state ids on every run. A transposed mixed-radix unpack yields a table that still looks plausible, which is exactly the error that survives review.
 

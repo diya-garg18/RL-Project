@@ -171,7 +171,7 @@ Why the reward permits this (checked, per CONSTRAINTS #5): (a) bulk-close credit
 
 ---
 
-## E-006 — Phase 2 anchor: a hand-derived `q_*` verified against the shipped solver — 2026-08-16
+## E-006 — Phase 2 anchor: a hand-derived `q_*` verified against the shipped solver — 2026-08-17
 
 **Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_002 · **Decision:** D-014
 **Not a training run.** No agent was trained and no environment episode was executed. Logged here because it establishes a reference answer every Phase 2 result will be measured against, exactly as E-005 did for Phase 1.
@@ -222,7 +222,7 @@ A 0.1 error sits **thirteen orders of magnitude** above the 1e-12 tolerance. No 
 
 ---
 
-## E-007 — Q-learning converges to the hand-derived q\* on the tiny MDP — 2026-08-16
+## E-007 — Q-learning converges to the hand-derived q\* on the tiny MDP — 2026-08-17
 
 **Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_003 · **Decision:** D-015
 **Not a run on the real environment.** This is the tiny 2-state fixture only. No SOC episode was simulated, no eval seed was touched, and no Phase 2 exit criterion was tested.
@@ -266,7 +266,7 @@ A 0.1 error sits **thirteen orders of magnitude** above the 1e-12 tolerance. No 
 
 ---
 
-## E-008 — Q-learning on the real 576-state environment — 2026-08-16
+## E-008 — Q-learning on the real 576-state environment — 2026-08-17
 
 **Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_004 · **Decisions:** D-015, D-016
 **The first learning run on the real environment.** Everything before this was baselines, planning, or a 2-state fixture.
@@ -336,7 +336,7 @@ This is not a Phase 2 problem. It affects **E-002, E-003, E-004 and E-008 alike*
 
 ---
 
-## E-009 — The learned policy, rendered readable — 2026-08-16
+## E-009 — The learned policy, rendered readable — 2026-08-17
 
 **Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_005 · ROADMAP box 6
 **Not a new training run.** `scripts/train.py` was re-run only to capture per-(s,a) visit counts, which the agent did not previously record. **The re-run reproduced E-008 exactly** — recall 0.73 ± 0.03, reward 270.9 ± 105.5, MTTD 22.0 ± 15.6 — which is itself the reproducibility check CONSTRAINTS #3 implies.
@@ -384,7 +384,7 @@ It establishes what the learned policy does, per state, with data coverage made 
 
 ---
 
-## E-010 — SARSA and Monte Carlo on the real environment — 2026-08-16
+## E-010 — SARSA and Monte Carlo on the real environment — 2026-08-17
 
 **Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_006 · **Decision:** D-017
 Same protocol as E-008: 5 runs × 20,000 episodes, own seed block per algorithm (D-016), eval seeds read once at the end. SARSA 3.4 min, Monte Carlo 3.0 min.
@@ -414,7 +414,7 @@ Nothing about ranking the three against each other. The differences between them
 
 ---
 
-## E-011 — Cross-agent comparison against DP (ROADMAP box 5) — 2026-08-16
+## E-011 — Cross-agent comparison against DP (ROADMAP box 5) — 2026-08-17
 
 **Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_006
 `scripts/compare_agents.py`. DP's Q-table was reconstructed from the converged V and saved by `scripts/run_dp.py` (re-run; reproduced E-004 exactly — 133/576 coverage, 1075 sweeps, final Δ 9.95e-05, VI/PI 100%).
@@ -451,7 +451,7 @@ Max-norm Q distances of 116–320 between agents whose eval performance sits wit
 
 ---
 
-## E-012 — Hyperparameter ablations (ROADMAP box 7) — 2026-08-16
+## E-012 — Hyperparameter ablations (ROADMAP box 7) — 2026-08-17
 
 **Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_006
 `scripts/ablations.py`, 3 runs × 6,000 episodes per configuration, own seed block (800000+), **measured on the train-diagnostic seeds 1–10 — never on the eval seeds.** An ablation is tuning, and CONSTRAINTS #2 forbids tuning against evaluation seeds whether a program or a human does the reading. Sweep took 4.1 min.
@@ -492,7 +492,7 @@ The sweep is deterministic under its seeds and was re-run to confirm: every row 
 
 ---
 
-## E-013 — The strategy shift does not replicate across algorithms — 2026-08-16
+## E-013 — The strategy shift does not replicate across algorithms — 2026-08-17
 
 **Model:** Claude Opus 5 · **Phase:** 2 · **Feature:** FEATURE_006
 **This entry partially retracts an interpretation offered in E-009.** `scripts/policy_table.py --agent {sarsa,monte_carlo}`.
@@ -525,7 +525,7 @@ E-009 reported that Q-learning's policy shows a monotonic strategy shift as the 
 
 ---
 
-## E-014 — Every result re-measured on 30 eval seeds. Most of them change. — 2026-08-16
+## E-014 — Every result re-measured on 30 eval seeds. Most of them change. — 2026-08-17
 
 **Model:** Claude Opus 5 · **Phase:** 2 (with consequences for 0 and 1) · **Decision:** D-019
 **This is the most consequential entry in this log.** The evaluation seed block was widened from 5 seeds to 30 (D-019), and every agent in the project was re-measured. **No prior entry has been altered or deleted** (CONSTRAINTS #4); E-002 through E-013 stand as recorded, and the original five seeds are a subset of the new thirty, so old numbers are a sub-sample of these rather than being orphaned.

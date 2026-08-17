@@ -8,7 +8,7 @@
 >
 > **Rule for the humans:** if you read a section here and still can't explain that part of the project out loud to a friend, the section is wrong. Say so and get it rewritten. That is the whole point of this file (Field Guide habit #15 — own the mental model).
 
-**Last updated:** 2026-08-13 · Phase 0 in progress (generator built and calibrated) · written by Claude Fable 5
+**Last updated:** 2026-08-17 · Phase 2 closed as built-but-not-passed, Phase 1 reopened · sessions 1–6 (Claude Fable 5, then Claude Opus 5)
 
 ---
 
@@ -156,7 +156,7 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
-### Session 6 (final) — 2026-08-16 — Claude Opus 5 — we checked our own ruler, and it was wrong
+### Session 6 (final) — 2026-08-17 — Claude Opus 5 — we checked our own ruler, and it was wrong
 
 This is the most important entry in this document so far, and it is not about an algorithm.
 
@@ -180,7 +180,7 @@ There was a real temptation here. The learners *do* beat everything else at one 
 
 Printing a standard deviation is not the same as reading it. The check that was missing takes ten seconds: **before believing a difference, ask whether it is bigger than the noise.** There is now a test that refuses to let the test-set shrink back below thirty shifts.
 
-### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — Phase 2 finished, and a claim withdrawn
+### Session 6 (continued) — 2026-08-17 — Claude Opus 5 — Phase 2 finished, and a claim withdrawn
 
 The last two algorithms are written, so all three are now done.
 
@@ -204,7 +204,7 @@ Nothing broke to reveal this. Every test passed throughout. The original figure 
 
 **We also tested whether the standard tuning knobs matter — and none of them does.** We varied the learning rate, the discount factor and the exploration schedule across sensible ranges. In every case the difference between settings was smaller than the difference between three repeat runs of the *same* setting. The default configuration alone scored 75, then −34, then 47. So the honest answer to "which hyperparameters are best?" is: this measurement cannot tell you, and anyone who reports a winner from it is reporting a coin flip. That independently confirms the seed problem found earlier — the noise in this simulator is large enough to swallow deliberate, tenfold changes to how the agent learns.
 
-### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — turning the agent's knowledge into a picture
+### Session 6 (continued) — 2026-08-17 — Claude Opus 5 — turning the agent's knowledge into a picture
 
 Everything the agent learned lives in a table of 2,880 numbers. Nobody can read that. So we turned it into a picture: for every situation the agent might face, which of its five options does it pick — laid out so you can see how its answer changes as the end of the shift approaches.
 
@@ -218,7 +218,7 @@ Everything the agent learned lives in a table of 2,880 numbers. Nobody can read 
 
 That's worth dwelling on, because nothing was broken. The tie-breaking code is correct and has a good reason to exist. It only became a lie at the moment it was *displayed*. Correct code can still produce a dishonest figure.
 
-### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — the first real result, and it's a mixed one
+### Session 6 (continued) — 2026-08-17 — Claude Opus 5 — the first real result, and it's a mixed one
 
 The learning agent finally met the real simulated SOC. It practised on 20,000 shifts, five separate times over, and only looked at the five "exam" shifts once, right at the end — so nothing it learned could be secretly tuned to the exam.
 
@@ -238,7 +238,7 @@ This is not a Phase 2 problem. It touches every comparison in the project so far
 
 There's a general lesson here that's worth more than the result. We only found this because a number looked *odd*, not because a test failed. Everything was passing. The project's rule that a surprising result is a bug report until proven otherwise is what turned "huh, that's a bit high" into the most important finding of the session.
 
-### Session 6 (continued) — 2026-08-16 — Claude Opus 5 — the first algorithm that actually learns
+### Session 6 (continued) — 2026-08-17 — Claude Opus 5 — the first algorithm that actually learns
 
 Everything built before this point either planned using a map it was handed, or followed a fixed rule and never improved. This is the first agent that gets better from experience.
 
@@ -258,7 +258,7 @@ Second, and more interesting: one result looked *too* good. Every random seed ga
 
 There was also a smaller lesson. The first version of the test said "close enough is within 1%." Measuring showed the real accuracy was about a trillion times better than that, meaning the test would have happily accepted a genuinely broken algorithm. Tightened. The general point: work out how accurate the thing actually is, then set the bar — don't pick a number that sounds reasonable and write it into a test.
 
-### Session 6 — 2026-08-16 — Claude Opus 5 — Phase 2 started: the measuring stick
+### Session 6 — 2026-08-17 — Claude Opus 5 — Phase 2 started: the measuring stick
 
 Phase 2 is where the project stops planning and starts *learning*. Three learning algorithms get written by hand — Monte Carlo, SARSA and Q-learning. Each one produces a big table of numbers saying "in this situation, this action is worth this much."
 

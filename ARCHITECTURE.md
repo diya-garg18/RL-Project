@@ -2,7 +2,7 @@
 
 > Field Guide habit #6. This is the **shape** of the system, not the implementation detail. Read this at the start of every session so you don't re-derive the terrain. Update it whenever a module is added, removed, or its responsibility changes.
 
-**Last updated:** 2026-08-16 — Phases 0 and 1 built; Phase 2 in progress. Everything in §3 marked as existing has been written and tested; the rest is still planned.
+**Last updated:** 2026-08-17 — Phases 0, 1 and 2 built (Phase 2 closed unpassed, Phase 1 reopened — see `ROADMAP.md`). Everything in §3 marked as existing has been written and tested; the rest is still planned.
 
 ---
 

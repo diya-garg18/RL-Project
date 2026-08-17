@@ -1,7 +1,7 @@
 # FEATURE_006 — Completing Phase 2: SARSA, Monte Carlo, comparison, ablations
 
 **Status:** done — **all 8 ROADMAP Phase 2 boxes built.** The phase's *exit criterion* is separately not met, and two decisions remain owed to the humans (E-008).
-**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-16 · **Finished:** 2026-08-16
+**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-17 · **Finished:** 2026-08-17
 **Model(s) used:** Claude Opus 5.
 
 ---

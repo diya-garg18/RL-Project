@@ -2,13 +2,13 @@
 
 Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not just written). Each phase ends with an **exit criterion** — a concrete, checkable statement. Do not start the next phase until the current one's exit criterion is met and `TEST_CHECKLIST.md` passes.
 
-**Current status (2026-08-16):**
+**Current status (2026-08-17):**
 - **Phase 0** — closed, gate **passes** on the 30-seed block (oracle strictly best on total reward, 168.0 vs 40.4). One piece of its amendment *rationale* is weakened by E-014, but the criterion itself holds.
 - **Phase 1** — **REOPENED.** Criterion 2 falsified by E-014: DP scores −201.2 on 30 seeds, not the +305.9 measured on 5. Decision owed to the humans (D-020).
 - **Phase 2** — **CLOSED as built-but-not-passed.** All 8 boxes complete; exit criterion not met and deliberately not restated (D-020).
 - **Phase 3** — not started. Whether it proceeds now is a human decision (D-020): it optimises the same unstable reward and will likely reproduce the same pattern.
 
-> **The eval seed block was widened 5 → 30 on 2026-08-16 (D-019) and every agent re-measured (E-014).** Any number in this file not marked "30-seed" predates that and may be a 5-seed figure. The lesson is worth more than any single result: every number was computed correctly, reported with its standard deviation, and reproduced deterministically — and one of them had **the wrong sign**. Reporting a standard deviation is not the same as reading it.
+> **The eval seed block was widened 5 → 30 on 2026-08-17 (D-019) and every agent re-measured (E-014).** Any number in this file not marked "30-seed" predates that and may be a 5-seed figure. The lesson is worth more than any single result: every number was computed correctly, reported with its standard deviation, and reproduced deterministically — and one of them had **the wrong sign**. Reporting a standard deviation is not the same as reading it.
 
 ---
 
@@ -59,7 +59,7 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 *Why amended (same shape as the two Phase 0 amendments): the original asked DP to win on **recall**, but DP optimises the **reward**, and those are not the same objective. Requiring a reward-maximiser to top a metric it is not maximising is a category error in the gate, not a failure in the agent. E-004 showed the DP policy scores recall 0.43 vs severity-sort's 0.87 while earning the highest reward measured (306 > oracle 214 > severity 154), by using BULK_CLOSE as paid waiting ~97% of the time and abandoning 57% of real incidents. The hand-written reward genuinely rates this optimal — verified against per-step breakdowns and reproduced in the true environment, so it is not an artefact of the estimated model. `PROJECT_BRIEF.md` §3.5 says this trap is deliberate; patching the reward would delete the Phase 5 RLHF motivation, so the reward stands and the gate moves. Alternative rejected: treat the reward as a bug to fix — see D-012.*
 
-> ⚠️ **PHASE 1 REOPENED — 2026-08-16 (E-014, D-019, D-020). Criterion 2 is FALSIFIED.**
+> ⚠️ **PHASE 1 REOPENED — 2026-08-17 (E-014, D-019, D-020). Criterion 2 is FALSIFIED.**
 >
 > The amended criterion required the DP policy to achieve the **highest mean total reward of any agent** on the evaluation seeds. That was measured on 5 seeds. On the widened 30-seed block (D-019) the DP policy scores **−201.2 ± 438.5 — the worst of any planned or learned agent** — against the +305.9 recorded below, with recall falling 0.43 → 0.23 and the largest variance of any agent.
 >
@@ -84,7 +84,7 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 - [x] Convergence comparison against the Phase 1 DP solution (max-norm distance between Q-tables, and policy agreement %) *(FEATURE_006, E-011 — `scripts/compare_agents.py`. Policy agreement over commonly-visited states is **22–44%**, max-norm |ΔQ| 116–320. The naive 'all 576' figure of 83–86% is manufactured by states neither agent visited, where both fall back to a convention.)*
 - [x] **Print the learned policy as a readable table** — for each `time_left` bucket, which action wins in which queue state. This is a headline figure for the report and the viva. *(FEATURE_005, E-009 — `scripts/policy_table.py` → `results/policy_table.md`.)*
   - For **Q-learning**, bulk-closing rises 25.3% → 36.0% → 46.2% into the crunch while severity-first falls 34.9% → 28.0% → 15.4%.
-  - ⚠️ **PARTIALLY RETRACTED 2026-08-16 (E-013).** Running the same figure for the other two learners shows the trend **does not replicate**: Monte Carlo rises like Q-learning (23.1% → 28.6% → 42.9%), but **SARSA falls — 47.4% → 51.9% → 25.0%, the opposite direction**, on the same environment and reward. With only 12–14 visited states per crunch bucket, a direction disagreement across algorithms is fully consistent with noise. **The per-algorithm figures stand; the claim that there is a consistent interpretable strategy shift does not.** Both readings E-009 offered are now under-supported.
+  - ⚠️ **PARTIALLY RETRACTED 2026-08-17 (E-013).** Running the same figure for the other two learners shows the trend **does not replicate**: Monte Carlo rises like Q-learning (23.1% → 28.6% → 42.9%), but **SARSA falls — 47.4% → 51.9% → 25.0%, the opposite direction**, on the same environment and reward. With only 12–14 visited states per crunch bucket, a direction disagreement across algorithms is fully consistent with noise. **The per-algorithm figures stand; the claim that there is a consistent interpretable strategy shift does not.** Both readings E-009 offered are now under-supported.
   - **Caveat:** coverage is 121/576 states, and the crunch column rests on **13 states**. 455 unvisited states would have printed as a confident `PULL_HIGHEST_SEVERITY` via the argmax tie-break — the agent now records visit counts purely so they print as `·` instead.
 - [x] Ablations: learning rate, γ, ε-decay schedule *(FEATURE_006, E-012 — `scripts/ablations.py`, measured on train-diagnostic seeds, never eval.* **None of the three clears the noise floor.** *Between-config spread is smaller than or comparable to within-config spread in every sweep; the default config alone produced 75, −34 and 47. Reported as a negative result rather than filled in.)*
 - [ ] Tests: Q-learning converges on a tiny hand-checkable 2-state MDP with a known answer
@@ -94,7 +94,7 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 **Exit criterion:** Q-learning beats severity-sort on recall@deadline and MTTD across 5 seeds (report mean ± std), and the printed policy table shows a *behaviourally interpretable* strategy shift as time runs out.
 
-**⛔ PHASE 2 CLOSED 2026-08-16 AS *BUILT BUT NOT PASSED* (D-020). All 8 boxes complete; the exit criterion is NOT met and is deliberately NOT restated.**
+**⛔ PHASE 2 CLOSED 2026-08-17 AS *BUILT BUT NOT PASSED* (D-020). All 8 boxes complete; the exit criterion is NOT met and is deliberately NOT restated.**
 
 Final assessment on the **30-seed** eval block (D-019, E-014):
 

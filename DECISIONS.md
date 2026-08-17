@@ -223,8 +223,8 @@ The discount factor deserves its own note: the example uses γ = 0.9, *not* the 
 
 ## D-014 — Phase 2 gets its own hand-solved anchor, built before the learners
 
-**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
-**Approved by:** Pranav (2026-08-16), before implementation.
+**Date:** 2026-08-17 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+**Approved by:** Pranav (2026-08-17), before implementation.
 
 **Decision:** A second worked example, `src/soc_triage/tiny_mdp.py` — a two-state, two-action MDP whose optimal action-value function is derived on paper (FEATURE_002) — is built **first** in Phase 2, ahead of Monte Carlo, SARSA and Q-learning. Its constants live in code rather than config, extending D-013's narrow exception to CONSTRAINTS #9 to this file for identical reasons.
 
@@ -248,7 +248,7 @@ One design consequence is worth flagging forward: under the tiny MDP's optimal p
 
 ## D-015 — Epsilon decays in an explicit `end_episode()` hook, not inferred from `done`
 
-**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+**Date:** 2026-08-17 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
 
 **Decision:** `QLearningAgent` exposes `end_episode()`, which applies one geometric decay step to epsilon and floors it. The caller — `scripts/train.py`, once it exists — must invoke it once per episode. Decay is deliberately **not** performed inside `update()`, and **not** triggered by `done=True`.
 
@@ -269,8 +269,8 @@ A second, smaller decision recorded here rather than separately: `load_training_
 
 ## D-016 — Q-learning trains on its own seed block, one fresh shift per episode
 
-**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
-**Approved by:** Pranav (2026-08-16), before the first training run.
+**Date:** 2026-08-17 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+**Approved by:** Pranav (2026-08-17), before the first training run.
 
 **Decision:** Training episodes draw seeds from a dedicated block, `q_learning.train_seed_start: 200000`, giving one distinct shift per episode (20,000 per run, offset per repeat). The existing `seeds.train` list (1–10) is **retained but repurposed** as a *training diagnostic* set — the seeds the learning curve is measured on, never trained on. Evaluation seeds (101–105) remain untouched and are read exactly once, at the end of a run.
 
@@ -287,7 +287,7 @@ Keeping seeds 1–10 as the diagnostic set is the second half of the decision an
 
 **Consequences:** Q-learning's training distribution is now far wider than DP's estimation distribution, so the two are not learning from equivalent experience — worth stating whenever E-004 and E-008 are compared. Any future learner (SARSA, Monte Carlo, DQN, REINFORCE) should use this same block, offset per algorithm, or its results will not be comparable to Q-learning's.
 
-D-016 note added 2026-08-16: SARSA (400000+) and Monte Carlo (600000+) received their own blocks under the same rule, and `load_training_config` now rejects duplicate or too-close blocks rather than trusting the YAML comments.
+D-016 note added 2026-08-17: SARSA (400000+) and Monte Carlo (600000+) received their own blocks under the same rule, and `load_training_config` now rejects duplicate or too-close blocks rather than trusting the YAML comments.
 
 E-008 then found something this decision did not anticipate and does not fix: **the eval block itself is unrepresentative.** Every agent, oracle included, scores 120–230 reward higher on seeds 101–105 than on seeds 1–10, with per-seed standard deviations several times larger than the differences being reported. That is a separate and more serious problem, it affects every experiment in the project rather than just Phase 2, and it is recorded in E-008 as an open decision for the humans rather than acted on here.
 
@@ -295,7 +295,7 @@ E-008 then found something this decision did not anticipate and does not fix: **
 
 ## D-017 — On-policy learners are graded against an ε-soft target, not against q\*
 
-**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+**Date:** 2026-08-17 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
 
 **Decision:** SARSA and first-visit Monte Carlo are tested against `tiny_mdp.epsilon_soft_q(epsilon)` — the action-value function of the ε-greedy policy they actually follow — rather than against `HAND_COMPUTED_Q`. Q-learning continues to be graded against `HAND_COMPUTED_Q`.
 
@@ -318,7 +318,7 @@ It is also a genuinely independent computation: `epsilon_soft_q` takes the exact
 
 ## D-018 — A reduced training run may not overwrite a full run's artefacts
 
-**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+**Date:** 2026-08-17 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
 
 **Decision:** `scripts/train.py` writes `results/<agent>_Q.npy` and `_visits.npy` only when the run matches the configured budget (full `n_episodes`, full `eval_every`, ≥ 5 repeats). Any reduced run writes to `results/smoke/` instead and says so.
 
@@ -337,8 +337,8 @@ CONSTRAINTS #4 forbids deleting or overwriting an experiment result. That rule w
 
 ## D-019 — The evaluation seed block is widened from 5 seeds to 30
 
-**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 (consequences for 0 and 1) · **Status:** active
-**Approved by:** Pranav (2026-08-16), on the recommendation recorded in E-008. **Diya countersign: pending** — this is a larger change than D-012 and should carry her sign-off before the report cites any number affected by it.
+**Date:** 2026-08-17 · **Model:** Claude Opus 5 · **Phase:** 2 (consequences for 0 and 1) · **Status:** active
+**Approved by:** Pranav (2026-08-17), on the recommendation recorded in E-008. **Diya countersign: pending** — this is a larger change than D-012 and should carry her sign-off before the report cites any number affected by it.
 
 **Decision:** `seeds.eval` becomes `[101..130]`. The original five (101–105) are **kept inside** the block. Every agent in the project has been re-measured on the widened block (E-014). No prior experiment entry has been altered or deleted.
 
@@ -368,8 +368,8 @@ Keeping 101–105 inside the block is the second half of the decision and matter
 
 ## D-020 — Phase 2 closes with its exit criterion NOT met; Phase 1 is reopened
 
-**Date:** 2026-08-16 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
-**Approved by:** Pranav (2026-08-16). **Diya countersign: pending**, together with D-019.
+**Date:** 2026-08-17 · **Model:** Claude Opus 5 · **Phase:** 2 · **Status:** active
+**Approved by:** Pranav (2026-08-17). **Diya countersign: pending**, together with D-019.
 
 **Decision:** Phase 2 is closed as **built but not passed**. All eight roadmap boxes are complete; the exit criterion is not met and **is not being restated to make it pass**. Phase 1 is **reopened**, its amended criterion 2 having been falsified by E-014.
 

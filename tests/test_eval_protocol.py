@@ -44,7 +44,7 @@ def test_eval_block_is_large_enough_to_resolve_the_effects_being_reported():
 def test_the_original_five_eval_seeds_are_still_in_the_block():
     """101-105 must remain a SUBSET of the widened block.
 
-    This is what keeps the pre-2026-08-16 results (E-002, E-003, E-004, E-008,
+    This is what keeps the pre-2026-08-17 results (E-002, E-003, E-004, E-008,
     E-010) coherent rather than orphaned: every old number is a sub-sample of the
     new one, so old and new can be discussed together and the widening can be
     described as adding seeds rather than replacing them. Dropping any of the

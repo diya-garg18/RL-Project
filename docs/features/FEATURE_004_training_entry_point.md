@@ -1,7 +1,7 @@
 # FEATURE_004 — `scripts/train.py`, the training entry point
 
 **Status:** done *(the script; the Phase 2 exit criterion it produced numbers for is **not met** — see E-008)*
-**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-16 · **Finished:** 2026-08-16
+**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-17 · **Finished:** 2026-08-17
 **Model(s) used:** Claude Opus 5. Training-seed decision (D-016) approved by Pranav before the run.
 
 ---

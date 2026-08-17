@@ -1,7 +1,7 @@
 # FEATURE_003 — Tabular Q-learning agent
 
 **Status:** done *(the agent and its tests; not yet run on the real 576-state environment)*
-**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-16 · **Finished:** 2026-08-16
+**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-17 · **Finished:** 2026-08-17
 **Model(s) used:** Claude Opus 5 (implementation, tests, docs). Built test-first.
 
 ---

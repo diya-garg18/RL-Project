@@ -1,7 +1,7 @@
 # FEATURE_002 — Two-state MDP, hand-solved, as the Phase 2 correctness anchor
 
 **Status:** done
-**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-16 · **Finished:** 2026-08-16
+**Phase:** 2 · **Owner:** Pranav · **Started:** 2026-08-17 · **Finished:** 2026-08-17
 **Model(s) used:** Claude Opus 5 (design, derivation, implementation, docs). Design approved by Pranav before implementation.
 
 ---
