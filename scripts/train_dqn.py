@@ -27,6 +27,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 import time
 from dataclasses import replace
@@ -187,6 +188,10 @@ def main() -> None:
                         help="independent training runs; >=5 for a reportable number")
     parser.add_argument("--eval-every", type=int, default=None,
                         help="override common.eval_every")
+    parser.add_argument("--only-repeat", type=int, default=None,
+                        help="run ONLY this repeat index and write its result as JSON, so "
+                             "repeats can run as parallel processes (each uses one core). "
+                             "Combine them afterwards with scripts/aggregate_dqn.py.")
     parser.add_argument("--no-plot", action="store_true", help="skip the PNGs")
     parser.add_argument("--no-replay", action="store_true",
                         help="ABLATION: train on the latest transition only")
@@ -224,6 +229,69 @@ def main() -> None:
     print(f"  eps {tcfg.epsilon.start} -> {tcfg.epsilon.min} @ {tcfg.epsilon.decay}/episode")
     print(f"  training seeds from {seed_start} "
           f"(disjoint from train-diag {list(cfg.seeds.train)} and eval {list(cfg.seeds.eval)})")
+
+    # --- single-repeat mode: this process IS one repeat.
+    #
+    # Each training process is single-threaded (dqn.py pins
+    # torch.set_num_threads(1), which measured fastest on a net this small), so
+    # N repeats can run as N processes on N cores instead of sequentially. At
+    # 20000 episodes that is the difference between ~70 min and ~11 hours for a
+    # 10-run condition.
+    #
+    # seed_base below depends only on repeat_index and n_episodes — never on how
+    # many repeats are running — so a repeat computed in parallel gets exactly
+    # the same alert stream it would have got sequentially. That is what makes
+    # the two paths comparable rather than merely similar.
+    if args.only_repeat is not None:
+        repeat = args.only_repeat
+        t0 = time.perf_counter()
+        agent, rewards, curve, losses = train_one_run(
+            cfg, tcfg, cfg_hash, repeat, n_episodes, eval_every,
+            seed_start, no_replay, no_target_network,
+        )
+        env = SOCTriageEnv(cfg)
+        agent.epsilon = 0.0  # report the learned policy, not a partly-random one
+        records = run_episodes(env, agent, cfg.seeds.eval, cfg, cfg_hash, learn=False)
+        summary = summarise(records, cfg)
+
+        out_dir = ROOT / "results" / "dqn_runs" / tag
+        out_dir.mkdir(parents=True, exist_ok=True)
+        agent.save(str(out_dir / f"repeat{repeat}.pt"))
+        # Per-seed total rewards are kept so the aggregator can do a PAIRED
+        # comparison against tabular Q-learning on the identical eval shifts.
+        # Pairing cancels most of the shift-to-shift variance that makes the
+        # unpaired spreads (severity_sort +/-220.1) wider than the effects being
+        # measured — the lower-variance protocol E-013 asked for.
+        (out_dir / f"repeat{repeat}.json").write_text(
+            json.dumps(
+                {
+                    "tag": tag,
+                    "repeat": repeat,
+                    "n_episodes": n_episodes,
+                    "eval_every": eval_every,
+                    "seed_base": seed_start + repeat * n_episodes,
+                    "config_hash": cfg_hash,
+                    "no_replay": no_replay,
+                    "no_target_network": no_target_network,
+                    "wall_min": (time.perf_counter() - t0) / 60,
+                    "episode_rewards": rewards,
+                    "episode_losses": losses,
+                    "curve": curve,
+                    "summary": summary,
+                    "eval_seeds": list(cfg.seeds.eval),
+                    "per_seed_total_reward": [
+                        r["outcome"]["total_reward"] for r in records
+                    ],
+                },
+                indent=1,
+            ),
+            encoding="utf-8",
+        )
+        rel = out_dir.relative_to(ROOT).as_posix()
+        print(f"\nrepeat {repeat} done in {(time.perf_counter() - t0) / 60:.1f} min "
+              f"-> {rel}/repeat{repeat}.json")
+        print("  combine the repeats with: python scripts/aggregate_dqn.py")
+        return
 
     agents: list[DQNAgent] = []
     all_rewards: list[list[float]] = []
