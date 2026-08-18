@@ -90,6 +90,74 @@ def already_done(tag: str, repeat: int, episodes: int) -> bool:
         return False  # unreadable or truncated: treat as not done, and redo it
 
 
+def available_gb() -> float | None:
+    """Physical memory a new process could actually take, in GB.
+
+    Deliberately NOT Win32_OperatingSystem.FreePhysicalMemory, which excludes
+    the standby cache and so understates what is available. This reads the same
+    counter Task Manager's "Available" shows.
+
+    Returns None if the counter cannot be read, and the caller then proceeds
+    without throttling rather than refusing to run — an unreadable counter on
+    the other student's machine must not be the thing that blocks a sweep.
+    """
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-Counter '\\Memory\\Available MBytes').CounterSamples[0].CookedValue"],
+            capture_output=True, text=True, timeout=30,
+        )
+        return float(out.stdout.strip()) / 1024 if out.returncode == 0 else None
+    except (ValueError, OSError, subprocess.SubprocessError):
+        return None
+
+
+def total_gb() -> float:
+    """Total physical memory, read once."""
+    out = subprocess.run(
+        ["powershell", "-NoProfile", "-Command",
+         "(Get-CimInstance Win32_OperatingSystem).TotalVisibleMemorySize"],
+        capture_output=True, text=True, timeout=30,
+    )
+    return float(out.stdout.strip()) / 1024 / 1024
+
+
+def wait_for_memory(max_used_fraction: float, process_gb: float, poll_s: int = 60) -> None:
+    """Block until launching one more process would stay under the used ceiling.
+
+    The constraint is a CEILING ON MEMORY USED, not a floor on memory free, and
+    the difference is not academic. A "keep 0.9 GB free" rule lets the scheduler
+    keep launching until only 0.9 GB remains — on a 15.7 GB machine that is 94%
+    used, which is precisely the limit it was written to respect. Expressed as a
+    ceiling, the reserve scales with the machine instead of being a number that
+    happens to look small.
+
+    Checked before EVERY launch, not once at startup. An eight-hour unattended
+    run shares the machine with whatever else is open, and the memory picture at
+    04:00 is not the one measured at 20:00 — this sweep was nearly launched at a
+    moment when available memory had silently dropped from 8.0 GB to 3.8 GB
+    between two checks half an hour apart.
+    """
+    total = total_gb()
+    # Room the new process needs, plus whatever must stay unused to honour the
+    # ceiling once it has started.
+    need = total * (1.0 - max_used_fraction) + process_gb
+    warned = False
+    while True:
+        free = available_gb()
+        if free is None or free >= need:
+            return
+        if not warned:
+            used_pct = (total - free) / total * 100
+            print(f"[{time.strftime('%H:%M:%S')}] WAITING for memory: "
+                  f"{free:.1f} GB available, {used_pct:.0f}% used; need {need:.1f} GB "
+                  f"free to start one more and stay under "
+                  f"{max_used_fraction * 100:.0f}%. "
+                  f"Close something, or leave it — this resumes by itself.")
+            warned = True
+        time.sleep(poll_s)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Phase 3 DQN sweep in parallel.")
     parser.add_argument("--control-runs", type=int, default=30,
@@ -101,6 +169,12 @@ def main() -> None:
     parser.add_argument("--max-parallel", type=int, default=10,
                         help="concurrent processes; 10 x 301 MB keeps total RAM "
                              "under the 75%% ceiling on a 15.7 GB machine")
+    parser.add_argument("--max-used-fraction", type=float, default=0.75,
+                        help="never launch a run that would push total system memory "
+                             "use above this fraction. A ceiling on used, not a floor "
+                             "on free — see wait_for_memory.")
+    parser.add_argument("--process-gb", type=float, default=0.31,
+                        help="measured working set of one training process")
     parser.add_argument("--force", action="store_true",
                         help="re-run repeats whose JSON already exists")
     args = parser.parse_args()
@@ -138,6 +212,9 @@ def main() -> None:
 
     while queue or running:
         while queue and len(running) < args.max_parallel:
+            # Before every launch, not once at startup: an unattended sweep
+            # shares the machine with whatever else is running overnight.
+            wait_for_memory(args.max_used_fraction, args.process_gb)
             tag, repeat, flags = queue.pop(0)
             log_dir = ROOT / "results" / "dqn_runs" / tag
             log_dir.mkdir(parents=True, exist_ok=True)
