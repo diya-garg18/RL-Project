@@ -10,15 +10,15 @@
 
 | | |
 |---|---|
-| **Last session** | 2026-08-17 (session 6) |
+| **Last session** | 2026-08-18 (session 7) |
 | **Model** | Claude Opus 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified; cause also refuted (E-015). |
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020). All 8 boxes done; gate not met, deliberately not restated. |
-| **Phase 3** | Not started, **cleared to begin**. Runs on Pranav's machine until the commit balance evens. |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. |
-| **Tests passing** | **76/76** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~8.5 s) |
-| **Blockers** | **None.** Both blocking decisions taken (D-022). Phase 3 may start. |
+| **Phase 3** | **Code complete, NO TRAINING RESULT.** All six ROADMAP boxes still unticked — correctly. See below. |
+| **Repo state** | `D:\RLPROJECT`, branch `master`. **13 Phase 3 commits, all unpushed.** |
+| **Tests passing** | **122/122** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~34 s — the tiny-MDP anchor is most of it) |
+| **Blockers** | The Phase 3 sweep needs ~3.3 GB of RAM freed before it can launch. Nothing else. |
 
 ---
 
@@ -50,6 +50,34 @@ The two decisions left open last session were taken (**D-019**, **D-020**), and 
 
 ---
 
+## Phase 3 — built, untrained. Read this before claiming anything about the DQN.
+
+**Every one of the six ROADMAP Phase 3 boxes is unticked, and that is correct.**
+The code is written and 46 new tests pass, but **no training run has happened**.
+The only DQN artefact ever produced was a 40-episode smoke test scoring recall
+0.00, which has been deleted. Nothing in this repo currently shows that the DQN
+learns anything at all.
+
+The exit criterion — *"DQN matches or beats tabular Q-learning on the same
+evaluation seeds, and the two ablations visibly destabilise training in the
+plots"* — is **entirely unmeasured**. Passing unit tests is not evidence about
+learning.
+
+**What is ready to run:** 60 runs (30 control, 15 per ablation) at 20,000
+episodes, launched by `scripts/run_dqn_sweep.py`, ~8.5 h wall clock at ten
+processes in parallel. Commands under "Reproduce on this device".
+
+**What blocks it:** memory. The sweep needs ~6.9 GB available to run ten
+concurrent processes inside the 75% ceiling Pranav set; at last check the
+machine was at 76% used with 3.8 GB available. The scheduler will *wait* rather
+than breach the ceiling, so launching it early is safe but may simply idle.
+
+**Two things to decide with a human before reporting anything:**
+1. Whether the ablations' shared seed block (both on 1200000) matters. Each is
+   compared against the control on 1000000, so the comparison that counts is
+   unconfounded; ablation-vs-ablation is paired as a side effect.
+2. The `no_replay` batch-size confound (D-026) must appear in any write-up.
+
 ## Both blocking decisions are now taken — Phase 3 is cleared to start
 
 **Phase 1 closes as "built, criterion falsified on better measurement"** (D-022, Pranav 2026-08-18). Gate deliberately **not** amended a second time: D-012's amendment fixed a category error in the criterion; this one would just be rewriting a criterion that came out false. Both Phase 1 and Phase 2 now close unpassed. Uncomfortable pair to present; the honest one.
@@ -79,18 +107,20 @@ DP never leaves its estimated core, and **D-011's convention never fires at eval
 
 ## Whose turn is it — read before starting work
 
-**Measured 2026-08-17 (`python scripts/commit_balance.py`, D-021 / CONSTRAINTS #24–26):**
+**Measured 2026-08-18 (`python scripts/commit_balance.py`, D-021 / CONSTRAINTS #24-26):**
 
 | author | commits | share |
 |---|---|---|
-| Diya Garg | 17 | 70.8% |
-| Pranav Upadhyay | 7 | 29.2% |
+| Pranav Upadhyay | 22 | 56.4% |
+| Diya Garg | 17 | 43.6% |
 
-Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 5 (Diya 3, Pranav 2) · **Phase 2** 4 (all Pranav).
+Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 6 (Diya 3, Pranav 3) · **Phase 2** 4 (all Pranav) · **Phase 3** 13 (all Pranav).
 
-> ⚠️ **IMBALANCED — Diya is 10 commits ahead. Phase 3 should run on Pranav's machine** until the gap is inside the 3-commit threshold, i.e. roughly the next 7–10 commits.
+> ⚠️ **IMBALANCED THE OTHER WAY NOW — Pranav is 5 commits ahead. Diya should take the next block.**
 >
-> Phase 3 (DQN) divides naturally into that many meaningful commits — network, replay buffer, target network, training loop, the two required ablations, docs — so no padding is needed. **Do not manufacture commits to close the gap**, and do not commit on the other person's behalf: the split must be real, because an examiner may ask either student to explain any commit under their name (CONSTRAINTS #24).
+> The 10-commit gap that opened in Phase 0 is closed; Phase 3's thirteen commits overshot by five. Natural work for Diya: the Phase 3 analysis and write-up once the sweep finishes (E-016, the ROADMAP boxes, `results/` interpretation), which is real work and not padding.
+>
+> **Do not manufacture commits to close the gap**, and do not commit on the other person's behalf: an examiner may ask either student to explain any commit under their name (CONSTRAINTS #24).
 
 `.mailmap` collapses Diya's two author identities (personal + GitHub noreply), so these counts are accurate where a raw `git shortlog` would over-split her.
 
@@ -115,7 +145,7 @@ Plus: `HANDOVER.md` (this file) actually describes the current state, and no str
 ```powershell
 cd D:\RLPROJECT
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 76 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 122 passed
 
 python scripts/run_baselines.py                                   # fast
 python scripts/run_dp.py                                          # ~2.5 min
@@ -124,6 +154,25 @@ python scripts/policy_table.py --agent <name>                      # box 6
 python scripts/compare_agents.py                                   # box 5
 python scripts/ablations.py                                        # ~4 min
 ```
+
+**Phase 3 (DQN) — expensive, read the notes first:**
+
+```powershell
+# ONE run, to sanity-check the machine (~68 min on Pranav's i7-13650HX)
+.\.venv\Scripts\python.exe scripts/train_dqn.py --only-repeat 0 --no-plot
+
+# the full sweep: 30 control + 15 + 15 = 60 runs, 10 at a time, ~8.5 h
+.\.venv\Scripts\python.exe scripts/run_dqn_sweep.py
+
+# then, in any order:
+.\.venv\Scripts\python.exe scripts/aggregate_dqn.py --tag dqn
+.\.venv\Scripts\python.exe scripts/compare_dqn_tabular.py
+.\.venv\Scripts\python.exe scripts/dqn_ablations.py
+```
+
+**Measured costs before you plan around them:** 0.204 s per training episode, ~301 MB and one CPU core per process, so a 20,000-episode run is ~68 minutes. `torch.set_num_threads(1)` is deliberate and is the *fastest* setting on this net (1 / 4 / 8 threads = 159 / 172 / 375 ms per episode) — do not "optimise" it. The RTX 4060 is unusable: `torch==2.13.0+cpu` is a CPU-only build and swapping it is a dependency change (CONSTRAINTS #8).
+
+The sweep is **restartable and extendable**. Repeats are seeded by index alone, so re-running it adds only the missing indices, and `--control-runs 40` later would add repeats 30-39 without recomputing anything.
 
 `results/` is gitignored and every artefact above is regenerable. The pipeline is deterministic under its seeds — re-runs reproduced E-004 and E-011 exactly, and the ablation sweep row-for-row. **If a re-run does not reproduce the logged numbers, something changed that shouldn't have.**
 
@@ -139,6 +188,19 @@ All eight roadmap boxes:
 - **`ablations.py`** (E-012) — **none of α, γ or ε-decay clears the noise floor.** Reported as a negative result rather than filled in.
 
 ## Watch out for
+
+**Added 2026-08-18 (Phase 3):**
+
+- **The design spec's compute budget is retracted.** `docs/superpowers/specs/2026-08-18-dqn-design.md` §12 says a 20,000-episode run costs 4.6 min. It costs **~68 min**. The pre-design probe timed a fragment of the gradient step. Real numbers: 9.87 ms/gradient step, 0.709 ms/`act()`, 0.204 s/episode. See D-024 — the decision survived, its stated reason did not.
+- **The RTX 4060 cannot be used.** `torch==2.13.0+cpu`; `torch.cuda.is_available()` is `False`. Switching builds is a dependency change and needs approval (CONSTRAINTS #8). It would also probably be *slower* — 19,461 parameters at batch 64 is far too small to amortise kernel-launch overhead.
+- **Do not "fix" `torch.set_num_threads(1)`.** It is the fastest setting measured (1/4/8 threads = 159/172/375 ms per episode) *and* it is what makes ten-way process parallelism possible.
+- **`Start-Job` does not survive between Claude Code tool calls** — each invocation is a fresh PowerShell process and the job dies with it. Use `Start-Process`, or the harness's own background mode, for anything long.
+- **Delete `results/dqn_runs/` after any smoke test.** A 40-episode run left there can be averaged into a 20,000-episode sweep. `run_dqn_sweep.py` and `aggregate_dqn.py` both guard against it now, but the cheapest fix is not to create the mess.
+- **Stray zero-byte files appeared repeatedly this session** (`10-min`, `10000`, `np.ndarray`, `tuple[float`, `{wall_min`, `5`, `None`, `1200000`) — BUG_001, apparently from shell-quoting artefacts. Sweep `git status --porcelain` before every commit. Names containing `[` or `{` need `Remove-Item -LiteralPath`.
+- **`config.py` is 640 lines, over the 500-line limit** (CONSTRAINTS #12). It was already 539 before Phase 3, so the violation predates this work, but it is now the only file in the repo over the limit and it should be split.
+- **`ROADMAP.md:101`** — the Phase 2 box "SARSA and Monte Carlo measured against [the tiny MDP], in the same file" is unticked while this file claims all 8 Phase 2 boxes are done. `tests/test_on_policy.py` appears to contain the work, in a different file than the box specifies. Doc reconciliation, not missing work.
+- **`config.py`'s seed-block error message still says "eval (101-105)"** — the block has been 101–130 since D-019. Deliberately left alone so a Phase 3 commit did not touch Phase 2 behaviour.
+
 
 - **Do NOT quote a number without checking whether it is 5-seed or 30-seed.** E-002 to E-013 are 5-seed. E-014 onward is 30-seed. The two differ enough to reverse a conclusion.
 - **Do NOT "fix" SARSA or Monte Carlo to match `HAND_COMPUTED_Q`** (D-017). They are on-policy and correctly converge to `tiny_mdp.epsilon_soft_q(ε)`, which differs from q\* by >1.5 at ε = 0.1.

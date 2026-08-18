@@ -441,3 +441,106 @@ The remaining explanation, **stated as an untested hypothesis and labelled as on
 **Alternatives rejected:**
 - *Amend criterion 2 to "highest reward among model-based methods" or similar.* Reverse-engineered from the result; see above.
 - *Leave Phase 1 open indefinitely pending the distribution-shift test.* The test is worth running, but the gate's status does not depend on its outcome — DP scores −201.2 either way. Closing on the measurement and leaving the explanation open is the accurate split.
+
+## D-023 — DQN input scaling uses fixed domain divisors, held in `training_default.yaml`
+
+**Date:** 2026-08-18 · **Model:** Claude Opus 5 · **Phase:** 3 · **Status:** active
+**Approved by:** Pranav (2026-08-18), before implementation.
+
+**Decision:** Each `featurise()` column is divided by a fixed constant taken from the domain — queue length by 150, ages by the 480-minute shift, severity by 3, and so on. The divisors live in `config/training_default.yaml` under `dqn.feature_scales`, **not** in `config/env_default.yaml`, and `state.feature_scale_vector()` orders them to match `FEATURE_NAMES`, raising if any column is missing or unknown.
+
+**Why:** Measured across 888 observations, the columns span a 470× range: `max_age_min` reaches 473.57 while every `frac_type_*` stays inside [0, 1]. Fed raw to an MLP, the two age columns dominate every gradient the network ever takes. Scaling here is a correctness requirement, not an optimisation — and it was only visible because the spread was measured before the design was written rather than assumed.
+
+The location matters more than it looks. `runner.config_hash()` content-hashes `env_default.yaml` into every `EpisodeRecord` written since Phase 0. Adding a key there would change the hash and orphan every prior result from the config that produced it — a silent break in the traceability the whole project rests on. `training_default.yaml` is not hashed, so it is safe.
+
+**Alternatives rejected:**
+- *Running mean/std normalisation.* Standard, and wrong here: the statistics would drift during training, so a state's encoding in episode 1 differs from episode 20000, and training and evaluation would not agree on what a state even is. Fixed domain constants keep the encoding stable and explainable in an interview.
+- *Put the divisors in `env_default.yaml` where the other domain constants live.* Correct on tidiness, disqualifying on traceability. See above.
+- *Skip scaling and let the network learn it.* It can, eventually, via the first layer's weights — but it wastes capacity and the failure mode is silent: no error, just a worse number.
+
+**Consequences:** The divisors are domain facts and must never be tuned. Tuning them would make them hyperparameters fitted to the evaluation, which CONSTRAINTS #2 forbids. `test_scale_vector_rejects_a_missing_column` and `..._an_unknown_column` exist because a partial mapping would leave one column unscaled and the bug would surface only as a slightly worse result.
+
+---
+
+## D-024 — `train_freq: 4` — the decision stands, its original justification did not
+
+**Date:** 2026-08-18 · **Model:** Claude Opus 5 · **Phase:** 3 · **Status:** active, **stated reason corrected same day**
+
+**Decision:** The DQN takes one gradient step every 4 environment steps, so a run is 20,000 episodes — identical to the tabular learners' budget.
+
+**Why (as originally argued):** A pre-design probe measured 1.107 ms per batch-64 gradient step. At one step per transition a 20,000-episode run projected to 18.3 minutes; at one in four, 4.6 minutes. `train_freq: 4` was therefore presented as what made the full budget affordable, so the DQN-vs-tabular comparison would carry no budget confound.
+
+**The correction.** Both numbers in that argument were wrong. Re-measured against a real training loop: **9.87 ms** per gradient step and **0.709 ms** per `act()` call, roughly 10× the pre-design figures, putting a training episode at ~204 ms and a 20,000-episode run at **~68 minutes**, not 4.6. The original probe measured neither the optimiser step, the gradient clipping, nor the per-step forward pass that action selection performs — it timed a fragment and the fragment was reported as the whole.
+
+`torch.set_num_threads(1)` was ruled out as the cause: it is the *fastest* of 1, 4 and 8 threads on a 19,461-parameter network (159 / 172 / 375 ms per episode). A component breakdown found no single hotspot — forward+backward 3.1 ms, Adam 2.9 ms, clipping 0.77 ms, target forward 0.75 ms — just per-op framework overhead on a small net.
+
+**Why the decision survives its reasoning:** the *comparison* argument was always the real one. Matching the tabular learners' 20,000 episodes exactly is what removes the budget confound, and that is true whether a run takes 4.6 minutes or 68. Only the affordability claim was false, and the answer to that was parallelism (D-027), not a smaller budget.
+
+**Consequences:** recorded here rather than quietly amended, because this is the same failure as E-015 — a decision that was right for a reason that turned out to be wrong. A number carried from a probe into a design without being re-measured against the real thing is not evidence. Anyone quoting "4.6 minutes per run" from the design spec is quoting a retracted figure.
+
+---
+
+## D-025 — Phase 3 gets its own trainer rather than extending `scripts/train.py`
+
+**Date:** 2026-08-18 · **Model:** Claude Opus 5 · **Phase:** 3 · **Status:** active
+
+**Decision:** `scripts/train_dqn.py` is a separate file. `scripts/train.py` is not modified.
+
+**Why:** The two trainers differ in what they save (a Q-table and visit counts versus network weights), what they plot (the DQN adds a loss curve the tabular learners do not have), and what they switch (two ablation flags). Merging them produces a script whose every second line is an `isinstance` check. The rule of three applies: the shared harness is extracted when a third trainer appears, not in anticipation of one — the same reasoning that produced `agents/tabular.py` only once SARSA and Monte Carlo existed.
+
+There is a second reason, specific to this project: CONSTRAINTS #11 requires that nothing from a later phase be needed to run an earlier one. Leaving `train.py` untouched makes that trivially true rather than something to verify.
+
+**Alternatives rejected:** *Add a `--agent dqn` branch to `train.py`.* Cheaper today, and it puts Phase 3 code on the path of every Phase 2 reproduction — so a Phase 3 bug could break a Phase 2 rerun.
+
+**Consequences:** the honesty machinery — greedy diagnostic on train seeds, eval seeds read once at the end, the `results/smoke/` guard — is duplicated rather than shared. That duplication is deliberate and is the cost being paid for phase isolation. It is also the thing to collapse first when Phase 4 adds a third trainer.
+
+---
+
+## D-026 — "Replay off" means a batch of one on the latest transition
+
+**Date:** 2026-08-18 · **Model:** Claude Opus 5 · **Phase:** 3 · **Status:** active
+
+**Decision:** Under `no_replay`, `update()` learns from exactly the transition just observed, as a batch of one, instead of sampling the buffer. Everything downstream — target computation, loss, clipping, optimiser step — is unchanged.
+
+**Why:** This is what "DQN without experience replay" means: online Q-learning with a function approximator, which is the thing replay was introduced to fix. Keeping it a batch of one rather than a separate code path means the only difference between the conditions is the *data*, not the arithmetic.
+
+**The confound, stated rather than hidden:** the ablated condition also has a batch size of 1 against the control's 64, so it takes noisier gradients for two reasons at once — correlated samples *and* a smaller batch. These cannot be separated without a third condition (batch-64 sampled from only the most recent 64 transitions), which is not run. Any conclusion from this ablation is therefore about "replay as a package", not about decorrelation in isolation.
+
+**Alternatives rejected:** *Keep batch size 64 by repeating the latest transition 64 times.* Equal batch size, but the gradient is identical to a batch of one scaled by 64 — it changes the effective learning rate and nothing else, which would be a worse confound wearing a disguise.
+
+**Consequences:** the confound must appear in any write-up of the ablation. `test_no_replay_ablation_trains_on_a_single_transition` pins the behaviour at a single backup, because an ablation that did nothing and an ablation that was never wired up look identical in a training plot.
+
+---
+
+## D-027 — Training repeats run as parallel single-repeat processes; 30 control runs, 15 per ablation
+
+**Date:** 2026-08-18 · **Model:** Claude Opus 5 · **Phase:** 3 · **Status:** active
+**Approved by:** Pranav (2026-08-18), after the compute budget was re-measured.
+
+**Decision:** `train_dqn.py --only-repeat K` runs one repeat and writes its result as JSON; `scripts/run_dqn_sweep.py` keeps a fixed number of those in flight; `scripts/aggregate_dqn.py` combines them. The Phase 3 sweep is **30 control runs and 15 per ablation**, all at the full 20,000 episodes.
+
+**Why parallel:** each training process is single-threaded and uses ~301 MB (both measured, not estimated), so N repeats run as N processes on N cores. Sequentially, 60 runs × 20,000 episodes is ~68 hours; ten at a time it is ~8. That is the only reason the full episode budget survived contact with the real per-episode cost (D-024). `seed_base` depends only on `repeat_index` and `n_episodes`, never on how many repeats are running, so a parallel repeat faces exactly the alert stream it would have faced sequentially.
+
+**Why 30 and not 5:** CONSTRAINTS #3's minimum of five has already proved insufficient in this project. E-014 found every headline comparison in Phases 0–2 rested on a sample far too small for this environment's variance — the constraint was honoured and the measurement was still misleading. The control is compared against tabular Q-learning at 47.6 ± 52.0, a spread wider than any plausible effect, so the standard error is the binding quantity. Thirty runs shrinks it by √6 against five. Doubling the *episodes* instead would not shrink it at all.
+
+**Why the ablations get fewer:** an ablation is compared against the control and should fail obviously. If its effect only emerges at 30 runs, that is a negative result worth reporting, not something to buy precision for. Precision is spent where the phase gate actually turns.
+
+**Consequences:** repeats are addressable by index, so a sweep can be *extended* later — repeats 30–39 are simply more indices — without recomputing anything. The scheduler holds each launch under a ceiling on total memory used (checked before every launch, not once at startup) so an unattended overnight run cannot push the machine into swap; it waits and prints why, then resumes by itself.
+
+---
+
+## D-028 — The DQN-vs-tabular comparison is reported paired per evaluation seed
+
+**Date:** 2026-08-18 · **Model:** Claude Opus 5 · **Phase:** 3 · **Status:** active
+
+**Decision:** `scripts/compare_dqn_tabular.py` reports total reward both unpaired (mean ± std, as Phase 2 reported it) and **paired**: the per-seed difference DQN − tabular across the 30 evaluation shifts, with its standard error and the ratio |mean| / SEM.
+
+**Why:** both agents run on the identical 30 shifts, so the per-seed difference cancels the shift-to-shift variance that dominates the unpaired spreads — severity-sort's ±220.1 against a mean of 40.4. E-013 asked for a lower-variance evaluation protocol and E-014 showed why: the spread of this environment is several times larger than the effects being claimed. Pairing is that protocol, it uses data the runs already produce, and it costs no extra compute.
+
+This is not a new claim about the agents; it is a better estimator of the same quantity. The unpaired numbers are still printed so nothing is hidden by the change.
+
+**Alternatives rejected:** *Report only the unpaired means, as Phases 0–2 did.* Consistent with prior tables, and it is precisely the presentation that produced the E-008 error later retracted in E-014.
+
+**Consequences:** the script prints |mean| / SEM and states plainly that below about 2 the difference is not resolvable at 30 seeds, whichever way it points. The Phase 3 exit criterion — "DQN matches or beats tabular Q-learning" — may well be decided by a spread rather than a mean, and this was recorded before any result existed, in the same spirit as D-012 and D-020.
+
+---

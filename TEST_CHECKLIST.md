@@ -161,13 +161,35 @@ python scripts/train.py --agent q_learning --seeds 5 --eval
 
 ## Phase 3 — DQN
 
-```bash
-python scripts/train.py --agent dqn --seeds 5 --eval
-python scripts/ablate_dqn.py          # replay off, target net off
-```
-**Must show:** DQN ≥ tabular on the same eval seeds; both ablations visibly less stable in the plots. If turning off replay *doesn't* hurt, replay probably isn't wired in — check before reporting.
+Run all of these from the repo root with `.\.venv\Scripts\python.exe`.
 
----
+| # | Check | Command | Passing means |
+|---|---|---|---|
+| 1 | Whole suite | `-m pytest tests/ -q` | **122 passed** |
+| 2 | Config fails loudly | `-m pytest tests/test_dqn_config.py -q` | 11 passed — a zero divisor, a too-small `learning_starts`, or a duplicated seed block is rejected at load time, not mid-training |
+| 3 | Replay buffer | `-m pytest tests/test_replay.py -q` | 8 passed — capacity, overwrite order, dtypes, and that all five arrays stay aligned |
+| 4 | Agent, stabilisers, ablations | `-m pytest tests/test_dqn.py -q` | 13 passed |
+| 5 | Tiny-MDP anchor | `-m pytest tests/test_dqn.py -k tiny_mdp -q` | 2 passed — max \|Q − q*\| < 0.05, measured 0.013–0.017 over 3 seeds at 120 episodes |
+| 6 | Analysis guards | `-m pytest tests/test_dqn_analysis.py -q` | 14 passed — incomparable runs are refused, undefined metrics dropped not zeroed |
+| 7 | Trainer runs | `scripts/train_dqn.py --episodes 40 --repeats 1 --eval-every 20 --no-plot` | completes; output says `results/smoke/` **not** `results/` |
+| 8 | Parallel repeat matches sequential | `scripts/train_dqn.py --only-repeat 3 --episodes 40 --eval-every 40 --no-plot` | JSON shows `seed_base 1000120` = 1000000 + 3×40 |
+| 9 | Sweep scheduler | `scripts/run_dqn_sweep.py --control-runs 2 --ablation-runs 1 --episodes 40 --max-parallel 2` | 4 runs; control on the 1000000 block, both ablations on 1200000, flags set |
+
+**Before believing any ablation result**, run check 4 and confirm
+`test_no_replay_ablation_trains_on_a_single_transition` and
+`test_no_target_network_ablation_bootstraps_off_the_online_net` pass. An
+ablation that did nothing and an ablation that was never wired up look
+identical in a plot; only these two tests tell them apart.
+
+**Housekeeping that has bitten this project twice.** Before committing, sweep
+for stray zero-byte files (`git status --porcelain` — BUG_001; several appeared
+during Phase 3) and delete any smoke-test output under `results/dqn_runs/`, or a
+40-episode run can be averaged into a 20,000-episode sweep. `aggregate_dqn.py`
+refuses mismatched runs, but the cheapest fix is not to create them.
+
+**Not yet checkable — needs a training run:** the exit criterion itself, "DQN
+matches or beats tabular Q-learning on the same evaluation seeds, and the two
+ablations visibly destabilise training in the plots."
 
 ## Phase 4 — Policy gradient
 

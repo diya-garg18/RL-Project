@@ -64,6 +64,8 @@
 | `src/soc_triage/agents/q_learning.py` | Off-policy TD control, S&B §6.5 (FEATURE_003, D-015). Converges to q\* | Know which environment it is in, or decay epsilon on its own — the episode boundary must be stated by the training loop |
 | `src/soc_triage/agents/sarsa.py` | On-policy TD control, S&B §6.4 (FEATURE_006). Selects `a'` during `update` and commits to returning it from the next `act()` — the on-policy property depends on that commitment | Re-sample in `act()` when a commitment is outstanding; that silently produces an off-policy hybrid that still converges |
 | `src/soc_triage/agents/monte_carlo.py` | First-visit MC control, S&B §5.4 (FEATURE_006). Buffers the episode in `update` and does all learning in `end_episode` | Learn anything mid-episode, or run on a task that never terminates |
+| `src/soc_triage/agents/replay.py` | `ReplayBuffer` — a hand-written uniform ring buffer of five parallel numpy arrays (FEATURE_007). Breaks correlation between consecutive transitions and lets each be reused | Know anything about DQN, agents or the environment — it stores arrays and returns batches |
+| `src/soc_triage/agents/dqn.py` | `QNetwork` + `DQNAgent` — Q-learning with an MLP over the 17-dim continuous state, plus replay and a target network, both switchable off for the required ablations (FEATURE_007, D-023 to D-026) | Decay epsilon on its own, or count `target_update_every` in environment steps — it counts GRADIENT steps, and with `train_freq: 4` the two differ fourfold |
 | `src/soc_triage/runner.py` | Run N episodes with a given agent + seed, emit `EpisodeRecord`s | Compute metrics |
 | `src/soc_triage/evaluation/` | Metrics, baseline comparison tables, plots, the reward-hacking audit | Train anything |
 | `src/soc_triage/rlhf/` | Build comparison pairs, store labels, train the Bradley–Terry reward model | Know about specific agents |
@@ -194,7 +196,7 @@ class Alert:
 | 0 | `config`, `alerts`, `generator`, `env`, `state`, `runner`, `agents/base`, `agents/baselines`, `evaluation/metrics` |
 | 1 | `agents/dp`, `mrp_example` |
 | 2 | **all built ✅** — `tiny_mdp`, `agents/tabular`, `agents/q_learning`, `agents/sarsa`, `agents/monte_carlo`, `scripts/train.py`, `scripts/policy_table.py`, `scripts/compare_agents.py`, `scripts/ablations.py` |
-| 3 | `agents/dqn` |
+| 3 | **all built ✅, no training result yet** — `agents/dqn`, `agents/replay`, `scripts/train_dqn.py`, `scripts/run_dqn_sweep.py`, `scripts/aggregate_dqn.py`, `scripts/compare_dqn_tabular.py`, `scripts/dqn_ablations.py` |
 | 4 | `agents/reinforce`, `agents/actor_critic` |
 | 5 | `rlhf/*`, `web/*` |
 | 6 | `evaluation/audit`, `evaluation/plots` |

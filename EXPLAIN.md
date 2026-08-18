@@ -156,6 +156,33 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 7 — 2026-08-18 — Claude Opus 5 — we replaced the pigeonholes with a neural network
+
+**What.** The first neural-network agent in the project: a Deep Q-Network (DQN). Also the machinery to train sixty copies of it overnight, and three scripts to analyse what comes out. **No training has been run yet** — everything below is about code that passes its tests, not about an agent that has learned anything.
+
+**Where.** `src/soc_triage/agents/dqn.py` and `agents/replay.py`; `scripts/train_dqn.py`, `run_dqn_sweep.py`, `aggregate_dqn.py`, `compare_dqn_tabular.py`, `dqn_ablations.py`; 46 new tests.
+
+**Why.** Until now every agent saw the world through 576 pigeonholes. Two genuinely different situations — a backlog of harmless noise, versus three critical alerts about to breach their deadline — could land in the same pigeonhole and be treated identically. A neural network can read the seventeen numbers describing the situation directly, without rounding them into boxes first. Whether that actually helps is the question Phase 3 exists to answer, and we do not know the answer yet.
+
+**How, in plain terms.** The learning rule is *exactly* the same one from Session 4 — "make your guess about this move look more like the reward you got plus your guess about what comes next". The only change is where the guesses are stored: in a table before, in a network now. That one change breaks two things, and fixing them is most of what a DQN *is*:
+
+- **Everything the agent sees in a row is nearly the same.** Consecutive moments in one shift are almost identical, so the network keeps being shown the same thing and forgets everything else. **Experience replay** fixes it: keep the last hundred thousand moments in a big box and learn from a random handful each time, so every lesson mixes thousands of different shifts.
+- **The agent is chasing a target it moves itself.** To improve its guess it needs a guess about what comes next — from the same network it is changing. That is like aiming at a dot that jumps every time you aim. A **target network** fixes it: keep a frozen photocopy, aim at that, and refresh the photocopy occasionally.
+
+Both are switchable off, because the roadmap requires *showing* what they are worth rather than asserting it.
+
+**Three things that went wrong, and what they taught us.**
+
+*We were wrong about how long this takes — by a factor of fifteen.* Before designing anything, we measured how long one learning step takes and got 1.1 milliseconds. On that basis a full training run looked like five minutes. When we measured the real thing it was 68 minutes. The first measurement had timed only a fragment of the work and we had treated it as the whole. This matters beyond the arithmetic: the design *argued from* that number. The design's conclusion survived, but for a different reason than the one written down — which is exactly the failure we caught in Session 6 and caught again here.
+
+*A test looked like a failure and wasn't.* We check the DQN on a tiny two-state problem whose correct answer was worked out by hand on paper. The first run was off by 0.42. But every single entry was off by *the same* 0.43 — and a uniform offset is what "hasn't finished learning yet" looks like, not what "the maths is wrong" looks like. Training longer collapsed the error from 0.42 to 0.006. Had we guessed a tolerance of 0.5 up front, the test would have passed and we would never have looked.
+
+*We nearly poisoned our own results twice.* A 40-episode test run left files behind that the real 20,000-episode sweep would have quietly counted as real results. And the first version of our memory-safety check was written backwards — it would have let the training fill the laptop's memory to 94%, the exact thing it existed to prevent. Both are now guarded and both guards are tested.
+
+**The honest position.** Sixty training runs are ready to launch and none has run. We do not know whether the DQN beats the table. We have deliberately written down, in advance, that it may be impossible to tell: tabular Q-learning scores 47.6 with a spread of ±52, so a difference could easily be smaller than the noise. If that happens we will say so rather than pick whichever number flatters us — the same thing we did in Sessions 5 and 6.
+
+---
+
 ### Session 6 (final) — 2026-08-17 — Claude Opus 5 — we checked our own ruler, and it was wrong
 
 This is the most important entry in this document so far, and it is not about an algorithm.

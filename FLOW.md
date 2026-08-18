@@ -174,6 +174,75 @@ Measured: `max |Q − q*| = 9.24e-14` after 500 episodes; correct policy after 1
 
 ---
 
+## Flow F — DQN training, run in parallel (Phase 3) 🟡 *(built 2026-08-18 — FEATURE_007; **no training result yet**)*
+
+The Phase 2 path ran repeats one after another inside a single process. The DQN
+cannot: a 20,000-episode run is ~68 minutes (measured), so 60 runs sequentially
+is ~68 hours. Each training process is single-threaded and uses ~301 MB, so the
+repeats are run as separate processes instead and combined afterwards.
+
+```
+scripts/run_dqn_sweep.py                     the scheduler
+   |
+   |  for each (condition, repeat_index):
+   |     wait until launching one more stays under the memory ceiling
+   |     subprocess ->
+   |
+   +--> scripts/train_dqn.py --only-repeat K [--no-replay | --no-target-network]
+   |       |
+   |       +-- build_agent()          config -> DQNAgent (weights seeded by K)
+   |       +-- train_one_run()        20000 x runner.run_episode(learn=True)
+   |       |      |
+   |       |      +-- runner._encode()  obs_kind "cont" -> state.featurise()
+   |       |      +-- DQNAgent.act()    scale -> online net -> argmax (ties low)
+   |       |      +-- DQNAgent.update() push to ReplayBuffer; every train_freq
+   |       |      |                     steps: sample, target from the FROZEN
+   |       |      |                     net, Huber loss, clip, Adam step; every
+   |       |      |                     target_update_every GRADIENT steps:
+   |       |      |                     hard-copy online -> target
+   |       |      +-- agent.end_episode()   epsilon decay, once per episode
+   |       |      +-- greedy_diagnostic()   every eval_every, on TRAIN seeds 1-10
+   |       |
+   |       +-- run_episodes(cfg.seeds.eval)   ONCE, at the very end
+   |       +-- writes results/dqn_runs/<tag>/repeat<K>.json  (+ .pt, .log)
+   |
+   v
+scripts/aggregate_dqn.py     refuses to average runs that disagree on episode
+   |                         count, config hash or ablation flags; reports the
+   |                         curve, the metric table, the SEM, and whether the
+   |                         learning curve has plateaued
+   +--> results/dqn_curve.png
+
+scripts/compare_dqn_tabular.py   policy agreement over VISITED states only,
+   |                             plus total reward paired per eval seed
+   +--> results/dqn_vs_tabular.md
+
+scripts/dqn_ablations.py         volatility / divergence / drawdown, all three
+   |                             defined before looking at the data
+   +--> results/dqn_ablations.{png,md}
+```
+
+**The three things that make this path different from Flow A, and why:**
+
+1. **`--only-repeat K` writes JSON instead of printing a table.** `seed_base`
+   depends only on `repeat_index` and `n_episodes` — never on how many repeats
+   are running — so a parallel repeat faces exactly the alert stream it would
+   have faced sequentially. That is what makes the two paths comparable rather
+   than merely similar, and it also means a sweep can be *extended* later by
+   running higher indices.
+2. **The scheduler checks memory before every launch, not once at startup.**
+   An eight-hour unattended run shares the machine with whatever else is open;
+   available memory here fell from 8.0 GB to 3.8 GB in half an hour with no
+   training running at all.
+3. **Aggregation is a separate step that can refuse.** A directory of JSON files
+   looks valid whatever is in it, so the comparability checks live there rather
+   than being assumed.
+
+**Ablations follow the identical path** with one flag added, so the only
+difference between conditions is the algorithm — never the harness.
+
+---
+
 ## Flow D — RLHF (Phase 5) ⬜
 
 Three separate stages. Don't fuse them; each produces an artefact the next consumes.
