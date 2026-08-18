@@ -13,12 +13,12 @@
 | **Last session** | 2026-08-17 (session 6) |
 | **Model** | Claude Opus 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
-| **Phase 1** | ⚠️ **REOPENED** — criterion 2 falsified by E-014. Decision owed. |
+| **Phase 1** | **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified; cause also refuted (E-015). |
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020). All 8 boxes done; gate not met, deliberately not restated. |
-| **Phase 3** | Not started. Whether it proceeds now is a human decision. |
+| **Phase 3** | Not started, **cleared to begin**. Runs on Pranav's machine until the commit balance evens. |
 | **Repo state** | `D:\RLPROJECT`, branch `master`. |
 | **Tests passing** | **76/76** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~8.5 s) |
-| **Blockers** | None technical. Four decisions owed before Phase 3. |
+| **Blockers** | **None.** Both blocking decisions taken (D-022). Phase 3 may start. |
 
 ---
 
@@ -39,7 +39,7 @@ The two decisions left open last session were taken (**D-019**, **D-020**), and 
 
 **Four consequences, in order of severity:**
 
-1. **Phase 1 is REOPENED.** DP inverted from best reward of any agent (+305.9) to worst (−201.2), recall 0.43 → 0.23. That falsifies D-012 criterion 2. Hypothesis, **untested**: D-004 + D-011 — DP is optimal for a model covering 133/576 states and has no useful guidance outside that core.
+1. **Phase 1 closes unpassed.** DP inverted from best reward of any agent (+305.9) to worst (−201.2), recall 0.43 → 0.23, falsifying D-012 criterion 2. *(The coverage explanation first offered here was tested and refuted — see the next section and E-015.)*
 2. **Phase 2 fails its gate on every count.** Recall 0.66–0.72 vs 0.84, *and* the reward advantage is gone (47.6 / 40.5 vs 40.4, inside a ±220 spread). **The gate was deliberately not restated** — D-020 explains why that differs from Phase 1's legitimate D-012 amendment. Restating it on reward *consistency*, where the learners genuinely win, was the tempting option and was rejected as goalpost-moving.
 3. **The reward-hacking narrative is restated, not abandoned.** Still true: the reward is exploitable and every agent trades recall away chasing it. No longer true: that the trade pays. That is a *stronger* case for Phase 5 — the objective is not merely misaligned, it is unstable.
 4. **One new positive finding, invisible at 5 seeds:** the learners are ~4× more consistent shift-to-shift than the heuristics (±50 vs ±220). Nothing in the reward function values that, which is itself evidence for learning one from humans.
@@ -50,12 +50,30 @@ The two decisions left open last session were taken (**D-019**, **D-020**), and 
 
 ---
 
+## Both blocking decisions are now taken — Phase 3 is cleared to start
+
+**Phase 1 closes as "built, criterion falsified on better measurement"** (D-022, Pranav 2026-08-18). Gate deliberately **not** amended a second time: D-012's amendment fixed a category error in the criterion; this one would just be rewriting a criterion that came out false. Both Phase 1 and Phase 2 now close unpassed. Uncomfortable pair to present; the honest one.
+
+**E-015 refuted E-014's explanation for DP's collapse.** Tested and dead:
+
+| measure | result |
+|---|---|
+| off-core **state** share | **0.0% on all 30 seeds** |
+| off-core **pair** share | **0.0% on all 30 seeds** |
+| corr(severity reward, DP reward) | +0.085 (control — not seed difficulty) |
+
+DP never leaves its estimated core, and **D-011's convention never fires at evaluation time.** Coverage and D-011 are both exonerated. On seed 128 DP loses 755 where severity-sort gains 233.
+
+**Remaining explanation — untested, labelled as such:** `P̂`/`R̂` were counted under a *uniform-random* policy, but DP bulk-closes ~97% of the time, so the transitions following its own actions aren't the ones the model was built from, even though the states are familiar. **Distribution shift in the estimate, not gaps in it.** Test named in E-015: re-estimate from DP-policy rollouts, check whether the plan's predicted value matches measured reward. `scripts/dp_collapse.py` is the harness to extend.
+
+**This sharpens D-004 for the report.** "Optimal for the estimated model" was read all along — including by me in E-014 — as being about *coverage*. It isn't. The gap is between the policy the model describes and the policy being planned.
+
 ## What a human still has to decide
 
-1. **Phase 1's gate** — re-amend a second time, or accept it as "built, criterion falsified on better measurement" in the same shape as Phase 2? *Recommendation: accept it as built-but-falsified*; two amendments to one phase invites the goalpost-moving charge.
-2. **Investigate DP's collapse before Phase 3?** DP is the report's Phase 1 centrepiece and now scores worse than random on reward. The E-014 hypothesis is cheap to test: correlate per-seed DP reward against distance from the visited state core. *Recommendation: yes* — it is the difference between "DP failed" and "DP failed **for this reason**", and only the second is a result.
-3. **Phase 3 (DQN) now, or after #2?** It optimises the same unstable reward and will likely reproduce the pattern — a fifth data point on a question already answered. *Recommendation: do #2 first.*
-4. **Diya's countersign** on D-012 (still outstanding), plus D-019 and D-020. All three change what the report claims.
+*Items 1–3 (Phase 1's gate, investigating the DP collapse, Phase 3 timing) were all decided on 2026-08-18 — see the section above and D-022. Nothing now blocks Phase 3.*
+
+1. **Diya's countersign** on D-012, D-019, D-020 and D-022. All four change what the report claims, and none has her sign-off yet. The two Phase 0 amendments both carried it; these should match that bar.
+2. **Optional, not blocking:** run the distribution-shift test named in E-015 (re-estimate `P̂`/`R̂` from DP-policy rollouts). It would convert the last open "why" into a result. Worth doing before the report is written, not necessarily before Phase 3.
 
 ---
 

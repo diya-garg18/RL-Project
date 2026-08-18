@@ -594,3 +594,50 @@ Five seeds satisfied CONSTRAINTS #3's "at least 5 seeds". Every headline number 
 The std was visible the whole time. E-002 reported severity-sort at ±218.7 next to a mean of 153.7 and nobody drew the inference. **Reporting a standard deviation is not the same as reading it.** The check that was missing is trivial: compare the spread to the size of the effect being claimed before believing the effect.
 
 `tests/test_eval_protocol.py` now encodes the seed-count floor so this cannot silently regress.
+
+---
+
+## E-015 — E-014's explanation for the DP collapse is WRONG — 2026-08-18
+
+**Model:** Claude Opus 5 · **Phase:** 1 (reopened) · **Decision:** D-022
+`scripts/dp_collapse.py`. **This entry refutes a hypothesis this log proposed one day earlier.**
+
+**What E-014 claimed (as an explicitly untested hypothesis).** DP's policy is optimal for a model estimated over 133 of 576 states, so on shifts that stray outside that estimated core it has no useful guidance and falls back on the D-011 absorbing-self-loop convention. Predicted: per-seed DP reward should fall as the share of off-core steps rises.
+
+**The test.** Run the DP policy on all 30 eval seeds. For each, measure the share of steps spent in states never seen during estimation (*off-core state*), the share where the action DP chose was never observed from that state (*off-core pair* — the D-011 convention actually firing), and the resulting reward. Severity-sort is run on the identical seeds as a control: if DP's bad seeds are just *hard* seeds, severity-sort should suffer on them too.
+
+**Result — the hypothesis is refuted, decisively.**
+
+| measure | value |
+|---|---|
+| off-core **state** share | **0.0% on every one of the 30 seeds** |
+| off-core **pair** share | **0.0% on every one of the 30 seeds** |
+| corr(off-core share, DP reward) | undefined — zero variance |
+| corr(severity reward, DP reward) | **+0.085** |
+
+**DP never leaves its estimated core.** Not once, on any eval seed. Every state it visits was seen during estimation, and every action it takes was observed from that state, so **the D-011 convention never fires at evaluation time at all.** Both D-011 and the coverage figure are exonerated as explanations. The correlation the hypothesis predicted cannot even be computed, because the predictor is constant.
+
+**And it is not seed difficulty either.** corr(severity, DP) = +0.085 — essentially none. DP fails on seeds where severity-sort does fine:
+
+| seed | DP reward | severity reward |
+|---|---|---|
+| 101 | **+470.8** | +287.1 |
+| 102 | +136.6 | −277.2 |
+| 127 | **−985.8** | −106.5 |
+| 128 | **−755.0** | **+233.2** |
+
+DP's range across seeds is roughly −986 to +471. On seed 128 it loses 755 while severity-sort gains 233 on the same shift.
+
+### The new hypothesis — also untested, and flagged as such
+
+If the states are in-core, then the model is being consulted about situations it *has* seen, and still giving bad advice. The likeliest remaining explanation is **distribution shift in the estimate, not gaps in it**: `P̂`/`R̂` were counted under a **uniform-random** policy (E-004), but DP then behaves nothing like random — it bulk-closes ~97% of the time. The transitions that actually follow *DP's own* actions are therefore not the transitions the estimate was built from, even though the states are familiar. That is the textbook model-based RL failure: a model accurate for `π_random` used to plan for `π_greedy`.
+
+This is a **hypothesis with no test behind it yet**, stated so the next session does not have to rediscover the reasoning. The obvious test: re-estimate `P̂`/`R̂` from rollouts of the DP policy itself and check whether value iteration on that model produces a policy whose predicted value matches its measured reward. If it does, distribution shift is confirmed and D-004's caveat needs strengthening from "optimal for the estimated model" to "optimal for a model of a policy it does not follow".
+
+### What this changes
+
+D-004's caveat has been correct all along, but for a subtler reason than anyone was stating. Everyone — including E-014 — read "optimal for the estimated model, not the true environment" as being about *coverage*. It is not. Coverage is fine on the eval distribution. The gap is between the policy the model describes and the policy being planned.
+
+### Why this is worth the entry
+
+E-014 offered its explanation with an explicit "this is a hypothesis, not a measurement" and a named test. Running that test took one script and refuted it in one number — 0.0%, thirty times over. **A labelled hypothesis is cheap to kill; an unlabelled one becomes folklore.** Had E-014 asserted the coverage story as fact, it would now be in the report, sounding entirely plausible, and wrong.

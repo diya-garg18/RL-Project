@@ -2,11 +2,11 @@
 
 Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not just written). Each phase ends with an **exit criterion** — a concrete, checkable statement. Do not start the next phase until the current one's exit criterion is met and `TEST_CHECKLIST.md` passes.
 
-**Current status (2026-08-17):**
+**Current status (2026-08-18):**
 - **Phase 0** — closed, gate **passes** on the 30-seed block (oracle strictly best on total reward, 168.0 vs 40.4). One piece of its amendment *rationale* is weakened by E-014, but the criterion itself holds.
-- **Phase 1** — **REOPENED.** Criterion 2 falsified by E-014: DP scores −201.2 on 30 seeds, not the +305.9 measured on 5. Decision owed to the humans (D-020).
+- **Phase 1** — **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified by E-014 (DP −201.2 on 30 seeds, not +305.9 on 5). Gate deliberately not amended a second time. E-015 then refuted the stated *cause* as well: DP never leaves its estimated core.
 - **Phase 2** — **CLOSED as built-but-not-passed.** All 8 boxes complete; exit criterion not met and deliberately not restated (D-020).
-- **Phase 3** — not started. Whether it proceeds now is a human decision (D-020): it optimises the same unstable reward and will likely reproduce the same pattern.
+- **Phase 3** — not started, and **cleared to begin**. Both blocking decisions are taken (D-022). Runs on Pranav's machine until the commit balance evens (D-021).
 
 > **The eval seed block was widened 5 → 30 on 2026-08-17 (D-019) and every agent re-measured (E-014).** Any number in this file not marked "30-seed" predates that and may be a 5-seed figure. The lesson is worth more than any single result: every number was computed correctly, reported with its standard deviation, and reproduced deterministically — and one of them had **the wrong sign**. Reporting a standard deviation is not the same as reading it.
 
@@ -59,7 +59,7 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 
 *Why amended (same shape as the two Phase 0 amendments): the original asked DP to win on **recall**, but DP optimises the **reward**, and those are not the same objective. Requiring a reward-maximiser to top a metric it is not maximising is a category error in the gate, not a failure in the agent. E-004 showed the DP policy scores recall 0.43 vs severity-sort's 0.87 while earning the highest reward measured (306 > oracle 214 > severity 154), by using BULK_CLOSE as paid waiting ~97% of the time and abandoning 57% of real incidents. The hand-written reward genuinely rates this optimal — verified against per-step breakdowns and reproduced in the true environment, so it is not an artefact of the estimated model. `PROJECT_BRIEF.md` §3.5 says this trap is deliberate; patching the reward would delete the Phase 5 RLHF motivation, so the reward stands and the gate moves. Alternative rejected: treat the reward as a bug to fix — see D-012.*
 
-> ⚠️ **PHASE 1 REOPENED — 2026-08-17 (E-014, D-019, D-020). Criterion 2 is FALSIFIED.**
+> ⛔ **PHASE 1 — BUILT, CRITERION 2 FALSIFIED. Closed unpassed 2026-08-18 (E-014, E-015, D-019, D-020, D-022).**
 >
 > The amended criterion required the DP policy to achieve the **highest mean total reward of any agent** on the evaluation seeds. That was measured on 5 seeds. On the widened 30-seed block (D-019) the DP policy scores **−201.2 ± 438.5 — the worst of any planned or learned agent** — against the +305.9 recorded below, with recall falling 0.43 → 0.23 and the largest variance of any agent.
 >
@@ -67,7 +67,15 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 >
 > Likely cause (**hypothesis, untested**): D-004 compounded by D-011 — DP's policy is optimal for a model estimated over 133 of 576 states, so on shifts that stray outside that core it has no useful guidance. Testable by correlating per-seed DP reward against distance from the visited core. **Not done.**
 >
-> **Two decisions owed to the humans** (D-020): whether Phase 1's gate is re-amended a second time or accepted as "built, criterion falsified on better measurement"; and whether DP's collapse is investigated before Phase 3, given DP is the report's Phase 1 centrepiece.
+> **✅ BOTH DECISIONS TAKEN 2026-08-18 (D-022, Pranav).**
+>
+> **Status: BUILT — CRITERION FALSIFIED ON BETTER MEASUREMENT.** The gate is **not** amended a second time. D-012's amendment was legitimate (the original criterion contained a category error); this would not be — nothing is wrong with criterion 2 as written, it is simply false at −201.2. Rewriting a criterion because the result came out wrong, having already rewritten it once, would taint the first amendment retrospectively.
+>
+> **And the cause stated above was ALSO wrong** — tested and refuted in **E-015**. Off-core share is **0.0% on all 30 eval seeds**, for states *and* state-action pairs. DP never leaves its estimated core, and D-011's convention never fires at evaluation time. Coverage and D-011 are both exonerated. The control rules out seed difficulty too: corr(severity, DP) = **+0.085**, and on seed 128 DP loses 755 where severity-sort gains 233.
+>
+> **Remaining explanation — untested, and labelled as such:** `P̂`/`R̂` were counted under a *uniform-random* policy, but DP bulk-closes ~97% of the time, so the transitions following its own actions are not the ones the model was built from — even though the states are familiar. **Distribution shift in the estimate, not gaps in it.** Test named in E-015: re-estimate from DP-policy rollouts and check whether the plan's predicted value matches its measured reward.
+>
+> **This sharpens D-004 for the report.** "Optimal for the estimated model, not the true environment" has been read throughout — including by E-014 — as being about *coverage*. It is not. The gap is between the policy the model describes and the policy being planned.
 
 **⛔ SUPERSEDED — the assessment below was made on 5 eval seeds and criterion 2 no longer holds. Kept verbatim for the record.** ~~**✅ PHASE 1 COMPLETE — 2026-08-16.**~~ Gate evidence as assessed at the time, all five criteria then believed met: VI converged Δ 9.95e-05 in 1075 sweeps with VI/PI agreement 100% (E-004) · DP total reward 305.9 ± 127.6 vs oracle 214.1 and severity-sort 153.7 on eval seeds 101–105 (E-004) · four-route Bellman verification agreeing to 7.11e-15, including the shipped `value_iteration` reproducing a hand-derived value function (FEATURE_001, E-005) · D-004/D-011 caveats written in `EXPLAIN.md` · the reward-hacking finding logged as E-004 and carried into Phase 5 as its primary motivation. 14 tests passing.
 

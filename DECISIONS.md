@@ -416,4 +416,28 @@ The `.mailmap` matters more than it looks: Diya had committed under two identiti
 
 **Consequences:** Pranav is 10 commits behind at the time of writing, so **Phase 3 should run on his machine** until the gap closes to within 3. Phase 3 is DQN and naturally divides into several commits (network, replay buffer, target network, training loop, the two required ablations), so it can absorb that without padding. Future phases should be planned with the split in mind rather than corrected afterwards.
 
-One honest limitation: commit *count* is a weak proxy for contribution. Two students could satisfy this constraint perfectly while one did the thinking and the other typed. The constraint is worth having anyway — it makes the obvious failure visible — but it is not a substitute for both students being able to explain the code, which is what `INTERVIEW_PREP.md` and the teaching constraint in `CLAUDE.md` exist for.
+One honest limitation of D-021: commit *count* is a weak proxy for contribution. Two students could satisfy this constraint perfectly while one did the thinking and the other typed. The constraint is worth having anyway — it makes the obvious failure visible — but it is not a substitute for both students being able to explain the code, which is what `INTERVIEW_PREP.md` and the teaching constraint in `CLAUDE.md` exist for.
+
+---
+
+## D-022 — Phase 1 closes as "built, criterion falsified on better measurement"; its stated cause was wrong too
+
+**Date:** 2026-08-18 · **Model:** Claude Opus 5 · **Phase:** 1 · **Status:** active
+**Decided by:** Pranav (2026-08-18), choosing between the two options D-020 put to the humans. **Diya countersign: pending**, with D-012, D-019 and D-020.
+
+**Decision:** Phase 1 is **not** re-amended a second time. It closes in the same shape as Phase 2 — **built, criterion falsified on better measurement**. Its work stands; its gate does not.
+
+**Why not amend again.** D-012 already amended Phase 1 once, legitimately: the original criterion asked a reward-maximiser to top a metric it does not optimise, which is a category error in the criterion. A second amendment would be different in kind. Nothing is wrong with criterion 2 as written — "the DP policy achieves the highest mean total reward of any agent" is a perfectly sound thing to require. It is simply **false** on an honest measurement: −201.2 against severity-sort's +40.4 and the oracle's +168.0. Rewriting a criterion because the result came out the wrong way, having already rewritten it once, is precisely the pattern this project exists to avoid. Two amendments to one phase would make the gate look like something fitted to the outcome, which would taint the first amendment retrospectively as well.
+
+**And the explanation offered for the collapse was also wrong.** E-014 proposed — explicitly as an untested hypothesis — that DP fails on shifts straying outside its 133-state estimated core, falling back on D-011's convention. E-015 tested it and refuted it: **off-core share is 0.0% on all 30 eval seeds**, for states *and* for state-action pairs. DP never leaves its core, and D-011's convention never fires at evaluation time. The control rules out seed difficulty too — corr(severity reward, DP reward) = +0.085, and on seed 128 DP loses 755 where severity-sort gains 233.
+
+The remaining explanation, **stated as an untested hypothesis and labelled as one**: `P̂`/`R̂` were counted under a uniform-random policy, but DP bulk-closes ~97% of the time, so the transitions following its own actions are not the transitions the model was built from — even though the states are familiar. Distribution shift in the estimate, not gaps in it. The test is named in E-015: re-estimate the model from DP-policy rollouts and check whether the resulting plan's predicted value matches its measured reward.
+
+**Consequences.**
+- `ROADMAP.md` Phase 1 reads **built / criterion falsified**, with E-004 intact and its gate assessment withdrawn (CONSTRAINTS #4).
+- **D-004's caveat needs restating in the report.** "Optimal for the estimated model, not the true environment" has been read throughout — including by E-014 — as being about *coverage*. E-015 shows coverage is fine on the eval distribution. The real gap is between the policy the model describes and the policy being planned. That is a sharper and more interesting statement of the same caveat, and it is the version the report should carry.
+- Phases 1 and 2 now both close unpassed. That is an uncomfortable pair to present and it is the honest one: four methods, one exploitable reward, no method reliably beating a severity sort, and a measurement protocol that had to be fixed mid-project before any of it could be seen.
+
+**Alternatives rejected:**
+- *Amend criterion 2 to "highest reward among model-based methods" or similar.* Reverse-engineered from the result; see above.
+- *Leave Phase 1 open indefinitely pending the distribution-shift test.* The test is worth running, but the gate's status does not depend on its outcome — DP scores −201.2 either way. Closing on the measurement and leaving the explanation open is the accurate split.
