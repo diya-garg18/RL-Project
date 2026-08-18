@@ -277,10 +277,14 @@ class DQNAgent(Agent):
         # 6. the prediction: Q(s,a) for the action actually taken. gather picks
         #    one column per row — the batched form of Q[s, a].
         predicted = self.online(obs_t).gather(1, action_t.unsqueeze(1)).squeeze(1)
-        # Huber rather than MSE: this environment's missed-incident penalty
-        # produces occasional large negative rewards, and MSE would square that
-        # outlier into a single step that wrecks the network.
-        loss = F.huber_loss(predicted, target)
+        # Huber rather than MSE, but the delta must be matched to the reward
+        # scale — see `dqn.huber_delta` in training_default.yaml and E-016.
+        # Below the delta Huber is quadratic and the gradient scales with the
+        # error, which is what lets the agent distinguish "wrong by 1" from
+        # "wrong by 150"; above it the gradient is flat, which is what tames the
+        # rare compound miss. Leaving delta at torch's default of 1.0 put every
+        # penalty in the flat regime and cost Phase 3 its first sweep.
+        loss = F.huber_loss(predicted, target, delta=self.dcfg.huber_delta)
 
         # 7. one optimiser step, with the gradient norm clipped
         self.optimiser.zero_grad()

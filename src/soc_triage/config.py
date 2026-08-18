@@ -433,6 +433,7 @@ class DQNConfig:
     target_update_every: int
     grad_clip_norm: float
     loss: str
+    huber_delta: float
     feature_scales: tuple[tuple[str, float], ...]
     train_seed_start: int
     ablation_seed_start: int
@@ -517,6 +518,7 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         target_update_every=int(_require(dqn_raw, "target_update_every", "dqn")),
         grad_clip_norm=float(_require(dqn_raw, "grad_clip_norm", "dqn")),
         loss=str(_require(dqn_raw, "loss", "dqn")),
+        huber_delta=float(_require(dqn_raw, "huber_delta", "dqn")),
         feature_scales=tuple((str(k), float(v)) for k, v in scales_raw.items()),
         train_seed_start=int(_require(dqn_raw, "train_seed_start", "dqn")),
         ablation_seed_start=int(_require(dqn_raw, "ablation_seed_start", "dqn")),
@@ -618,6 +620,21 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         # not the one implemented, documented or tested, and flipping the key
         # would make the agent disagree with its own docstring.
         raise ConfigError("'dqn.loss' must be 'huber' — no other loss is implemented")
+    if dqn.huber_delta <= 0:
+        raise ConfigError("'dqn.huber_delta' must be positive")
+    if dqn.huber_delta < 50.0:
+        # Not a taste bound — a measured one, and the reason Phase 3's first
+        # sweep was thrown away. At torch's default delta of 1.0 the -150 and
+        # -200 penalties in env_default.yaml produce the same gradient as a
+        # routine +-1 error, and all 20 runs collapsed to BULK_CLOSE (E-016).
+        # A 5x3 sweep collapsed 3/3 seeds at delta 10 and 1/3 at delta 25, and
+        # 0/3 at every value from 50 up. Same shape of guard as the seed-block
+        # checks above: cheap here, eight hours of dead compute if it is missed.
+        raise ConfigError(
+            f"'dqn.huber_delta' is {dqn.huber_delta}, below the measured "
+            f"collapse threshold of 50 (E-016). Values at or under 25 make the "
+            f"agent collapse to BULK_CLOSE and catch ~1% of incidents."
+        )
     for name, divisor in dqn.feature_scales:
         if divisor <= 0:
             raise ConfigError(f"'dqn.feature_scales.{name}' must be positive, got {divisor}")

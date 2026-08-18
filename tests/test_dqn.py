@@ -220,6 +220,46 @@ def test_gradient_clipping_fires_on_a_large_loss():
     assert moved(tight) < moved(loose), "clipping did not restrain the step"
 
 
+def test_a_buried_incident_moves_the_network_more_than_a_routine_error():
+    """The Huber delta must be matched to the scale of the rewards that carry
+    the triage signal — not left at torch's default of 1.0.
+
+    `env_default.yaml` prices burying a real incident at -150 and missing one at
+    end of shift at -200 x asset multiplier. Those are the environment's whole
+    lesson. With delta at 1.0 they sit far inside Huber's LINEAR regime, so each
+    one produces a gradient of exactly the same magnitude as a routine +-1
+    mis-estimate: the network is told "you were wrong by about 1" when it was
+    wrong by 150. It then learns the small frequent rewards precisely and never
+    learns to fear the rare catastrophic ones.
+
+    That is not hypothetical. It is E-016: with delta=1.0 every one of 20 runs
+    collapsed to BULK_CLOSE 99.4% of the time and caught 0.9% of incidents,
+    while the greedy policy sat frozen at -515.4 for 20000 episodes. A delta
+    sweep (10/25/50/100/200 x 3 seeds) collapsed 3/3 at 10 and 1/3 at 25, and
+    0/3 at every value from 50 up.
+
+    Gradient clipping is disabled here so the assertion is about the LOSS, which
+    is the thing under test; `test_gradient_clipping_fires_on_a_large_loss`
+    covers the clip separately.
+    """
+    routine, buried = (
+        _agent(seed=3, learning_starts=1, train_freq=1, grad_clip_norm=1e9)
+        for _ in range(2)
+    )
+    # done=True so the target is the reward alone and the TD error is exactly
+    # the quantity under test, with no bootstrap term to reason around.
+    routine.update(_obs(1.0), 2, -1.0, _obs(1.0), True)
+    buried.update(_obs(1.0), 2, -150.0, _obs(1.0), True)
+
+    assert routine.last_grad_norm > 0.0, "no gradient at all; the test is vacuous"
+    ratio = buried.last_grad_norm / routine.last_grad_norm
+    assert ratio > 10.0, (
+        f"a -150 buried-incident penalty moved the network only {ratio:.1f}x as "
+        f"much as a routine -1 error; the Huber delta is compressing the signal "
+        f"the agent most needs (delta={routine.dcfg.huber_delta})"
+    )
+
+
 # ---------------------------------------------------------------------------
 # 3. The two required ablations, each at a single backup
 # ---------------------------------------------------------------------------
@@ -281,11 +321,16 @@ def test_no_target_network_ablation_bootstraps_off_the_online_net():
     ablated.update(obs, action, reward, next_obs, False)
 
     # A zeroed network outputs 0 for any input, so the control bootstraps off 0.
+    # The delta is read from the config rather than written literally here: this
+    # test is about WHICH NETWORK supplies max_a' Q(s',a'), and hard-coding the
+    # delta would make it fail again the next time that value is revisited.
+    delta = control.dcfg.huber_delta
     expected_control = F.huber_loss(
-        torch.tensor([q_sa]), torch.tensor([reward + 0.99 * 0.0])
+        torch.tensor([q_sa]), torch.tensor([reward + 0.99 * 0.0]), delta=delta
     )
     expected_ablated = F.huber_loss(
-        torch.tensor([q_sa]), torch.tensor([reward + 0.99 * max_online_next])
+        torch.tensor([q_sa]), torch.tensor([reward + 0.99 * max_online_next]),
+        delta=delta,
     )
     assert control.last_loss == pytest.approx(float(expected_control), rel=1e-5)
     assert ablated.last_loss == pytest.approx(float(expected_ablated), rel=1e-5)

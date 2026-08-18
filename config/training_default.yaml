@@ -54,7 +54,19 @@ dqn:                             # Phase 3 — DQN over the 17-dim continuous st
                                  # DQN-vs-tabular comparison needs no budget caveat.
   target_update_every: 1000      # GRADIENT steps between hard copies, not env steps
   grad_clip_norm: 10.0
-  loss: huber                    # less sensitive to the large negative outlier rewards
+  loss: huber
+  huber_delta: 200.0             # E-016. NOT torch's default of 1.0, which was the
+                                 # Phase 3 collapse: env_default prices burying a real
+                                 # incident at -150 and an end-of-shift miss at -200
+                                 # (x asset multiplier). At delta 1.0 both sit deep in
+                                 # Huber's LINEAR regime, so each produced the same
+                                 # gradient as a routine +-1 error -- measured ratio
+                                 # 1.014 for a 150x larger error. The agent then never
+                                 # learned to fear them and collapsed to BULK_CLOSE
+                                 # 99.4% of the time (recall 0.009). 200 is the largest
+                                 # NAMED single-event penalty in env_default.yaml, so
+                                 # every individual penalty stays quadratic and only the
+                                 # compound multi-miss tail (to -1499) is linearised.
   train_seed_start: 1000000      # own block (D-016), disjoint from q_learning 200000,
                                  # sarsa 400000, monte_carlo 600000, ablations 800000
   ablation_seed_start: 1200000   # the Phase 3 ablation sweep gets its own block too
