@@ -418,6 +418,29 @@ class MonteCarloConfig:
 
 
 @dataclass(frozen=True)
+class DQNConfig:
+    """Phase 3. `feature_scales` is (name, divisor) pairs rather than a dict so
+    the whole config stays hashable and frozen; `state.feature_scale_vector`
+    turns it into the ordered array the agent multiplies by."""
+
+    hidden_layers: tuple[int, ...]
+    activation: str
+    lr: float
+    batch_size: int
+    replay_capacity: int
+    learning_starts: int
+    train_freq: int
+    target_update_every: int
+    grad_clip_norm: float
+    loss: str
+    feature_scales: tuple[tuple[str, float], ...]
+    train_seed_start: int
+    ablation_seed_start: int
+    no_replay: bool
+    no_target_network: bool
+
+
+@dataclass(frozen=True)
 class TrainingConfig:
     common: CommonTrainingConfig
     dp: DPConfig
@@ -425,6 +448,7 @@ class TrainingConfig:
     q_learning: QLearningConfig
     sarsa: SarsaConfig
     monte_carlo: MonteCarloConfig
+    dqn: DQNConfig
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
@@ -478,6 +502,30 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         train_seed_start=int(_require(mc_raw, "train_seed_start", "monte_carlo")),
     )
 
+    # Phase 3 section, added when Phase 3 started (no building ahead).
+    dqn_raw = _require(raw, "dqn", "training")
+    scales_raw = _require(dqn_raw, "feature_scales", "dqn")
+    ablations_raw = _require(dqn_raw, "ablations", "dqn")
+    dqn = DQNConfig(
+        hidden_layers=tuple(int(h) for h in _require(dqn_raw, "hidden_layers", "dqn")),
+        activation=str(_require(dqn_raw, "activation", "dqn")),
+        lr=float(_require(dqn_raw, "lr", "dqn")),
+        batch_size=int(_require(dqn_raw, "batch_size", "dqn")),
+        replay_capacity=int(_require(dqn_raw, "replay_capacity", "dqn")),
+        learning_starts=int(_require(dqn_raw, "learning_starts", "dqn")),
+        train_freq=int(_require(dqn_raw, "train_freq", "dqn")),
+        target_update_every=int(_require(dqn_raw, "target_update_every", "dqn")),
+        grad_clip_norm=float(_require(dqn_raw, "grad_clip_norm", "dqn")),
+        loss=str(_require(dqn_raw, "loss", "dqn")),
+        feature_scales=tuple((str(k), float(v)) for k, v in scales_raw.items()),
+        train_seed_start=int(_require(dqn_raw, "train_seed_start", "dqn")),
+        ablation_seed_start=int(_require(dqn_raw, "ablation_seed_start", "dqn")),
+        no_replay=bool(_require(ablations_raw, "no_replay", "dqn.ablations")),
+        no_target_network=bool(
+            _require(ablations_raw, "no_target_network", "dqn.ablations")
+        ),
+    )
+
     if not 0.0 < common.gamma <= 1.0:
         raise ConfigError("'common.gamma' must be in (0, 1]")
     for name, alpha in (("sarsa", sarsa.alpha), ("monte_carlo", monte_carlo.alpha)):
@@ -512,6 +560,7 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         "q_learning": q_learning.train_seed_start,
         "sarsa": sarsa.train_seed_start,
         "monte_carlo": monte_carlo.train_seed_start,
+        "dqn": dqn.train_seed_start,
     }
     for name, start in seed_starts.items():
         if start < 100_000:
@@ -522,6 +571,57 @@ def load_training_config(path: str | Path) -> TrainingConfig:
             )
     if len(set(seed_starts.values())) != len(seed_starts):
         raise ConfigError(f"learner training seed blocks must be distinct: {seed_starts}")
+    # The ablation sweep gets its own block rather than joining seed_starts, so
+    # the error names 'dqn.ablation_seed_start' instead of a dict key that does
+    # not exist in the YAML. Sharing a block with the main DQN run would make
+    # the control condition and the ablations train on identical alert streams,
+    # which is the one confound an ablation must not have.
+    if dqn.ablation_seed_start < 100_000:
+        raise ConfigError(
+            "'dqn.ablation_seed_start' must be >= 100000 to stay clear of the "
+            "train, eval, calibration and DP estimation seed blocks"
+        )
+    if dqn.ablation_seed_start in seed_starts.values():
+        raise ConfigError(
+            f"'dqn.ablation_seed_start' ({dqn.ablation_seed_start}) must differ "
+            f"from every learner training block: {seed_starts}"
+        )
+
+    # Phase 3 checks. Each of these produces a failure that does not look like a
+    # config error at runtime: a replay_capacity below batch_size hangs sample(),
+    # a bad activation raises deep inside nn.Sequential, and an unscaled column
+    # just yields a worse result with no error at all.
+    if not dqn.hidden_layers or any(h <= 0 for h in dqn.hidden_layers):
+        raise ConfigError("'dqn.hidden_layers' must be a non-empty list of positive ints")
+    if dqn.activation not in ("relu", "tanh"):
+        raise ConfigError(f"'dqn.activation' must be relu or tanh, got {dqn.activation!r}")
+    if dqn.lr <= 0:
+        raise ConfigError("'dqn.lr' must be positive")
+    if dqn.batch_size <= 0:
+        raise ConfigError("'dqn.batch_size' must be positive")
+    if dqn.replay_capacity < dqn.batch_size:
+        raise ConfigError(
+            f"'dqn.replay_capacity' ({dqn.replay_capacity}) must be at least "
+            f"batch_size ({dqn.batch_size}) or sampling can never fill a batch"
+        )
+    if dqn.learning_starts < dqn.batch_size:
+        raise ConfigError(
+            f"'dqn.learning_starts' ({dqn.learning_starts}) must be at least "
+            f"batch_size ({dqn.batch_size}) or the first sample() has too little data"
+        )
+    if dqn.train_freq < 1 or dqn.target_update_every < 1:
+        raise ConfigError("'dqn.train_freq' and 'dqn.target_update_every' must be >= 1")
+    if dqn.grad_clip_norm <= 0:
+        raise ConfigError("'dqn.grad_clip_norm' must be positive")
+    if dqn.loss != "huber":
+        # Same guard as monte_carlo.first_visit: MSE is a real choice but it is
+        # not the one implemented, documented or tested, and flipping the key
+        # would make the agent disagree with its own docstring.
+        raise ConfigError("'dqn.loss' must be 'huber' — no other loss is implemented")
+    for name, divisor in dqn.feature_scales:
+        if divisor <= 0:
+            raise ConfigError(f"'dqn.feature_scales.{name}' must be positive, got {divisor}")
+
     if dp.value_iteration_theta <= 0 or dp.policy_eval_theta <= 0:
         raise ConfigError("DP convergence thresholds must be positive")
     if dp.estimation_seed_start < 10_000:
@@ -536,4 +636,5 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         q_learning=q_learning,
         sarsa=sarsa,
         monte_carlo=monte_carlo,
+        dqn=dqn,
     )

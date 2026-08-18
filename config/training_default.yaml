@@ -40,17 +40,48 @@ q_learning:
                                   # 2000x would let the agent memorise ten alert
                                   # streams instead of learning to triage.
 
-dqn:
+dqn:                             # Phase 3 — DQN over the 17-dim continuous state
   hidden_layers: [128, 128]
   activation: relu
   lr: 0.0005
   batch_size: 64
-  replay_capacity: 100000
-  learning_starts: 1000        # fill the buffer before training begins
-  target_update_every: 1000    # steps between hard copies to the target network
+  replay_capacity: 100000        # ~2000 shifts of history at ~50 steps/shift
+  learning_starts: 1000          # fill the buffer before training begins
+  train_freq: 4                  # one gradient step every 4 env steps (D-024).
+                                 # Keeps the 20000-episode budget identical to the
+                                 # tabular learners: at 1 step/transition a run is
+                                 # 18.3 min (measured), at 4 it is 4.6 min, so the
+                                 # DQN-vs-tabular comparison needs no budget caveat.
+  target_update_every: 1000      # GRADIENT steps between hard copies, not env steps
   grad_clip_norm: 10.0
-  loss: huber                  # less sensitive to the large negative outlier rewards
-  ablations:                   # Phase 3 required ablations — expect visible instability
+  loss: huber                    # less sensitive to the large negative outlier rewards
+  train_seed_start: 1000000      # own block (D-016), disjoint from q_learning 200000,
+                                 # sarsa 400000, monte_carlo 600000, ablations 800000
+  ablation_seed_start: 1200000   # the Phase 3 ablation sweep gets its own block too
+  feature_scales:                # D-023. Divisors are domain constants, never tuned.
+                                 # Measured spread across 888 observations was 470x
+                                 # (max_age_min reaches 473.6, frac_type_* stay in
+                                 # [0,1]); unscaled, the age columns dominate every
+                                 # gradient. Lives here and NOT in env_default.yaml,
+                                 # which is content-hashed into every EpisodeRecord.
+    queue_len: 150.0             # observed ceiling 148; unbounded in principle
+    mean_severity: 3.0           # severity.levels runs 0-3
+    max_severity: 3.0
+    mean_age_min: 480.0          # the shift length — nothing can be older
+    max_age_min: 480.0
+    mean_asset_criticality: 2.0  # asset_criticality.levels runs 0-2
+    max_asset_criticality: 2.0
+    mean_verify_cost_min: 30.0   # ceiling of verify_cost_min.options
+    frac_type_0: 1.0             # already fractions summing to 1
+    frac_type_1: 1.0
+    frac_type_2: 1.0
+    frac_type_3: 1.0
+    frac_type_4: 1.0
+    frac_type_5: 1.0
+    time_left_norm: 1.0          # already normalised by construction
+    alerts_handled: 50.0         # observed ceiling 45
+    incidents_confirmed: 10.0    # observed ceiling 6
+  ablations:                     # Phase 3 required ablations — expect visible instability
     no_replay: false
     no_target_network: false
 

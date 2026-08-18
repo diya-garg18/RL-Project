@@ -118,6 +118,28 @@ FEATURE_NAMES: tuple[str, ...] = (
 )
 
 
+def feature_scale_vector(scales: tuple[tuple[str, float], ...]) -> np.ndarray:
+    """Order config's (name, divisor) pairs into a vector matching FEATURE_NAMES.
+
+    The ordering check lives here rather than in config.py because this module
+    owns FEATURE_NAMES, and because config.py cannot import state.py without a
+    cycle (state.py imports EnvConfig).
+
+    Silently accepting a partial mapping would leave one column unscaled — the
+    network would still train and the bug would surface only as a worse result,
+    so both a missing and an unknown name raise.
+    """
+    provided = dict(scales)
+    missing = [name for name in FEATURE_NAMES if name not in provided]
+    unknown = [name for name in provided if name not in FEATURE_NAMES]
+    if missing or unknown:
+        raise ValueError(
+            f"feature_scales must name every column exactly once; "
+            f"missing {missing}, unknown {unknown}"
+        )
+    return np.array([provided[name] for name in FEATURE_NAMES], dtype=np.float64)
+
+
 def featurise(snap: EnvSnapshot, cfg: EnvConfig) -> np.ndarray:
     """Encode the situation as a 17-float vector for function approximation.
 
