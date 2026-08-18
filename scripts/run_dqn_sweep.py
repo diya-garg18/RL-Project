@@ -166,15 +166,23 @@ def main() -> None:
                         help="repeats of EACH ablation")
     parser.add_argument("--episodes", type=int, default=20000)
     parser.add_argument("--eval-every", type=int, default=500)
-    parser.add_argument("--max-parallel", type=int, default=10,
-                        help="concurrent processes; 10 x 301 MB keeps total RAM "
-                             "under the 75%% ceiling on a 15.7 GB machine")
+    parser.add_argument("--max-parallel", type=int, default=8,
+                        help="concurrent processes. 8 is where aggregate throughput "
+                             "peaks on this machine (measured, D-030): 4/6/8/10/12 "
+                             "give 28.8/39.0/48.6/47.3/47.6 runs per hour, so 10 was "
+                             "SLOWER than 8, not faster. The memory ceiling below is "
+                             "the other bound and is checked before every launch.")
     parser.add_argument("--max-used-fraction", type=float, default=0.75,
                         help="never launch a run that would push total system memory "
                              "use above this fraction. A ceiling on used, not a floor "
                              "on free — see wait_for_memory.")
-    parser.add_argument("--process-gb", type=float, default=0.31,
-                        help="measured working set of one training process")
+    parser.add_argument("--process-gb", type=float, default=0.95,
+                        help="memory one training process actually costs the machine. "
+                             "0.31 was the WORKING SET, which understated it ~3x: "
+                             "private commit is ~940 MB (measured with 10 running, "
+                             "when the machine sat at 81.5%% used). The guard predicts "
+                             "with this number, so an understated value makes it "
+                             "launch too eagerly.")
     parser.add_argument("--force", action="store_true",
                         help="re-run repeats whose JSON already exists")
     args = parser.parse_args()
