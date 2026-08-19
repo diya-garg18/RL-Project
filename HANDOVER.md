@@ -22,6 +22,74 @@
 
 ---
 
+## 🔑 STARTING ON THE OTHER MACHINE — do these first, in order
+
+> Written 2026-08-19 for Diya picking this up on her PC. Phase 3 is finished and
+> pushed; **Phase 4 is the next block and it is hers** (commit balance below).
+
+**1. Get the work.** Twenty Phase 3 commits were pushed on 2026-08-19.
+
+```powershell
+cd <your RL-Project folder>
+git checkout master          # the default branch is master, NOT main
+git pull
+git log --oneline -8         # newest should be: phase3: fix BUG_003 ...
+```
+
+If `git pull` reports a conflict, stop and talk to Pranav — nothing here should
+conflict, so a conflict means someone committed on top.
+
+**2. Set up the environment** (only needed the first time, or if `pytest` fails
+to import):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Tested on **Python 3.13.1** with `torch==2.13.0+cpu`, `numpy 2.5.2`,
+`pytest 9.1.1`. **`torch` is a CPU-only build on purpose** — see "Watch out for"
+before trying to use a GPU, and note that changing it is a dependency change
+needing approval (CONSTRAINTS #8).
+
+**3. Prove the repo is healthy before writing anything:**
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 130 passed, ~35 s
+python scripts/commit_balance.py                     # expect: Diya should take the next block
+```
+
+If those two disagree with this file, trust the commands and fix this file.
+
+**4. Read, in this order** — about 15 minutes, and it is the difference between
+continuing the project and restarting it:
+
+| file | why |
+|---|---|
+| `CLAUDE.md` | the operating rules; read every session |
+| this file | where things stand |
+| `docs/experiments/EXPERIMENT_LOG.md` **E-016, E-017** | what Phase 3 actually found |
+| `docs/bugs/BUG_002`, `BUG_003` | the two defects that nearly produced false conclusions |
+| `ROADMAP.md` Phase 4 | the next block |
+| `DECISIONS.md` **D-029, D-030** | the two decisions Phase 3 added |
+
+**5. You do NOT need anything from `results/`.** It is gitignored and every
+artefact is regenerable — commands under "Reproduce on this device". You do not
+need to re-run Phase 3 to start Phase 4.
+
+**⚠️ One thing that does NOT transfer: the 66 DQN run files.** `results/dqn_runs/`
+holds 46 corrected runs plus the 20 preserved collapsed runs from E-016, and it
+is **only on Pranav's machine**. Every number from them is already written into
+E-017, so nothing is lost for the write-up — but **if you need to re-run any DQN
+analysis script, you must regenerate the runs first (~1.4 h at 5 parallel)**, and
+you should read D-030 about this machine's memory behaviour before you do.
+
+**6. Then start Phase 4** (`ROADMAP.md` — REINFORCE, then actor–critic). Phase 3
+is closed; do not reopen it to chase the gate without a human decision first —
+see "Still owed by the humans".
+
+---
+
 ## ⚠️ READ THIS FIRST — the eval block was widened and most numbers moved
 
 The two decisions left open last session were taken (**D-019**, **D-020**), and re-measuring **changed the project's conclusions**.
@@ -50,7 +118,7 @@ The two decisions left open last session were taken (**D-019**, **D-020**), and 
 
 ---
 
-## Phase 3 — first sweep FAILED, corrected sweep is running. Read before claiming anything.
+## Phase 3 — CLOSED as built-but-not-passed. Read before claiming anything about the DQN.
 
 **Every one of the six ROADMAP Phase 3 boxes is still unticked, and that is
 correct.** The exit criterion — *"DQN matches or beats tabular Q-learning on the
@@ -131,7 +199,7 @@ would be the honest one.**
    unconfounded; ablation-vs-ablation is paired as a side effect.
 2. The `no_replay` batch-size confound (D-026) must appear in any write-up.
 
-## Both blocking decisions are now taken — Phase 3 is cleared to start
+## Phase 3's two blocking decisions (historical — both were taken before it started)
 
 **Phase 1 closes as "built, criterion falsified on better measurement"** (D-022, Pranav 2026-08-18). Gate deliberately **not** amended a second time: D-012's amendment fixed a category error in the criterion; this one would just be rewriting a criterion that came out false. Both Phase 1 and Phase 2 now close unpassed. Uncomfortable pair to present; the honest one.
 
@@ -160,20 +228,28 @@ DP never leaves its estimated core, and **D-011's convention never fires at eval
 
 ## Whose turn is it — read before starting work
 
-**Measured 2026-08-18 (`python scripts/commit_balance.py`, D-021 / CONSTRAINTS #24-26):**
+**Measured 2026-08-19 (`python scripts/commit_balance.py`, D-021 / CONSTRAINTS #24-26):**
 
 | author | commits | share |
 |---|---|---|
-| Pranav Upadhyay | 22 | 56.4% |
-| Diya Garg | 17 | 43.6% |
+| Pranav Upadhyay | 29 | 63.0% |
+| Diya Garg | 17 | 37.0% |
 
-Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 6 (Diya 3, Pranav 3) · **Phase 2** 4 (all Pranav) · **Phase 3** 13 (all Pranav).
+Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 6 (Diya 3, Pranav 3) · **Phase 2** 4 (all Pranav) · **Phase 3** 20 (all Pranav).
 
-> ⚠️ **IMBALANCED THE OTHER WAY NOW — Pranav is 5 commits ahead. Diya should take the next block.**
+> ⚠️ **Pranav is 12 commits ahead. The next block is DIYA'S — roughly 9-12 commits.**
 >
-> The 10-commit gap that opened in Phase 0 is closed; Phase 3's thirteen commits overshot by five. Natural work for Diya: the Phase 3 analysis and write-up once the sweep finishes (E-016, the ROADMAP boxes, `results/` interpretation), which is real work and not padding.
+> Phase 3 ran entirely on Pranav's machine because the sweep did (D-021), and it
+> cost 20 commits: the DQN itself, then the collapse, the fix, the re-run and
+> three bug files. The gap is real work, not padding, but it has to come back.
 >
-> **Do not manufacture commits to close the gap**, and do not commit on the other person's behalf: an examiner may ask either student to explain any commit under their name (CONSTRAINTS #24).
+> **Phase 4 is the natural block** — `agents/reinforce.py`, `agents/actor_critic.py`,
+> the sample-efficiency comparison and the variance demonstration. That is
+> comfortably 9-12 honest commits and it needs no Phase 3 artefacts to start.
+>
+> **Do not manufacture commits to close the gap**, and do not commit on the other
+> person's behalf: an examiner may ask either student to explain any commit under
+> their name (CONSTRAINTS #24).
 
 `.mailmap` collapses Diya's two author identities (personal + GitHub noreply), so these counts are accurate where a raw `git shortlog` would over-split her.
 
@@ -185,8 +261,14 @@ Assume every session is the last one on this machine. All of these must be true 
 .\.venv\Scripts\python.exe -m pytest tests/ -q     # must pass
 git status --porcelain                             # must be empty
 git status -sb                                     # must show no "ahead"
+git push                                           # <- WITHOUT THIS THERE IS NO HANDOVER
 python scripts/commit_balance.py                   # report it, act on it
 ```
+
+**`git push` is the step that is easiest to forget and the only one that is
+fatal.** A clean tree with 20 unpushed commits looks perfect locally and gives
+the other person nothing to pull. Check `git status -sb` says no `ahead` before
+you close the session.
 Plus: `HANDOVER.md` (this file) actually describes the current state, and no stray zero-byte files are staged (`docs/bugs/BUG_001`).
 
 **Nothing in `results/` is ever needed to continue** — it is gitignored and fully regenerable by the commands below. If the other machine ever needs a file from `results/`, that is a bug in the scripts.
@@ -282,6 +364,9 @@ All eight roadmap boxes:
 - Seed blocks: train-diag 1–10 · **eval 101–130** · calibration 1000–3099 · DP estimation 10000–59999 · q_learning 200000+ · sarsa 400000+ · monte_carlo 600000+ · ablations 800000+. Disjointness is enforced in `config.py`, not trusted to comments.
 
 ## Still owed by the humans
+
+- 🔴 **THE BIG ONE — three phases have now failed their originally-written exit criteria.** Phase 1 (D-022), Phase 2 (D-020) and Phase 3 (E-017) are all closed as *built-but-not-passed*, and each gate was deliberately left unmet and unamended for a human. That is no longer three separate footnotes; it is a pattern about how the criteria were written, and it needs one decision covering all three before the report is drafted. Options as we see them: (a) restate the gates on **total reward**, the environment's actual objective, as D-012 proposed for Phase 1; (b) keep them as written and present three honest failures as the project's spine; (c) case-by-case. **Do not let a later phase quietly adopt one of these readings without the decision being recorded.**
+- **Whether Phase 3 gets a second attempt.** E-017's two ablation findings suggest an obvious follow-up — a DQN with replay and *no* target network, which beat the control on recall, reward and stability at n=8. That is a new experiment, not a fix, and it needs a human to say whether Phase 3 reopens or the finding is simply reported.
 
 - **The pen-and-paper derivations.** FEATURE_001's MRP and FEATURE_002's tiny MDP are both ticked because the derivation and its verification exist — not because Pranav and Diya can reproduce them cold, which is what the viva tests. FEATURE_002 is the likelier exam question: two states, four numbers, γ = 0.9.
 - KPMG analyst contact for preference labels — longest-lead item in the project; Phase 5 cannot start without it.
