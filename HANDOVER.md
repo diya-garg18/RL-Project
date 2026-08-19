@@ -10,15 +10,15 @@
 
 | | |
 |---|---|
-| **Last session** | 2026-08-18 (session 7) |
+| **Last session** | 2026-08-19 (session 8, overnight) |
 | **Model** | Claude Opus 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified; cause also refuted (E-015). |
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020). All 8 boxes done; gate not met, deliberately not restated. |
-| **Phase 3** | **Code complete, NO TRAINING RESULT.** All six ROADMAP boxes still unticked — correctly. See below. |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. **13 Phase 3 commits, all unpushed.** |
-| **Tests passing** | **122/122** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~34 s — the tiny-MDP anchor is most of it) |
-| **Blockers** | The Phase 3 sweep needs ~3.3 GB of RAM freed before it can launch. Nothing else. |
+| **Phase 3** | **First sweep failed and is kept as a negative result (E-016). Corrected sweep RUNNING.** All six ROADMAP boxes still unticked. |
+| **Repo state** | `D:\RLPROJECT`, branch `master`. **18 Phase 3 commits, all unpushed.** |
+| **Tests passing** | **126/126** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~66 s alongside a running sweep) |
+| **Blockers** | None blocking. The sweep is running; results are the only thing missing. |
 
 ---
 
@@ -50,27 +50,64 @@ The two decisions left open last session were taken (**D-019**, **D-020**), and 
 
 ---
 
-## Phase 3 — built, untrained. Read this before claiming anything about the DQN.
+## Phase 3 — first sweep FAILED, corrected sweep is running. Read before claiming anything.
 
-**Every one of the six ROADMAP Phase 3 boxes is unticked, and that is correct.**
-The code is written and 46 new tests pass, but **no training run has happened**.
-The only DQN artefact ever produced was a 40-episode smoke test scoring recall
-0.00, which has been deleted. Nothing in this repo currently shows that the DQN
-learns anything at all.
+**Every one of the six ROADMAP Phase 3 boxes is still unticked, and that is
+correct.** The exit criterion — *"DQN matches or beats tabular Q-learning on the
+same evaluation seeds, and the two ablations visibly destabilise training"* —
+remains **unmeasured**.
 
-The exit criterion — *"DQN matches or beats tabular Q-learning on the same
-evaluation seeds, and the two ablations visibly destabilise training in the
-plots"* — is **entirely unmeasured**. Passing unit tests is not evidence about
-learning.
+### The first sweep is a negative result, not a mistake to hide
 
-**What is ready to run:** 60 runs (30 control, 15 per ablation) at 20,000
-episodes, launched by `scripts/run_dqn_sweep.py`, ~8.5 h wall clock at ten
-processes in parallel. Commands under "Reproduce on this device".
+Twenty 20000-episode runs completed overnight and **every one collapsed**: the
+agent chose BULK_CLOSE 99.4% of the time and caught **0.9%** of incidents
+(recall 0.0086, reward -480 to -520 — worse than every baseline in the project
+on recall, including fifo). The greedy diagnostic sat frozen at -515.4 from
+episode 500 to episode 20000.
 
-**What blocks it:** memory. The sweep needs ~6.9 GB available to run ten
-concurrent processes inside the 75% ceiling Pranav set; at last check the
-machine was at 76% used with 3.8 GB available. The scheduler will *wait* rather
-than breach the ceiling, so launching it early is safe but may simply idle.
+Cause: `F.huber_loss` was called with no `delta`, so torch's default of **1.0**
+applied, while `env_default.yaml` prices burying a real incident at -150 and an
+end-of-shift miss at -200. Those landed in Huber's linear regime, where a 150x
+larger error produced a **1.014x** larger gradient (measured). The agent learned
+the small frequent rewards perfectly and was told the catastrophes were rounding
+errors.
+
+**Read `docs/bugs/BUG_002` and `E-016` before touching the DQN.** The runs are
+preserved at `results/dqn_runs/dqn_delta1_E016/` — do not delete them
+(CONSTRAINTS #4) and do not let a sweep write over them; the corrected sweep
+writes to `results/dqn_runs/dqn/`.
+
+The thing to carry into a viva: **the loss curve converged beautifully the whole
+time** (down to 0.04). Every structural check on the network passed — Q varied
+across states, actions were well separated. Nothing errored. The only symptom
+was a bad number in a results table.
+
+### What is running now
+
+The corrected sweep (`huber_delta: 200.0`, D-029), launched 07:26 on 2026-08-19:
+36 remaining runs at **5 parallel**, resuming from the 24 control runs that had
+already finished. `results/dqn_sweep2.log` is the live log.
+
+**When it finishes**, run the three analysis scripts under "Reproduce on this
+device", then write E-017 and tick the ROADMAP boxes against whatever the
+numbers actually say.
+
+### What is known about the fixed agent, and what is not
+
+Verified end-to-end at 3000 episodes x 3 runs — **15% of the training budget**:
+
+| | before (delta 1.0) | after (delta 200) |
+|---|---|---|
+| recall@deadline | 0.0086 | **0.48 +- 0.21** |
+| total reward | -480 to -520 | -49.4 +- 136.6 |
+| greedy curve | pinned at -515.4 | moves freely |
+
+**The collapse is fixed. The agent is not yet good.** At that budget it is still
+below severity_sort on recall (0.48 vs 0.84) and reward (-49 vs +40), still
+volatile, and 16 of 90 eval episodes caught nothing. Whether 20000 episodes
+closes the gap to tabular Q-learning (recall 0.73, reward 270.9) is exactly the
+open question. **A third documented negative result is a plausible outcome and
+would be the honest one.**
 
 **Two things to decide with a human before reporting anything:**
 1. Whether the ablations' shared seed block (both on 1200000) matters. Each is
@@ -145,7 +182,7 @@ Plus: `HANDOVER.md` (this file) actually describes the current state, and no str
 ```powershell
 cd D:\RLPROJECT
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 122 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 126 passed
 
 python scripts/run_baselines.py                                   # fast
 python scripts/run_dp.py                                          # ~2.5 min
@@ -158,11 +195,12 @@ python scripts/ablations.py                                        # ~4 min
 **Phase 3 (DQN) — expensive, read the notes first:**
 
 ```powershell
-# ONE run, to sanity-check the machine (~68 min on Pranav's i7-13650HX)
+# ONE run, to sanity-check the machine (~27 min solo on Pranav's i7-13650HX)
 .\.venv\Scripts\python.exe scripts/train_dqn.py --only-repeat 0 --no-plot
 
-# the full sweep: 30 control + 15 + 15 = 60 runs, 10 at a time, ~8.5 h
-.\.venv\Scripts\python.exe scripts/run_dqn_sweep.py
+# the full sweep: 30 control + 15 + 15 = 60 runs. Default is 8 parallel, but for
+# a long unattended run use 5 -- see the memory notes below and D-030.
+.\.venv\Scripts\python.exe scripts/run_dqn_sweep.py --max-parallel 5 --max-used-fraction 0.90
 
 # then, in any order:
 .\.venv\Scripts\python.exe scripts/aggregate_dqn.py --tag dqn
@@ -170,7 +208,11 @@ python scripts/ablations.py                                        # ~4 min
 .\.venv\Scripts\python.exe scripts/dqn_ablations.py
 ```
 
-**Measured costs before you plan around them:** 0.204 s per training episode, ~301 MB and one CPU core per process, so a 20,000-episode run is ~68 minutes. `torch.set_num_threads(1)` is deliberate and is the *fastest* setting on this net (1 / 4 / 8 threads = 159 / 172 / 375 ms per episode) — do not "optimise" it. The RTX 4060 is unusable: `torch==2.13.0+cpu` is a CPU-only build and swapping it is a dependency change (CONSTRAINTS #8).
+**Measured costs, and every earlier number here was wrong at least once (D-024, D-030).** A 20,000-episode run is **~27 min** when the machine is healthy, and one training process costs **~940 MB of private commit** — not the 301 MB working set that an earlier note quoted, which understated it 3x and is why the memory guard used to launch too eagerly.
+
+Parallelism was measured, not guessed: throughput peaks at 8 and *falls* after (4/6/8/10/12 = 28.8/39.0/48.6/47.3/47.6 runs per hour). **But use 5 for a long unattended sweep.** A benchmark on a freshly-rebooted idle machine projected 9.9 min/run; the real overnight sweep degraded to **195 min/run**. Benchmarks taken on a clean machine are not predictions about an 8-hour run — that is the same failure as D-024's compute probe.
+
+`torch.set_num_threads(1)` is deliberate and is the *fastest* setting on this net (1 / 4 / 8 threads = 159 / 172 / 375 ms per episode) — do not "optimise" it. The RTX 4060 is unusable: `torch==2.13.0+cpu` is a CPU-only build and swapping it is a dependency change (CONSTRAINTS #8).
 
 The sweep is **restartable and extendable**. Repeats are seeded by index alone, so re-running it adds only the missing indices, and `--control-runs 40` later would add repeats 30-39 without recomputing anything.
 
@@ -189,9 +231,18 @@ All eight roadmap boxes:
 
 ## Watch out for
 
+**Added 2026-08-19 (session 8) — read these first, they cost the most time:**
+
+- **A third-party memory tool nearly destroyed the second sweep too.** `Mem Reduct` runs at startup and was set to auto-clean whenever memory exceeded 90%, with **"Working set" among the regions it clears**. Clearing a working set calls `EmptyWorkingSet` on every process, so the trainers' resident pages are evicted and must instantly be faulted back in. Symptoms: ~96000 page faults/sec with almost no disk reads, CPU at 19%, and runs going from **27 min to 195 min**. Turning the auto-clean off took efficiency from 42% back to **95%**. If a long run mysteriously slows down, check for tools like this *before* blaming the code. (D-030.)
+- **Never trust a benchmark taken on a freshly-rebooted idle machine.** An 800-episode benchmark projected 9.9 min per 20000-episode run. Reality was 27 min at best and 195 min at worst. Same failure as D-024: the right quantity, measured under the wrong conditions.
+- **`huber_delta` must never go back to torch's default.** It is the single value that destroyed 20 completed runs (E-016, BUG_002). `config.py` now refuses anything below 50, and `tests/test_dqn.py::test_a_buried_incident_...` fails on the old behaviour. Do not "simplify" the explicit `delta=` argument away.
+- **Do not let a sweep write over `results/dqn_runs/dqn_delta1_E016/`.** That directory holds the 20 collapsed runs and is the evidence for E-016 (CONSTRAINTS #4). The corrected sweep writes to `results/dqn_runs/dqn/`.
+- **Child trainer output is invisible while a sweep runs.** `run_dqn_sweep.py` launches `train_dqn.py` without `-u`, so each `repeatN.log` stays empty until its run finishes. Progress can only be read from the scheduler log's `done` lines. Worth fixing; not fixed, because doing so mid-sweep would mean restarting it.
+- **The machine's idle baseline is not stable across reboots.** One reboot came up at 2.2 GB used, the next at 11.2 GB — mostly Dell/NVIDIA/Alienware agents, MCP `node` processes and Claude Code itself. **Measure available memory immediately before launching**, do not assume a reboot bought you room.
+
 **Added 2026-08-18 (Phase 3):**
 
-- **The design spec's compute budget is retracted.** `docs/superpowers/specs/2026-08-18-dqn-design.md` §12 says a 20,000-episode run costs 4.6 min. It costs **~68 min**. The pre-design probe timed a fragment of the gradient step. Real numbers: 9.87 ms/gradient step, 0.709 ms/`act()`, 0.204 s/episode. See D-024 — the decision survived, its stated reason did not.
+- **The design spec's compute budget is retracted.** `docs/superpowers/specs/2026-08-18-dqn-design.md` §12 says a 20,000-episode run costs 4.6 min. It costs **~27 min** on a healthy machine (an earlier note in this file said 68 min, measured while ten processes fought over memory — also wrong; see D-030). The pre-design probe timed a fragment of the gradient step. Real numbers: 9.87 ms/gradient step, 0.709 ms/`act()`, 0.204 s/episode. See D-024 — the decision survived, its stated reason did not.
 - **The RTX 4060 cannot be used.** `torch==2.13.0+cpu`; `torch.cuda.is_available()` is `False`. Switching builds is a dependency change and needs approval (CONSTRAINTS #8). It would also probably be *slower* — 19,461 parameters at batch 64 is far too small to amortise kernel-launch overhead.
 - **Do not "fix" `torch.set_num_threads(1)`.** It is the fastest setting measured (1/4/8 threads = 159/172/375 ms per episode) *and* it is what makes ten-way process parallelism possible.
 - **`Start-Job` does not survive between Claude Code tool calls** — each invocation is a fresh PowerShell process and the job dies with it. Use `Start-Process`, or the harness's own background mode, for anything long.

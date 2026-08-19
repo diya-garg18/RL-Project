@@ -1,7 +1,7 @@
 # FEATURE_007 — Deep Q-Network over the continuous state
 
 **Phase:** 3
-**Status:** built and unit-tested; **no training result yet** — the sweep had not been run when this was written
+**Status:** built and unit-tested. **First sweep FAILED (E-016) and is kept as a negative result; corrected sweep running.** The exit criterion is still unmeasured.
 **Date started:** 2026-08-18
 **Model:** Claude Opus 5
 
@@ -89,9 +89,16 @@ Nothing in Phases 0–2 was modified. Every edit to an existing file is additive
 
 Both stabilisers and both ablations are pinned at a **single backup**, not by a convergence curve — a target network that silently tracks the online network still trains and still converges on an easy problem, and the only symptom is the instability the ablation is meant to demonstrate.
 
+## What the first sweep found — read before quoting anything above
+
+The 20 completed runs of the first sweep **all collapsed to BULK_CLOSE** (99.4% of actions, recall 0.0086). Cause: `F.huber_loss` was called without a `delta`, so torch's default of 1.0 applied against penalties of -150 to -1499, and a 150x larger error produced a 1.014x larger gradient. See **E-016**, **BUG_002**, **D-029**.
+
+That invalidates one line of the "Approach" section above, which is left in place rather than edited so the reasoning error stays visible: *"Huber loss and gradient clipping — this environment's missed-incident penalty produces occasional large negative rewards, which MSE would square into a single step that wrecks the network."* The premise was right and the conclusion backwards. Those penalties are not outliers to suppress; they are the entire triage signal. The correct statement is that Huber is right **and its delta must be matched to the reward scale** — 200, the largest named single-event penalty in `env_default.yaml`.
+
 ## Follow-ups left open
 
-- **No training result exists.** Every claim above is about code, not about learning. The exit criterion is unmeasured.
+- **The exit criterion is still unmeasured.** The corrected sweep was still running when this was written. Verified only at 3000 episodes x 3 runs: recall 0.48 +- 0.21, still below severity_sort's 0.84.
+- **`run_dqn_sweep.py` launches `train_dqn.py` without `-u`**, so a running repeat's `.log` stays empty until it finishes. Progress is only visible in the scheduler log. Worth fixing between sweeps.
 - The `no_replay` ablation carries a batch-size confound (D-026) that must appear in any write-up.
 - Both ablations draw from the same seed block (1200000). Each is compared against the control, which is on a different block, so the comparison that matters is unconfounded; ablation-vs-ablation is paired as a side effect.
 - The `seed_starts` error message in `config.py` still says "eval (101-105)"; the block has been 101–130 since D-019. Left alone deliberately — correcting it inside a Phase 3 commit would mix concerns.

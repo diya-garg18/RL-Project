@@ -156,6 +156,44 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 8 — 2026-08-19 — Claude Opus 5 — the agent learned to shred the inbox, and the training error looked perfect while it did
+
+**What.** We trained the neural network overnight for the first time. It failed completely. We found out why, fixed it, and restarted. The failure is the interesting part and we have kept every file from it.
+
+**Where.** `docs/bugs/BUG_002`, experiment `E-016`, decisions `D-029` and `D-030`. The 20 failed runs live at `results/dqn_runs/dqn_delta1_E016/`.
+
+---
+
+**The failure, in plain terms.** The agent has five things it can do. Four are ways of picking an alert to actually investigate. The fifth, `BULK_CLOSE`, sweeps out a batch of low-severity alerts unread — useful for clearing junk, catastrophic if a real attack is hiding in the batch.
+
+It chose `BULK_CLOSE` **99.4% of the time**. Across a full shift it caught **0.9%** of the real security incidents. That is worse than sorting alerts randomly. It is worse, on that measure, than the worst deliberately-bad baseline we built as a floor.
+
+**Why this was hard to spot.** Every instrument said things were going well. The training error — the number you watch to see whether a network is learning — fell smoothly and settled near zero. The network itself was healthy: we checked, and it gave genuinely different answers for genuinely different situations, with clear preferences between actions. Nothing crashed. All twenty runs completed and wrote out tidy result files.
+
+The only thing wrong was the answer.
+
+**The cause: a scale that stopped at 1.** When the network makes a prediction, we measure how wrong it was and nudge it. To stop one freak event from wrecking everything the network has learned, that measure is *capped* — past a certain size, "very wrong" and "extremely wrong" get treated the same. That cap is a number we choose.
+
+We never chose it, so it defaulted to **1**.
+
+But our environment measures mistakes in units of 150 to 1500. Burying a real incident costs 150. Letting a critical one expire costs up to 500, and several at once up to 1499. Every single one of those sat past the cap. So the network was told that burying a real attack was *the same size of mistake* as being slightly off about a harmless alert. We measured it exactly: a mistake 150 times larger produced a correction **1.4% larger**.
+
+From the agent's point of view it was behaving perfectly rationally. Closing junk pays a small, reliable reward. The punishment for closing something real had been flattened to almost nothing. So it closed everything. **It solved the problem we actually gave it — the problem was just not the one we meant.**
+
+**The fix.** Set the cap to 200 — the price of the worst single mistake our environment defines — so every individual penalty is felt at full size, and only freak pile-ups of several disasters at once get flattened. At a fifth of the training time, recall went from **0.9% to 48%**.
+
+We picked 200 from our own reward table rather than from an experiment, and that was deliberate. We *did* run the experiment — five candidate values, three attempts each — and it told us something narrower than we wanted: values of 10 and 25 fail, everything from 50 up works, and among those the differences were far smaller than the random variation between attempts. Choosing the "best" of them would have meant reading meaning into noise, which is the exact mistake this project caught itself making twice before. So we wrote down that the experiment could not decide, and chose on a reason we can defend instead.
+
+**Two other things worth knowing.**
+
+*We nearly lost eight hours to a memory-cleaning utility.* The runs mysteriously slowed from 27 minutes to 195. The code was fine and the processor was almost idle. The cause was a third-party tool set to "clean" memory automatically whenever the machine got full — and one of the things it cleans is the memory that running programs are actively using. It kept yanking the training processes' data out from under them, forcing them to fetch it back, over and over. Turning off one checkbox took them from 42% efficiency to 95%.
+
+*Our own speed estimate was wrong twice.* We benchmarked on a freshly restarted machine and predicted 10 minutes per run. On the real overnight job it was 27 at best. The benchmark measured the right thing under conditions that never occur in practice.
+
+**The honest position.** The collapse is fixed and the corrected training is running now. But at a fifth of the budget the agent still catches fewer incidents than simply sorting by severity (48% against 84%). Whether the full run closes that gap is genuinely open. If it does not, that is a third documented negative result for this project, and we will write it down the same way we wrote the first two.
+
+---
+
 ### Session 7 — 2026-08-18 — Claude Opus 5 — we replaced the pigeonholes with a neural network
 
 **What.** The first neural-network agent in the project: a Deep Q-Network (DQN). Also the machinery to train sixty copies of it overnight, and three scripts to analyse what comes out. **No training has been run yet** — everything below is about code that passes its tests, not about an agent that has learned anything.
