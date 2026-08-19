@@ -544,3 +544,45 @@ This is not a new claim about the agents; it is a better estimator of the same q
 **Consequences:** the script prints |mean| / SEM and states plainly that below about 2 the difference is not resolvable at 30 seeds, whichever way it points. The Phase 3 exit criterion — "DQN matches or beats tabular Q-learning" — may well be decided by a spread rather than a mean, and this was recorded before any result existed, in the same spirit as D-012 and D-020.
 
 ---
+
+## D-029 — The Huber delta is 200, taken from the reward table rather than from the sweep
+
+**Date:** 2026-08-19 · **Model:** Claude Opus 5 · **Phase:** 3 · **Status:** active
+**Approved by:** Pranav (2026-08-19), after the delta sweep was run at his request.
+
+**Decision:** `dqn.huber_delta: 200.0` in `config/training_default.yaml`, passed explicitly to `F.huber_loss`. The loader refuses any value below 50.
+
+**Why a delta exists at all:** it did not, until now. `F.huber_loss(predicted, target)` was called with torch's default of 1.0, and that single omission destroyed the entire first Phase 3 sweep (E-016). Below the delta Huber is quadratic and the gradient scales with the error; above it the gradient is flat. With the delta at 1.0, this environment's -150 and -200 penalties produced the same gradient as a routine +-1 mis-estimate — measured ratio **1.014 for a 150x larger error** — so the agent never learned to avoid them and collapsed to BULK_CLOSE 99.4% of the time.
+
+**Why 200, and why not from the data.** A 5x3 sweep (delta 10/25/50/100/200, 3 seeds, 3000 episodes) established a *threshold*: delta 10 collapsed 3/3 seeds and delta 25 collapsed 1/3, while 50, 100 and 200 collapsed 0/3. It established nothing beyond that. Pairwise |difference|/SEM on the score was 0.05 to 0.40 — the pre-registered rule nominally selected delta=100 on a 3.0-point margin against a standard error of 55, which is precisely the mistake E-008 made and E-014 retracted. The rule lacked a resolvability gate and was not followed; that is recorded in E-016 rather than quietly corrected.
+
+200 comes from `env_default.yaml` instead: it is the **largest named single-event penalty** (`end_of_shift_missed: -200.0`, with `bulk_close_true_incident: -150.0` beneath it). At that delta every individual penalty the agent must learn stays in the quadratic regime where the gradient still carries magnitude, and only the compound multi-miss tail — observed down to -1499.5 when several incidents expire together — is linearised. That is Huber doing the job it is for, and it is a sentence either student can defend without reciting a sweep table.
+
+**Alternatives rejected:**
+- *delta = 50 (~1 std of per-step reward, 46.4).* Defensible, and tested no worse. Rejected because it pushes the -150 buried-incident event into the linear regime — the exact signal E-016 proved is load-bearing.
+- *Reward clipping to [-1, 1], as in Mnih et al.* This is what makes delta=1 correct in the original paper. Disqualifying here: the *magnitude ordering* of the penalties (-150 for burying one, -500 for missing a critical one) is the triage signal. Clipping deletes what the agent must learn.
+- *Plain MSE.* delta=1000 tested indistinguishably from 200, and over the observed range is MSE in all but name. It discards the outlier protection for nothing.
+
+**Consequences:** the divisor is a *domain* fact like the D-023 feature scales and must not be tuned against results — tuning it would make it a hyperparameter fitted to the evaluation, which CONSTRAINTS #2 forbids. The loader's `>= 50` guard carries the measurement in its error text so an unattended overnight sweep cannot silently repeat E-016, and `test_a_buried_incident_moves_the_network_more_than_a_routine_error` fails on the old code.
+
+---
+
+## D-030 — Sweep parallelism and memory limits are set from measurement, and the first numbers were wrong
+
+**Date:** 2026-08-19 · **Model:** Claude Opus 5 · **Phase:** 3 · **Status:** active, **supersedes the parallelism figure in D-027**
+
+**Decision:** `--max-parallel` defaults to 8 and `--process-gb` to 0.95. For a long unattended sweep on this machine, launch with `--max-parallel 5`.
+
+**Why 8 and not 10:** D-027 chose 10 on the assumption that more parallelism means more throughput. Measured, aggregate throughput peaks at 8 and then *falls*:
+
+| parallel | 4 | 6 | 8 | 10 | 12 |
+|---|---|---|---|---|---|
+| runs/hour | 28.8 | 39.0 | **48.6** | 47.3 | 47.6 |
+
+The first sweep therefore ran at a setting slower than the alternative, not faster — consistent with 6 P-cores plus E-cores on the i7-13650HX, where the extra processes land on cores costing more than they add.
+
+**Why `--process-gb` moved from 0.31 to 0.95:** 0.31 GB was the *working set*. Private commit is ~940 MB, which is why the machine sat at 81.5% used with 10 running rather than the ~20% the old figure predicted. The memory guard predicts with this number before every launch, so understating it made the guard launch too eagerly — the same class of error as the free-memory floor that guard replaced.
+
+**The correction that matters most, and it is not a tuning parameter.** Even at 8 the first sweep degraded from 27 min/run to **195 min/run** over five hours, with CPU at 19% and ~96000 page faults/sec against almost no disk reads. The cause was almost certainly **Mem Reduct**, a third-party memory tool set to auto-clean whenever memory exceeded 90%, with "Working set" among the regions it clears. Clearing a working set calls `EmptyWorkingSet` on every process; the trainers' resident pages are evicted and must immediately be faulted back in, which is exactly the soft-fault storm observed. Early runs were fast because memory sat near 69%, below the trigger; runs slowed 7x once the baseline crossed 90%. Recorded as the *likely* cause — the tool's own log was not inspected — because the evidence is circumstantial but fits every measurement.
+
+**Consequences:** benchmark numbers taken on a freshly rebooted, otherwise-idle machine are not predictions about an 8-hour unattended run. The 800-episode benchmark above projected 9.9 min/run; reality was 27 at best and 195 at worst. The benchmark measured the right quantity under the wrong conditions, which is the same failure as D-024's compute-budget probe — a fragment measured accurately and generalised wrongly. Any future capacity claim in this project should say what else was running on the machine.

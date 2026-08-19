@@ -641,3 +641,102 @@ D-004's caveat has been correct all along, but for a subtler reason than anyone 
 ### Why this is worth the entry
 
 E-014 offered its explanation with an explicit "this is a hypothesis, not a measurement" and a named test. Running that test took one script and refuted it in one number — 0.0%, thirty times over. **A labelled hypothesis is cheap to kill; an unlabelled one becomes folklore.** Had E-014 asserted the coverage story as fact, it would now be in the report, sounding entirely plausible, and wrong.
+
+---
+
+## E-016 — 20 DQN runs collapsed to BULK_CLOSE. The Huber delta was 1.0. — 2026-08-19
+
+**Model:** Claude Opus 5 · **Phase:** 3 · **Decisions:** D-029, D-030
+`results/dqn_runs/dqn_delta1_E016/` (20 runs, kept). **The entire first Phase 3 sweep is discarded as a result and kept as evidence.**
+
+### What was run
+
+30 control runs x 20000 episodes were launched overnight on the config at commit `c4e613e`. Twenty finished before the sweep was stopped. Every one of them failed in the same way.
+
+| measure | DQN (20 runs) | fifo | random | severity_sort | tabular Q-learning |
+|---|---|---|---|---|---|
+| recall@deadline | **0.0086** | 0.141 | 0.545 | 0.826 | 0.73 |
+| total reward | **-480 to -520** | -702.2 | -270.9 | +50.6 | +270.9 |
+
+Recall is an order of magnitude below the worst baseline in the project. The greedy diagnostic was **pinned at -515.4 at 36 of 40 checkpoints**, from episode 500 — before the agent had learned anything — to episode 20000. Training reward moved the wrong way as exploration decayed: -266.8 over episodes 0-2000 (epsilon ~1.0) down to -403.4 over 18000-20000 (epsilon 0.05). **The learned greedy policy was worse than random**, and more exploration made it better.
+
+### It was not a broken network
+
+The obvious guess — dead units, collapsed weights, a wiring bug — is wrong, and checking cost one script:
+
+| measure | value | reading |
+|---|---|---|
+| std of Q ACROSS STATES, per action | 15.1, 15.4, 15.7, 14.8, 14.8 | Q varies with the state |
+| std of Q ACROSS ACTIONS, per state | mean 3.98 | actions are distinguished |
+| best-minus-second-best gap | mean 4.79, min 0.10 | the argmax is not a coin flip |
+| greedy action distribution | **BULK_CLOSE 99.37%** | the policy is degenerate, the network is not |
+| final training loss | ~0.04-0.3 | it fits its targets *precisely* |
+
+A network converging to a low loss while producing a useless policy means it learned the wrong objective, not that it failed to learn.
+
+### Root cause
+
+`F.huber_loss(predicted, target)` was called without a `delta`, so it used torch's default of **1.0**. Measured over 2381 real transitions:
+
+```
+per-step reward : mean -2.167  std 46.448  min -1499.5  max +1.5
+TD error        : median |0.139|   p99 |0.967|   max |1454.6|
+fraction of |TD| > 1.0 (the delta) : 0.9%
+```
+
+`env_default.yaml` prices burying a real incident at **-150** and an end-of-shift miss at **-200 x asset multiplier**. Those 0.9% of transitions are the environment's entire lesson, and every one of them sat deep in Huber's *linear* regime, where the gradient is flat. The bug in one number, from two otherwise identical agents given one backup each:
+
+```
+routine error (TD = -1)    grad norm  2.543705
+buried incident (TD = -150) grad norm 2.579709
+ratio  1.014          <- a 150x larger error, a 1.4% larger gradient
+```
+
+So the agent learned the small frequent rewards to high precision and was told, in effect, that burying a real incident is a rounding error. BULK_CLOSE pays +0.5 per junk alert closed and appeared to cost nothing. It took it 99.4% of the time.
+
+The comment in `training_default.yaml` said Huber was chosen because it is "less sensitive to the large negative outlier rewards". That was exactly backwards: **those penalties are the signal, not outliers to be suppressed.** Tabular Q-learning uses the raw TD error and reaches recall 0.73 on the identical environment — the comparison that should have raised the question earlier.
+
+### Choosing the replacement — and a criterion that was not good enough
+
+Delta was swept over 10/25/50/100/200 x 3 seeds x 3000 episodes. The selection rule was written down first: any run whose final greedy sits in the always-bulk-close band (below -450) counts as collapsed; a delta with any collapsed run is disqualified; survivors ranked on mean greedy over the last third; ties broken on volatility.
+
+| delta | collapsed@final | checkpoints in collapse band | last-third mean | SEM | volatility |
+|---|---|---|---|---|---|
+| 10 | **3/3** | **36/36** | -515.4 | 0.0 | 0.0 |
+| 25 | **1/3** | 14/36 | -284.9 | 106.1 | 157.5 |
+| 50 | 0/3 | 0/36 | 4.8 | 41.2 | 128.0 |
+| 100 | 0/3 | 1/36 | 27.6 | 39.8 | 120.7 |
+| 200 | 0/3 | 0/36 | 24.6 | 38.1 | 93.0 |
+
+**The rule as written picks delta = 100, and it should not have been followed.**
+
+```
+d50  vs d100 : |diff| 22.8  SEM 57.3  ratio 0.40   NOT RESOLVABLE
+d50  vs d200 : |diff| 19.8  SEM 56.2  ratio 0.35   NOT RESOLVABLE
+d100 vs d200 : |diff|  3.0  SEM 55.1  ratio 0.05   NOT RESOLVABLE
+```
+
+A 3.0-point margin against a standard error of 55 is noise, and ranking on it is the identical error E-008 made and E-014 retracted. The rule was under-specified: it had no resolvability gate. What the experiment actually establishes is a threshold, not a ranking — **delta must be at least 50**; above that this design cannot choose, and with a spread of ~69 across seeds no feasible number of seeds would.
+
+The value was therefore taken from the config rather than the data. **200 is the largest named single-event penalty in `env_default.yaml`**, so every individual penalty the agent must learn stays quadratic and only the compound multi-miss tail (observed to -1499.5) is linearised. See D-029.
+
+### Verification
+
+Through the real trainer and shipped config, 3 runs x 3000 episodes — 15% of the training budget:
+
+| | before (delta 1.0) | after (delta 200) |
+|---|---|---|
+| recall@deadline | 0.0086 | **0.48 +- 0.21** |
+| total reward | -480 to -520 | -49.4 +- 136.6 |
+| MTTD (min) | — | 17.1 (severity_sort 28.3, oracle 39.8) |
+| greedy curve | pinned at -515.4 | 113.9 / 61.7 / 9.7 / -118 / 153.1 / 130.1 |
+
+**Stated plainly: the collapse is fixed, the agent is not yet good.** At 3000 episodes it is still below severity_sort on recall (0.48 vs 0.84) and reward (-49 vs +40), still volatile, and 16 of 90 eval episodes caught nothing at all. Whether the full 20000-episode budget closes that gap is the open question the corrected sweep exists to answer.
+
+`config.py` now refuses `huber_delta < 50` with this measurement in the error message, and `tests/test_dqn.py` asserts that a -150 penalty moves the network more than 10x as much as a routine -1 error — the assertion that fails on the old code.
+
+### Why this is worth the entry
+
+The failure was silent in every direction that matters. The loss curve looked *excellent* — converging to 0.04. The network was healthy by every structural check. Nothing errored, nothing warned, and 20 runs completed successfully. The only visible symptom was a number in a results table being bad, and the project's own habit of treating a suspicious result as a bug report rather than a finding is the only reason it was caught before being written up as "DQN underperforms tabular Q-learning".
+
+The near-miss is worth recording too. The plan had been to let all 60 runs finish overnight and analyse in the morning. Had that happened, the ablations would have been ablations of a broken agent, and the phase's conclusion would have been drawn from 60 runs of a policy that closes every alert unread.
