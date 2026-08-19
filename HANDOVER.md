@@ -100,8 +100,11 @@ E-017). Full result in **E-017**. Headlines:
 3. **The target network is counterproductive** here, by a resolvable margin.
 4. `dqn_ablations.py` reported the no-replay collapse as "NO clear
    destabilisation" because volatility, end-std and drawdown are all **0.00**
-   for a flatlined policy. **Do not trust that script's verdict line** — owes a
-   BUG_003. The numbers in its table are fine; the interpretation rule is not.
+   for a flatlined policy. **Do not trust that script's verdict line** — see
+   **BUG_003**, which is diagnosed but **not fixed**. The numbers in its table
+   are fine; the interpretation rule is not. The fix is specified in the bug
+   file and is small: gate on "did it learn anything" before computing any
+   stability ratio.
 
 ### What is known about the fixed agent, and what is not
 

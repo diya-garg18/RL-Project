@@ -6,7 +6,7 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 - **Phase 0** — closed, gate **passes** on the 30-seed block (oracle strictly best on total reward, 168.0 vs 40.4). One piece of its amendment *rationale* is weakened by E-014, but the criterion itself holds.
 - **Phase 1** — **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified by E-014 (DP −201.2 on 30 seeds, not +305.9 on 5). Gate deliberately not amended a second time. E-015 then refuted the stated *cause* as well: DP never leaves its estimated core.
 - **Phase 2** — **CLOSED as built-but-not-passed.** All 8 boxes complete; exit criterion not met and deliberately not restated (D-020).
-- **Phase 3** — not started, and **cleared to begin**. Both blocking decisions are taken (D-022). Runs on Pranav's machine until the commit balance evens (D-021).
+- **Phase 3** — **CLOSED as built-but-not-passed** (E-017). All six boxes done; gate not met and not restated. Replay proved essential, the target network counterproductive.
 
 > **The eval seed block was widened 5 → 30 on 2026-08-17 (D-019) and every agent re-measured (E-014).** Any number in this file not marked "30-seed" predates that and may be a 5-seed figure. The lesson is worth more than any single result: every number was computed correctly, reported with its standard deviation, and reproduced deterministically — and one of them had **the wrong sign**. Reporting a standard deviation is not the same as reading it.
 
@@ -137,14 +137,29 @@ Final assessment on the **30-seed** eval block (D-019, E-014):
 
 ## Phase 3 — Deep Q-Networks (Week 3, first half) — CO3
 
-- [ ] `agents/dqn.py` — MLP Q-network over the ~20-dim continuous state
-- [ ] Experience replay buffer (write it by hand — it's ~30 lines and a classic interview question)
-- [ ] Target network with periodic hard update
-- [ ] ε-greedy with decay; gradient clipping; Huber loss
-- [ ] Compare DQN-on-continuous-state vs tabular-on-discretised-state
-- [ ] **Ablation (required):** train DQN with replay off, and with the target network off. Show the instability. This is the cleanest possible demonstration of *why* those two tricks exist and it will be asked about in the viva.
+- [x] `agents/dqn.py` — MLP Q-network over the 17-dim continuous state *(FEATURE_007, E-017 — `QNetwork` + `DQNAgent`, [128,128] relu, 19,461 parameters. Input scaling by fixed domain divisors, D-023.)*
+- [x] Experience replay buffer (write it by hand) *(FEATURE_007 — `agents/replay.py`, five parallel numpy arrays, 8 tests. **E-017 found it is load-bearing, not a refinement**: all 8 no-replay runs scored recall 0.0000.)*
+- [x] Target network with periodic hard update *(FEATURE_007 — refreshed every 1000 **gradient** steps, not env steps. **E-017 found it makes this agent worse** — removing it improved recall 0.481→0.588 and reward −46.9→+43.5, ratios 2.25 and 2.51.)*
+- [x] ε-greedy with decay; gradient clipping; Huber loss *(FEATURE_007, D-029. **The Huber delta was the phase's central bug** — left at torch's default of 1.0 against penalties of −150 to −1499, it flattened every catastrophe to the size of a routine error and collapsed 20 runs to BULK_CLOSE. See E-016 and BUG_002. Now 200.0, with a loader guard refusing anything below 50.)*
+- [x] Compare DQN-on-continuous-state vs tabular-on-discretised-state *(E-017 — `scripts/compare_dqn_tabular.py`, paired per eval seed (D-028). **DQN loses**: recall 0.48 vs 0.73. Reward is **not resolvable** — paired |mean|/SEM = 1.42. In 21 of 42 visited buckets the DQN chose different actions for situations the discretisation merges, so the phase's premise held even though its gate did not.)*
+- [x] **Ablation (required):** train DQN with replay off, and with the target network off *(E-017 — n=8 each, not the 15 D-027 specified; the machine could not sustain it against the deadline, see D-030. **Neither ablation shows "instability" in the sense the box expects**, and for opposite reasons: no-replay flatlines completely (volatility 0.00) and no-target-network is *more* stable than the control. `dqn_ablations.py` mis-reported the first as "no destabilisation" — BUG_003.)*
 
 **Exit criterion:** DQN matches or beats tabular Q-learning on the same evaluation seeds, and the two ablations visibly destabilise training in the plots.
+
+> ⚠️ **EXIT CRITERION NOT MET (E-017), and deliberately not restated.** Both halves
+> fail. The DQN reaches recall 0.48 against tabular Q-learning's 0.73 on the same
+> eval seeds, and its learning curve has **plateaued** — a converged agent that is
+> worse than the lookup table, not an undertrained one. Neither ablation
+> "visibly destabilises training": one destroys learning outright without any
+> instability signature, the other improves on the control.
+>
+> Following the precedent of D-012 (Phase 1) and D-020 (Phase 2), the gate is
+> left **unmet and unamended** until a human decides. Three phases have now
+> failed their originally-written exit criteria, and that pattern is itself a
+> finding about how the criteria were written.
+>
+> **Phase 3 is therefore CLOSED as built-but-not-passed.** All six work items are
+> genuinely complete; the criterion they were meant to satisfy is not.
 
 ---
 
