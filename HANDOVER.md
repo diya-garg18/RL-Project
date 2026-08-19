@@ -15,8 +15,8 @@
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified; cause also refuted (E-015). |
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020). All 8 boxes done; gate not met, deliberately not restated. |
-| **Phase 3** | **First sweep failed and is kept as a negative result (E-016). Corrected sweep RUNNING.** All six ROADMAP boxes still unticked. |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. **18 Phase 3 commits, all unpushed.** |
+| **Phase 3** | **Sweep COMPLETE (46 runs). Gate NOT met (E-017).** Replay essential; target network harmful. ROADMAP boxes still unticked — a human decides whether the gate is amended. |
+| **Repo state** | `D:\RLPROJECT`, branch `master`. **19 Phase 3 commits, all unpushed.** |
 | **Tests passing** | **126/126** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~66 s alongside a running sweep) |
 | **Blockers** | None blocking. The sweep is running; results are the only thing missing. |
 
@@ -82,15 +82,26 @@ time** (down to 0.04). Every structural check on the network passed — Q varied
 across states, actions were well separated. Nothing errored. The only symptom
 was a bad number in a results table.
 
-### What is running now
+### The sweep is finished — 46 runs, and the gate is not met
 
-The corrected sweep (`huber_delta: 200.0`, D-029), launched 07:26 on 2026-08-19:
-36 remaining runs at **5 parallel**, resuming from the 24 control runs that had
-already finished. `results/dqn_sweep2.log` is the live log.
+Completed 2026-08-19 10:30. Control **n=30**, each ablation **n=8** (not 15 — the
+machine could not sustain it against the deadline; see D-030 and the note in
+E-017). Full result in **E-017**. Headlines:
 
-**When it finishes**, run the three analysis scripts under "Reproduce on this
-device", then write E-017 and tick the ROADMAP boxes against whatever the
-numbers actually say.
+| | recall | reward | note |
+|---|---|---|---|
+| tabular q_learning | **0.73** | — | the thing to beat |
+| DQN control (n=30) | 0.48 +- 0.19 | -46.9 +- 145.2 | **plateaued** — more episodes buy nothing |
+| no replay (n=8) | **0.0000** | -520.5 | total collapse, all 8 seeds identical |
+| no target network (n=8) | **0.588** | **+43.5** | **better than control**, ratio 2.5 |
+
+1. **Gate NOT met and NOT restated.** Same treatment as D-012/D-020.
+2. **Replay is load-bearing** — without it the agent does not learn at all.
+3. **The target network is counterproductive** here, by a resolvable margin.
+4. `dqn_ablations.py` reported the no-replay collapse as "NO clear
+   destabilisation" because volatility, end-std and drawdown are all **0.00**
+   for a flatlined policy. **Do not trust that script's verdict line** — owes a
+   BUG_003. The numbers in its table are fine; the interpretation rule is not.
 
 ### What is known about the fixed agent, and what is not
 

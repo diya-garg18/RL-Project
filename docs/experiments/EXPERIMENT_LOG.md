@@ -740,3 +740,102 @@ Through the real trainer and shipped config, 3 runs x 3000 episodes — 15% of t
 The failure was silent in every direction that matters. The loss curve looked *excellent* — converging to 0.04. The network was healthy by every structural check. Nothing errored, nothing warned, and 20 runs completed successfully. The only visible symptom was a number in a results table being bad, and the project's own habit of treating a suspicious result as a bug report rather than a finding is the only reason it was caught before being written up as "DQN underperforms tabular Q-learning".
 
 The near-miss is worth recording too. The plan had been to let all 60 runs finish overnight and analyse in the morning. Had that happened, the ablations would have been ablations of a broken agent, and the phase's conclusion would have been drawn from 60 runs of a policy that closes every alert unread.
+
+---
+
+## E-017 — Phase 3 gate NOT met. Replay is essential; the target network is harmful. — 2026-08-19
+
+**Model:** Claude Opus 5 · **Phase:** 3 · **Decisions:** D-029, D-030 · **Supersedes nothing** — E-016 remains the record of the discarded first sweep.
+`results/dqn_runs/{dqn, dqn_no_replay, dqn_no_target_network}/`, config hash `679eaa992c7f`.
+
+### Setup
+
+46 runs x 20000 episodes, all at `huber_delta: 200.0` (D-029). Control **n=30**, each ablation **n=8**.
+
+**The ablations ran at 8, not the 15 D-027 specified.** The machine could not sustain the sweep — see D-030 — and with a hard deadline the choice was 8 per ablation or an unequal, arbitrary number of both. Precision was kept where the gate turns (the control) and cut where D-027 already argued it matters less. 8 is above the CONSTRAINTS #3 floor of 5. Stated here rather than reported as whatever count happened to finish.
+
+### Result 1 — the exit criterion is NOT met
+
+Exit criterion: *"DQN matches or beats tabular Q-learning on the same evaluation seeds, and the two ablations visibly destabilise training in the plots."* **Both halves fail.**
+
+| agent | recall@deadline | total reward | MTTD (min) |
+|---|---|---|---|
+| tabular q_learning | **0.73** | — | **46.5** |
+| severity_sort | 0.826 | +50.6 | 26.5 |
+| random | 0.545 | -270.9 | 98.4 |
+| **DQN control (n=30)** | **0.48 +- 0.19** | **-46.87 +- 145.22** | 45.78 +- 51.40 |
+| fifo | 0.141 | -702.2 | 198.6 |
+
+The learning curve has **plateaued**: last quarter 18.5 against previous quarter -14.6, a difference of +33.1 inside a run-to-run spread of +-150.0. More episodes would buy nothing. This is a converged agent that is worse than the lookup table it was meant to improve on, not an undertrained one.
+
+**On reward the comparison is not resolvable, and that is stated before the sign.** Rolling both agents over the identical 30 eval seeds (`compare_dqn_tabular.py`, the D-028 paired protocol):
+
+```
+PAIRED per eval seed - total reward, DQN minus tabular:
+  mean difference : -75.71      std of the diff : 292.50
+  standard error  :  53.40      DQN wins on     : 13/30 seeds
+  |mean| / SEM    :   1.42      -> NOT RESOLVABLE at 30 seeds
+```
+
+So the gate fails on **recall and MTTD**, where the gaps are 6-8 SEM, not on reward. An earlier reading in this session claimed the reward gap was ~12 SEM by comparing the 30-run DQN mean against E-008's +270.9 — a different protocol, not a same-seed comparator. That comparison was wrong and is retracted here. The `47.6` printed by `aggregate_dqn.py` is likewise a hardcoded string, not a computed value; `compare_dqn_tabular.py` is the only authoritative comparator.
+
+### Result 2 — the premise of the phase was confirmed, and it still did not help
+
+```
+states the DQN visited at eval       : 42/576
+agreement per VISIT                  : 1687/5626 = 30.0%
+buckets where the DQN chose >1 action: 21/42
+```
+
+In **half the buckets it visited, the DQN chose different actions for situations the 576-bucket discretisation merges.** The continuous state genuinely distinguishes cases the buckets cannot — which is exactly what Phase 3 set out to test. The extra resolution is real. It simply did not convert into better triage.
+
+That is the most interesting sentence in this entry: the hypothesis behind the phase was *correct* and the phase still failed its gate.
+
+### Result 3 — replay is essential, and our own instability measures could not see it
+
+```
+no replay, all 8 runs:  recall 0.0000   reward -520.5   final greedy -515.4
+```
+
+Identical to four decimal places across eight different seeds. That is the E-016 always-BULK_CLOSE collapse: without replay the DQN does not learn at all. **Replay is not a refinement in this environment; it is load-bearing.**
+
+**`scripts/dqn_ablations.py` reported the opposite:**
+
+```
+condition            runs   final   volatility   end std   drawdown
+control                30    18.5        167.8      44.2      635.2
+no replay               8  -515.4          0.0       0.0        0.0
+  no replay: NO clear destabilisation (all three within 1.5x of control) - a NEGATIVE RESULT
+```
+
+All three measures — volatility, end-std, drawdown — are **0.00**, because a collapsed constant policy is perfectly *stable*. The ratios read `x0.00`, which the script's rule interprets as "less unstable than control". The measures were defined before looking at the data, which was the right instinct and is why they were trusted; but they detect **wobble**, and are blind to a **flatline**.
+
+The script's printed verdict is a defect, not a finding, and the conclusion is the reverse of what it says. Recorded as a follow-up owing a `BUG_003`: any instability measure used as a phase gate must first check that the agent learned *anything*, because "did not move" and "did not destabilise" are indistinguishable to a variance statistic.
+
+### Result 4 — the target network makes this agent WORSE
+
+|  | n | recall | total reward | volatility | drawdown |
+|---|---|---|---|---|---|
+| control (replay + target net) | 30 | 0.481 +- 0.190 | -46.9 +- 147.7 | 167.8 | 635.2 |
+| **no target network** | 8 | **0.588 +- 0.093** | **+43.5 +- 67.6** | **59.0** | **308.9** |
+
+```
+reward diff (no_target - control) = +90.3   SEM 36.0   ratio 2.51  -> RESOLVABLE
+recall diff                       = +0.107  SEM 0.048  ratio 2.25  -> RESOLVABLE
+```
+
+Removing one of DQN's two headline stabilisers improved recall, reward, volatility and drawdown simultaneously. Both differences clear the ratio-2 bar this project uses (R6, E-014). Every one of the 8 runs finished above the control mean on the greedy diagnostic (98.6 to 141.3, against control's 18.5).
+
+**Honest limits on this one.** n=8 against n=30, and ratios of 2.5 and 2.25 clear the bar without being overwhelming — this is a result to state, not to build on. The mechanism is unexplained. A plausible story is that with `target_update_every: 1000` gradient steps the frozen target is stale enough to hold the estimate back on a 19,461-parameter network that is not at risk of the divergence the target network exists to prevent — but that is a hypothesis with no test attached, and per E-015's lesson it is labelled as such rather than written as explanation.
+
+### What this phase actually established
+
+1. The DQN does not beat tabular Q-learning here. **Gate not met, and not restated** — the same treatment D-012 and D-020 gave Phases 1 and 2. A human decides whether to amend it.
+2. **Experience replay is essential.** Without it, learning fails completely.
+3. **The target network is counterproductive** at this scale, by a resolvable margin.
+4. The continuous state does distinguish situations the buckets merge (21 of 42 visited buckets), so the phase's premise held even though its gate did not.
+5. Two of our own analysis tools were wrong in ways that would have been reported as fact: a hardcoded comparator in `aggregate_dqn.py`, and instability measures in `dqn_ablations.py` that score total collapse as maximal stability.
+
+### Why this is worth the entry
+
+Three of the four results here contradict something we expected. The one that should travel furthest is Result 3: **we wrote the instability measures down in advance precisely so we could not fit them to the data afterwards, and they still gave the wrong answer** — because choosing a metric early protects against one failure mode (post-hoc rationalisation) and not against another (measuring the wrong quantity). Pre-registration is necessary and not sufficient. The only reason the error was caught is that the per-run numbers were read directly instead of trusting the summary line.
