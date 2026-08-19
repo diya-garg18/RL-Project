@@ -17,7 +17,7 @@
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020). All 8 boxes done; gate not met, deliberately not restated. |
 | **Phase 3** | **Sweep COMPLETE (46 runs). Gate NOT met (E-017).** Replay essential; target network harmful. ROADMAP boxes still unticked — a human decides whether the gate is amended. |
 | **Repo state** | `D:\RLPROJECT`, branch `master`. **19 Phase 3 commits, all unpushed.** |
-| **Tests passing** | **126/126** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~66 s alongside a running sweep) |
+| **Tests passing** | **130/130** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~66 s alongside a running sweep) |
 | **Blockers** | None blocking. The sweep is running; results are the only thing missing. |
 
 ---
@@ -100,11 +100,13 @@ E-017). Full result in **E-017**. Headlines:
 3. **The target network is counterproductive** here, by a resolvable margin.
 4. `dqn_ablations.py` reported the no-replay collapse as "NO clear
    destabilisation" because volatility, end-std and drawdown are all **0.00**
-   for a flatlined policy. **Do not trust that script's verdict line** — see
-   **BUG_003**, which is diagnosed but **not fixed**. The numbers in its table
-   are fine; the interpretation rule is not. The fix is specified in the bug
-   file and is small: gate on "did it learn anything" before computing any
-   stability ratio.
+   for a flatlined policy — it reported the no-replay collapse as "NO clear
+   destabilisation". **FIXED** (BUG_003): `is_collapse()` now gates every
+   stability ratio on whether the condition learned anything at all, and a
+   collapsed arm reports "LEARNING FAILED ENTIRELY" with no ratios. Re-run
+   against the same 8 runs, it now gives the right verdict. The general rule
+   for Phases 4-5: **any variance measure used as a gate needs a liveness check
+   in front of it.**
 
 ### What is known about the fixed agent, and what is not
 

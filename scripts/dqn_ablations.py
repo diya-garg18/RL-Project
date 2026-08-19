@@ -67,6 +67,36 @@ def volatility(values: np.ndarray) -> float:
     return float(np.abs(np.diff(values, axis=1)).mean())
 
 
+# The value of the always-BULK_CLOSE policy on the train-diagnostic seeds,
+# measured in E-016: a constant action gives identical trajectories every time
+# it is evaluated, so a collapsed run sits exactly here forever. -450 leaves
+# room for the -471/-516 variants of the same degenerate policy while staying
+# far below anything a learning agent produces.
+COLLAPSE_BAND = -450.0
+
+
+def is_collapse(values: np.ndarray) -> bool:
+    """True when the condition never learned anything (BUG_003).
+
+    This must be checked BEFORE any stability ratio, because the three measures
+    below all quantify MOVEMENT, and a policy collapsed to one constant action
+    does not move: volatility, end-std and drawdown are all exactly 0.00. The
+    ratio rule then reads that as "far more stable than control" and reports no
+    destabilisation -- which is how an agent scoring recall 0.0000 on 8 out of
+    8 seeds was nearly written up as evidence that experience replay does not
+    matter.
+
+    "Did not move" and "did not destabilise" are indistinguishable to a
+    variance statistic, and only one of them is good news.
+
+    Judged on the final quarter, not the whole curve: every run starts near the
+    collapse value before it has learned anything, and only failing to leave it
+    is the defect.
+    """
+    quarter = max(1, values.shape[1] // 4)
+    return bool(values[:, -quarter:].mean() < COLLAPSE_BAND)
+
+
 def max_drawdown(values: np.ndarray) -> float:
     """Largest fall from a running peak, averaged over runs.
 
@@ -137,18 +167,33 @@ def main() -> None:
         if tag not in stats:
             continue
         s = stats[tag]
+        # Liveness first (BUG_003). A collapsed condition has no meaningful
+        # stability to compare, so its ratios are not computed or printed --
+        # printing x0.00 invites exactly the misreading this guard exists for.
+        if is_collapse(loaded[tag][2]):
+            print(f"  {CONDITIONS[tag][0]:<32}COLLAPSED — no stability ratios "
+                  f"(final {s['final']:.1f}, below the {COLLAPSE_BAND:.0f} "
+                  f"always-BULK_CLOSE band)")
+            verdicts.append((tag, "collapsed", {}))
+            continue
         ratios = {k: s[k] / control[k] if control[k] else float("inf")
                   for k in ("volatility", "end_std", "drawdown")}
         print(f"  {CONDITIONS[tag][0]:<32}"
               + "  ".join(f"{k} x{v:.2f}" for k, v in ratios.items()))
         # A ratio near 1 on all three is a negative result, and is reported as
         # one rather than explained away.
-        destabilised = any(v > 1.5 for v in ratios.values())
+        destabilised = "destabilised" if any(v > 1.5 for v in ratios.values()) else "no"
         verdicts.append((tag, destabilised, ratios))
 
     print()
     for tag, destabilised, ratios in verdicts:
-        if destabilised:
+        if destabilised == "collapsed":
+            print(f"  {CONDITIONS[tag][0]}: **COLLAPSED — LEARNING FAILED "
+                  f"ENTIRELY.** This is the strongest possible result FOR the "
+                  f"stabiliser, not a negative one: without it the agent never "
+                  f"learns. Stability ratios are meaningless here and are not "
+                  f"reported (BUG_003).")
+        elif destabilised == "destabilised":
             worst = max(ratios, key=ratios.get)
             print(f"  {CONDITIONS[tag][0]}: DESTABILISED "
                   f"(largest effect on {worst}, x{ratios[worst]:.2f})")
@@ -204,9 +249,11 @@ def main() -> None:
         ratio_text = ", ".join(f"{k} x{v:.2f}" for k, v in ratios.items())
         lines.append(
             f"- **{CONDITIONS[tag][0]}**: "
-            + ("destabilised" if destabilised else
-               "**no clear destabilisation — negative result**")
-            + f" ({ratio_text})"
+            + ("**collapsed — learning failed entirely**"
+               if destabilised == "collapsed"
+               else "destabilised" if destabilised == "destabilised"
+               else "**no clear destabilisation — negative result**")
+            + (f" ({ratio_text})" if ratios else "")
         )
     (out_dir / "dqn_ablations.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"\nwritten -> {(out_dir / 'dqn_ablations.md').relative_to(ROOT).as_posix()}")

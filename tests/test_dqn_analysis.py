@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import aggregate_dqn  # noqa: E402
 from aggregate_dqn import across_runs, curve_matrix, load_runs  # noqa: E402
-from dqn_ablations import max_drawdown, volatility  # noqa: E402
+from dqn_ablations import is_collapse, max_drawdown, volatility  # noqa: E402
 
 
 def _run(repeat: int, *, n_episodes: int = 100, config_hash: str = "abc",
@@ -160,3 +160,40 @@ def test_drawdown_measures_the_fall_from_the_peak():
 def test_drawdown_averages_across_runs():
     values = np.array([[1.0, 10.0, 3.0], [1.0, 5.0, 4.0]])  # 7 and 1
     assert max_drawdown(values) == pytest.approx(4.0)
+
+
+# --- the liveness check that must precede any stability ratio (BUG_003) ------
+
+
+def test_a_flatlined_collapse_is_not_mistaken_for_stability():
+    """BUG_003. All three instability measures quantify MOVEMENT, so a policy
+    collapsed to a single constant action reads 0.00 on every one of them and
+    the ratio rule scores it as "much more stable than control".
+
+    That is exactly what happened: the no_replay ablation produced recall
+    0.0000 on all 8 seeds and was reported as "NO clear destabilisation - a
+    NEGATIVE RESULT", i.e. as evidence that replay does not matter. -515.4 is
+    the value of the always-BULK_CLOSE policy on the train-diagnostic seeds
+    (E-016).
+    """
+    assert is_collapse(np.full((8, 12), -515.4)) is True
+
+
+def test_a_flat_curve_at_a_GOOD_score_is_not_a_collapse():
+    """The check must key on the failure VALUE, not on flatness. An agent that
+    converges and then sits still is the success case, and would be destroyed
+    by a rule that treated any flat curve as collapse."""
+    assert is_collapse(np.full((3, 10), 120.0)) is False
+
+
+def test_a_healthy_volatile_curve_is_not_a_collapse():
+    """The control itself: volatility 167.8, swinging either side of zero."""
+    values = np.array([[10.0, -50.0, 120.0, 30.0, -20.0, 90.0]] * 3)
+    assert is_collapse(values) is False
+
+
+def test_collapse_is_judged_on_the_END_of_training_not_the_start():
+    """Every run starts near the collapse value before it has learned anything;
+    only failing to leave it is the defect."""
+    recovering = np.array([[-515.4] * 6 + [80.0, 110.0, 95.0, 120.0, 100.0, 115.0]] * 3)
+    assert is_collapse(recovering) is False

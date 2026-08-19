@@ -1,8 +1,8 @@
 # BUG_003 — `dqn_ablations.py` scores a total collapse as "no destabilisation"
 
-**Status:** diagnosed — **fix not applied** (handed to the next session; see "Fix")
+**Status:** fixed
 **Severity:** wrong-results
-**Phase:** 3 · **Found:** 2026-08-19 · **Fixed:** —
+**Phase:** 3 · **Found:** 2026-08-19 · **Fixed:** 2026-08-19
 **Model(s) used:** Claude Opus 5
 
 ---
@@ -65,22 +65,48 @@ The interpretation rule then compares ablation to control as a ratio and flags d
 
 ## Fix
 
-**Not applied.** The next session should implement it; the change is small and the specification is unambiguous.
-
-| File | What should change |
+| File | What changed |
 |---|---|
-| `scripts/dqn_ablations.py` | Before computing any ratio, check whether each condition **learned anything**. Gate on final greedy performance against the collapse band (below −450, the always-BULK_CLOSE value from E-016) and on `recall_at_deadline` being distinguishable from 0. If a condition failed that check, report **"COLLAPSED — learning failed entirely"** and do not compute or print stability ratios for it at all, because they are meaningless. |
-| `tests/test_dqn_analysis.py` | Add a test that a flatlined curve at the collapse value is classified as collapse, **not** as "no destabilisation". The existing `test_a_flat_curve_has_zero_volatility_and_zero_drawdown` should stay — it is correct about the arithmetic and its presence is what makes the omission visible. |
+| `scripts/dqn_ablations.py` | Added `COLLAPSE_BAND = -450.0` and `is_collapse(values)`, checked **before** any ratio is computed. A collapsed condition prints `COLLAPSED — no stability ratios` and its ratios are neither computed nor printed: emitting `x0.00` is what invited the misreading in the first place. Its verdict line now reads **"COLLAPSED — LEARNING FAILED ENTIRELY. This is the strongest possible result FOR the stabiliser, not a negative one."** The markdown writer carries the same three-way verdict. |
+| `tests/test_dqn_analysis.py` | Four tests (below). The existing `test_a_flat_curve_has_zero_volatility_and_zero_drawdown` was **kept** — it is correct about the arithmetic, and its presence beside the new tests is what makes the distinction legible. |
+
+Two design points worth keeping:
+
+- **The check keys on the failure *value*, not on flatness.** An agent that converges and then sits still is the success case; a rule that treated any flat curve as collapse would destroy it. `test_a_flat_curve_at_a_GOOD_score_is_not_a_collapse` pins that.
+- **It is judged on the final quarter, not the whole curve.** Every run starts near the collapse value before it has learned anything; only failing to *leave* it is the defect. `test_collapse_is_judged_on_the_END_of_training_not_the_start` pins that.
 
 The general rule worth carrying into Phases 4 and 5: **any stability or variance measure used as a gate must be preceded by a liveness check.** "Did not move" and "did not destabilise" are indistinguishable to a variance statistic, and only one of them is good news.
 
 ## Verification
 
-Not yet performed — the fix is not applied. When it is, the check is that `scripts/dqn_ablations.py` on the existing `results/dqn_runs/dqn_no_replay/` (8 runs, all recall 0.0000, kept) reports a collapse rather than a negative result, and that the full suite still passes.
+Re-run against the real 8 no-replay runs (unchanged on disk), which previously produced the wrong verdict:
+
+```
+ablation / control ratios (>1 means the ablation is less stable):
+  no replay            COLLAPSED - no stability ratios (final -515.4, below the -450 always-BULK_CLOSE band)
+  no target network    volatility x0.35  end_std x0.22  drawdown x0.49
+
+  no replay: **COLLAPSED - LEARNING FAILED ENTIRELY.** This is the strongest possible
+  result FOR the stabiliser, not a negative one: without it the agent never learns.
+  Stability ratios are meaningless here and are not reported (BUG_003).
+  no target network: NO clear destabilisation (all three within 1.5x of control) - a NEGATIVE RESULT
+```
+
+The `no_target_network` verdict is deliberately unchanged: that one *is* a genuine negative result, and the fix must not convert every unexpected reading into a collapse.
+
+```
+$ .\.venv\Scripts\python.exe -m pytest tests/ -q
+130 passed
+```
 
 ## Regression test added
 
-None yet — see "Fix". This is a `wrong-results` defect, so shipping it without a test would need a very good reason and there isn't one. The reason it is unfixed is scope and commit balance (Pranav is 10 commits ahead of Diya; CONSTRAINTS #26), not difficulty.
+Four in `tests/test_dqn_analysis.py`, all failing before the fix (`ImportError: cannot import name 'is_collapse'`):
+
+- `test_a_flatlined_collapse_is_not_mistaken_for_stability` — a flat curve at −515.4 is a collapse
+- `test_a_flat_curve_at_a_GOOD_score_is_not_a_collapse` — flatness alone is not failure
+- `test_a_healthy_volatile_curve_is_not_a_collapse` — the control's own shape
+- `test_collapse_is_judged_on_the_END_of_training_not_the_start` — a run that recovers is not a collapse
 
 ## Plain-English summary
 
