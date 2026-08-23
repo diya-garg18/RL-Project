@@ -243,6 +243,40 @@ difference between conditions is the algorithm — never the harness.
 
 ---
 
+## Flow G — REINFORCE training (Phase 4) 🟡 *(built 2026-08-23 — FEATURE_008; smoke-tested only, see E-018)*
+
+```
+scripts/train_reinforce.py
+  └─ load_env_config + load_training_config          config/*.yaml
+  └─ build_agent()                                   ReinforceAgent, shared feature scales (D-032)
+  └─ for each repeat:
+       └─ for each episode:
+            └─ runner.run_episode(learn=True)
+                 └─ agent.act(obs)                   SAMPLES from softmax pi(.|s) — no argmax
+                 └─ agent.update(...)                buffers (s, a, r) only; learns nothing yet
+            └─ agent.end_episode()                   <-- THE ENTIRE UPDATE HAPPENS HERE
+                 1. G_t by one backwards pass
+                 2. subtract baseline v(s_t)         detached; never enters the target
+                 3. weight by gamma^t
+                 4. policy step on -sum coeff*ln pi
+                 5. fit the baseline to those returns
+            └─ every eval_every: greedy_diagnostic() TRAIN-diagnostic seeds only
+       └─ agent.save()                               results/reinforce_runs/<tag>/
+  └─ ONCE, at the very end: run_episodes on eval seeds via _GreedyView
+```
+
+**The two things this flow does differently from Flow F (DQN):**
+
+1. **`end_episode()` is not a housekeeping call, it is the algorithm.** In Flow A and Flow F,
+   forgetting it leaves epsilon stuck (D-015) — bad, but the agent still learns. Here, forgetting
+   it means **nothing is ever learned at all**, because `update()` only buffers.
+2. **"Greedy" needs a wrapper.** The DQN went greedy by pinning epsilon to 0. REINFORCE has no
+   epsilon — its randomness *is* the policy — so `_GreedyView` reads the argmax of the action
+   probabilities without touching the agent's RNG or its buffer. The sampled reward and the greedy
+   diagnostic answer two genuinely different questions, and both are logged.
+
+---
+
 ## Flow D — RLHF (Phase 5) ⬜
 
 Three separate stages. Don't fuse them; each produces an artefact the next consumes.

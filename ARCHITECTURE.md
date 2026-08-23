@@ -52,7 +52,7 @@
 
 | Module | Responsibility | Must NOT do |
 |---|---|---|
-| `src/soc_triage/config.py` | Load + validate YAML config into typed objects | Contain any numbers itself |
+| `src/soc_triage/config/` | Load + validate YAML config into typed frozen objects. A package since D-031: `validation.py` (ConfigError + shared checks), `environment.py`, `training.py`, and an `__init__.py` that re-exports every public name so callers import `soc_triage.config` exactly as before | Contain any numbers itself |
 | `src/soc_triage/alerts.py` | The `Alert` dataclass and its hidden ground truth | Know about the agent |
 | `src/soc_triage/generator.py` | Poisson arrivals, feature sampling, `is_true_incident` labelling | Know about rewards |
 | `src/soc_triage/env.py` | The MDP: queue state, `reset()`, `step(action)`, reward, termination | Contain learning logic |
@@ -66,6 +66,7 @@
 | `src/soc_triage/agents/monte_carlo.py` | First-visit MC control, S&B §5.4 (FEATURE_006). Buffers the episode in `update` and does all learning in `end_episode` | Learn anything mid-episode, or run on a task that never terminates |
 | `src/soc_triage/agents/replay.py` | `ReplayBuffer` — a hand-written uniform ring buffer of five parallel numpy arrays (FEATURE_007). Breaks correlation between consecutive transitions and lets each be reused | Know anything about DQN, agents or the environment — it stores arrays and returns batches |
 | `src/soc_triage/agents/dqn.py` | `QNetwork` + `DQNAgent` — Q-learning with an MLP over the 17-dim continuous state, plus replay and a target network, both switchable off for the required ablations (FEATURE_007, D-023 to D-026) | Decay epsilon on its own, or count `target_update_every` in environment steps — it counts GRADIENT steps, and with `train_freq: 4` the two differ fourfold |
+| `src/soc_triage/agents/reinforce.py` | `ReinforceAgent` — Monte Carlo policy gradient over the same 17-dim state, with an optional learned value baseline (FEATURE_008, S&B 13.3/13.4). The first agent that learns a policy directly: no argmax in `act()` | Contain an epsilon schedule — it explores by sampling its own policy — or bootstrap the baseline, which would make it an actor-critic |
 | `src/soc_triage/runner.py` | Run N episodes with a given agent + seed, emit `EpisodeRecord`s | Compute metrics |
 | `src/soc_triage/evaluation/` | Metrics, baseline comparison tables, plots, the reward-hacking audit | Train anything |
 | `src/soc_triage/rlhf/` | Build comparison pairs, store labels, train the Bradley–Terry reward model | Know about specific agents |
@@ -104,7 +105,10 @@ RLPROJECT/                     ← D:\RLPROJECT on the current device
 │       └─ EXPERIMENT_LOG.md   ← every training run: config, seed, result
 ├─ src/soc_triage/
 │   ├─ __init__.py
-│   ├─ config.py
+│   ├─ config/
+│   │   ├─ validation.py
+│   │   ├─ environment.py
+│   │   └─ training.py
 │   ├─ alerts.py
 │   ├─ generator.py
 │   ├─ env.py
@@ -120,7 +124,7 @@ RLPROJECT/                     ← D:\RLPROJECT on the current device
 │   │   ├─ sarsa.py
 │   │   ├─ q_learning.py
 │   │   ├─ dqn.py
-│   │   ├─ reinforce.py
+│   │   ├─ reinforce.py         ← Phase 4, built
 │   │   └─ actor_critic.py
 │   ├─ evaluation/
 │   │   ├─ metrics.py
@@ -197,7 +201,7 @@ class Alert:
 | 1 | `agents/dp`, `mrp_example` |
 | 2 | **all built ✅** — `tiny_mdp`, `agents/tabular`, `agents/q_learning`, `agents/sarsa`, `agents/monte_carlo`, `scripts/train.py`, `scripts/policy_table.py`, `scripts/compare_agents.py`, `scripts/ablations.py` |
 | 3 | **all built ✅, no training result yet** — `agents/dqn`, `agents/replay`, `scripts/train_dqn.py`, `scripts/run_dqn_sweep.py`, `scripts/aggregate_dqn.py`, `scripts/compare_dqn_tabular.py`, `scripts/dqn_ablations.py` |
-| 4 | `agents/reinforce`, `agents/actor_critic` |
+| 4 | 🟡 `agents/reinforce` **built + tested, unmeasured** (FEATURE_008, E-018), `scripts/train_reinforce.py`; still to come: `agents/actor_critic`, the sample-efficiency comparison, the variance demonstration |
 | 5 | `rlhf/*`, `web/*` |
 | 6 | `evaluation/audit`, `evaluation/plots` |
 

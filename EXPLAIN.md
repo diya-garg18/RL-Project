@@ -156,6 +156,48 @@ This is called a **reward hacking audit**, and it's a real research concern in A
 
 *This section grows every session. Newest at the top. For each thing built, answer all four: **what**, **where**, **why**, **how**.*
 
+### Session 9 — 2026-08-23 — Claude Opus 5 — a new kind of learner, and it reinvented the thing it was supposed to beat
+
+**What.** Phase 4 started. We built REINFORCE — the first agent in this project that learns *how to act* directly, instead of learning *how good things are* and then acting greedily. Two housekeeping jobs came first because Phase 4 needed them. Then a quick test run produced a number that looked wrong, and checking it turned out to be the interesting part of the day.
+
+**Where.** `src/soc_triage/agents/reinforce.py`, `scripts/train_reinforce.py`, `tests/test_reinforce.py`, feature doc `FEATURE_008`, experiment `E-018`, decisions `D-031` and `D-032`.
+
+---
+
+**The difference between this agent and every earlier one, in one paragraph.**
+
+Everything built so far works the same way underneath. It learns a *score* for each possible move in each situation — "in this state, investigating the highest-severity alert is worth 12; bulk-closing is worth −40" — and then acts by picking the highest score. The table-based learners, the planner, and the neural network all do this. They differ only in how they store and update those scores.
+
+REINFORCE throws that out. It keeps no scores at all. It holds a set of **probabilities** — "in this situation I take this action 60% of the time, that one 25%" — and adjusts those probabilities directly. When a shift goes well, every action it happened to take that shift becomes a little more likely. When a shift goes badly, they all become a little less likely. That is genuinely the whole algorithm.
+
+**Why anyone would prefer that.** Two reasons worth knowing. First, the agent's uncertainty is now part of what it learns: it can end up genuinely 50/50 between two actions, which a "pick the highest score" agent can never express. Second, there is no separate exploration setting to tune. Every earlier learner needed a rule saying "ignore your own advice 5% of the time so you keep discovering things". REINFORCE explores automatically, because its policy is random by nature, and it stops exploring on its own as it grows confident. There is deliberately no such setting anywhere in the file, and a test fails if someone adds one.
+
+**The cost.** It is noisy. It waits until a whole shift is over, then judges every action in that shift by how the *entire shift* went. A brilliant decision in a shift that ended badly gets punished anyway. That is why the standard fix — a **baseline** — is built in: instead of asking "did this shift go well?", it asks "did this shift go better than I expected from this situation?" A second small network learns what to expect, and gets subtracted. The mathematics of why this doesn't bias the answer is three lines and is written out at the top of the file, because it is a likely interview question.
+
+---
+
+**The result that looked wrong.** A 300-episode test run scored **recall 0.8443, reward 40.44, spread ±220.1**.
+
+Those are, to every digit we report, the exact numbers for **severity-sort** — the simple industry rule this whole project is trying to beat (0.84, 40.4, ±220.1). Our own rules say a suspiciously good result is a bug report until proven otherwise, so we stopped and checked rather than writing it down.
+
+**It was not a bug.** Severity-sort is a one-line strategy: always investigate the most severe alert, no matter what. We counted every action the trained agent took across all 30 evaluation shifts: it chose "investigate the most severe alert" **1131 times out of 1131**. Two strategies that behave identically on identical shifts must produce identical scores. The numbers matched because the policies matched.
+
+**So what actually happened is this:** starting from knowing nothing, REINFORCE worked its way to the same rule human analysts use — and then stopped there. That is a real thing to have learned. It is also, precisely, *matching* the baseline rather than beating it, which is what Phase 4 is supposed to require.
+
+Whether that is a stopping point or a stepping stone is genuinely unknown, and it is the first question the next full training run answers. **Both answers are worth reporting.** "A policy-gradient method converges on the human heuristic and stays there" would say something real about the reward we designed — which is exactly the thread Phase 5 pulls on.
+
+---
+
+**One more thing we noticed and did not touch.** The size of the adjustment the agent wanted to make each step was around 1,500–2,200, against a configured safety cap of 10. So the cap fires on essentially every single step, which means the *direction* of each adjustment survives but its *size* is thrown away. Nothing is broken and nothing errors — it is doing exactly what the configuration says — but it quietly changes the character of the algorithm, which is the same shape of problem as the bug that destroyed the first neural-network run in session 8.
+
+We deliberately did **not** adjust it. That setting is a tuning knob, and today's test runs already looked at the evaluation shifts, so tuning against anything measured today would break the one rule this project cares most about: never tune on the shifts you grade yourself with. It needs its own experiment on training shifts only, and it is written down for the humans to decide.
+
+---
+
+**The two housekeeping jobs, briefly.** The configuration file had grown to 657 lines — over our own 500-line limit — and Phase 4 was about to add two more sections to it. We split it into four smaller files that add up to the same thing, arranged so that every other file in the project imports it exactly as before. That last detail is what made the existing 130 tests a genuine check that the split changed nothing.
+
+Second: the 17 scaling numbers that let a neural network read the queue sensibly were filed under "DQN settings", because the DQN was the only thing using them. REINFORCE reads the same 17 numbers. Rather than copy them, we moved them somewhere shared — because two copies of the same constant is one copy that can drift, and if the two agents were ever scaled differently, our comparison of the two algorithms would silently become a comparison of their preprocessing instead. A test now fails if anyone re-adds the copy.
+
 ### Session 8 — 2026-08-19 — Claude Opus 5 — the agent learned to shred the inbox, and the training error looked perfect while it did
 
 **What.** We trained the neural network overnight for the first time. It failed completely. We found out why, fixed it, and restarted. The failure is the interesting part and we have kept every file from it.
