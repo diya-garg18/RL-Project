@@ -128,6 +128,7 @@ class ReinforceConfig:
     baseline_lr: float
     grad_clip_norm: float
     train_seed_start: int
+    ablation_seed_start: int
 
 
 @dataclass(frozen=True)
@@ -234,6 +235,7 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         baseline_lr=float(_require(reinforce_raw, "baseline_lr", "reinforce")),
         grad_clip_norm=float(_require(reinforce_raw, "grad_clip_norm", "reinforce")),
         train_seed_start=int(_require(reinforce_raw, "train_seed_start", "reinforce")),
+        ablation_seed_start=int(_require(reinforce_raw, "ablation_seed_start", "reinforce")),
     )
 
     if not 0.0 < common.gamma <= 1.0:
@@ -291,6 +293,19 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         raise ConfigError(
             "'dqn.ablation_seed_start' must be >= 100000 to stay clear of the "
             "train, eval, calibration and DP estimation seed blocks"
+        )
+    if reinforce.ablation_seed_start < 100_000:
+        raise ConfigError(
+            "'reinforce.ablation_seed_start' must be >= 100000 to stay clear of the "
+            "train, eval, calibration and DP estimation seed blocks"
+        )
+    if reinforce.ablation_seed_start in seed_starts.values() or (
+        reinforce.ablation_seed_start == dqn.ablation_seed_start
+    ):
+        raise ConfigError(
+            f"'reinforce.ablation_seed_start' ({reinforce.ablation_seed_start}) must "
+            f"differ from every other seed block, including 'dqn.ablation_seed_start' "
+            f"({dqn.ablation_seed_start})"
         )
     if dqn.ablation_seed_start in seed_starts.values():
         raise ConfigError(

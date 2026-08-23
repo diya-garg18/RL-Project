@@ -122,6 +122,10 @@ reinforce:                     # Phase 4 - Monte Carlo policy gradient (S&B 13.3
   train_seed_start: 1400000    # own block (D-016), disjoint from q_learning 200000,
                                # sarsa 400000, monte_carlo 600000, dqn 1000000 and
                                # the dqn ablations 1200000.
+  ablation_seed_start: 1600000 # the no-baseline ablation (ROADMAP box 4) trains on
+                               # its own block, so the control and the ablated
+                               # condition never share alert streams -- the one
+                               # confound an ablation must not have (D-027).
                                # NOTE: no epsilon key, deliberately. Policy gradient
                                # explores by sampling its own policy; bolting
                                # epsilon-greedy on would make it a different

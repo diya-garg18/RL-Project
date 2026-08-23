@@ -79,3 +79,18 @@ def test_unknown_activation_is_rejected(tmp_path):
     raw["reinforce"]["activation"] = "gelu"
     with pytest.raises(ConfigError, match="activation"):
         load_training_config(_write(tmp_path, raw))
+
+
+def test_reinforce_ablation_block_differs_from_every_other_block(tmp_path):
+    """The no-baseline ablation (ROADMAP box 4) must not share alert streams
+    with the control, or the variance comparison is confounded by the shifts
+    rather than by the baseline (D-027)."""
+    for other_section, key in (
+        ("reinforce", "train_seed_start"),
+        ("dqn", "train_seed_start"),
+        ("dqn", "ablation_seed_start"),
+    ):
+        raw = _raw()
+        raw["reinforce"]["ablation_seed_start"] = raw[other_section][key]
+        with pytest.raises(ConfigError):
+            load_training_config(_write(tmp_path, raw))
