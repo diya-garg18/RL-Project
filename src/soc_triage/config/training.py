@@ -277,7 +277,7 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         if start < 100_000:
             raise ConfigError(
                 f"'{name}.train_seed_start' must be >= 100000 to stay clear of the "
-                "train (1-10), eval (101-105), calibration (1000-3099), and DP "
+                "train (1-10), eval (101-130), calibration (1000-3099), and DP "
                 "estimation (10000-59999) seed blocks"
             )
     if len(set(seed_starts.values())) != len(seed_starts):
@@ -373,7 +373,7 @@ def load_training_config(path: str | Path) -> TrainingConfig:
     if dp.estimation_seed_start < 10_000:
         raise ConfigError(
             "'dp.estimation_seed_start' must be >= 10000 to stay clear of the "
-            "train (1-10), eval (101-105), and calibration (1000-3099) seed blocks"
+            "train (1-10), eval (101-130), and calibration (1000-3099) seed blocks"
         )
     return TrainingConfig(
         common=common,
