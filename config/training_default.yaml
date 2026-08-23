@@ -104,9 +104,28 @@ features:                        # D-032. Shared by EVERY function-approximation
     alerts_handled: 50.0         # observed ceiling 45
     incidents_confirmed: 10.0    # observed ceiling 6
 
-reinforce:
-  lr: 0.001
+reinforce:                     # Phase 4 - Monte Carlo policy gradient (S&B 13.3/13.4)
+  hidden_layers: [128, 128]    # same shape as the DQN's Q-network on purpose: the
+  activation: relu             # sample-efficiency comparison should differ by
+                               # algorithm, not by capacity.
+  lr: 0.001                    # policy step size. Lower than the DQN's 0.0005 would
+                               # be misleading to compare directly - this multiplies
+                               # a return of magnitude ~100, not a TD error.
   use_baseline: true           # value baseline for variance reduction; ablate this
+  baseline_lr: 0.005           # the value head learns faster than the policy: a
+                               # baseline that lags is worse than no baseline,
+                               # since it subtracts a stale expectation.
+  grad_clip_norm: 10.0         # load-bearing here, not decoration. Returns in this
+                               # environment reach +-500, so an unbaselined step is
+                               # orders of magnitude larger than the +-1-scale
+                               # returns most REINFORCE examples assume.
+  train_seed_start: 1400000    # own block (D-016), disjoint from q_learning 200000,
+                               # sarsa 400000, monte_carlo 600000, dqn 1000000 and
+                               # the dqn ablations 1200000.
+                               # NOTE: no epsilon key, deliberately. Policy gradient
+                               # explores by sampling its own policy; bolting
+                               # epsilon-greedy on would make it a different
+                               # algorithm (tests/test_reinforce_config.py).
 
 actor_critic:
   actor_lr: 0.001

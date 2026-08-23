@@ -110,6 +110,27 @@ class DQNConfig:
 
 
 @dataclass(frozen=True)
+class ReinforceConfig:
+    """Phase 4. Note what is absent: there is no epsilon schedule.
+
+    Every earlier learner in this project explores by sometimes ignoring its own
+    policy. REINFORCE explores by *having* a stochastic policy and sampling from
+    it, so exploration decays only as the policy sharpens -- there is nothing to
+    schedule and nothing to decay. That absence is the most visible structural
+    difference between value-based and policy-gradient methods, and it is why
+    this config class does not simply reuse EpsilonConfig.
+    """
+
+    hidden_layers: tuple[int, ...]
+    activation: str
+    lr: float
+    use_baseline: bool
+    baseline_lr: float
+    grad_clip_norm: float
+    train_seed_start: int
+
+
+@dataclass(frozen=True)
 class TrainingConfig:
     common: CommonTrainingConfig
     dp: DPConfig
@@ -119,6 +140,7 @@ class TrainingConfig:
     monte_carlo: MonteCarloConfig
     features: FeaturesConfig
     dqn: DQNConfig
+    reinforce: ReinforceConfig
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
@@ -202,6 +224,18 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         ),
     )
 
+    # Phase 4 section, added when Phase 4 started (no building ahead).
+    reinforce_raw = _require(raw, "reinforce", "training")
+    reinforce = ReinforceConfig(
+        hidden_layers=tuple(int(h) for h in _require(reinforce_raw, "hidden_layers", "reinforce")),
+        activation=str(_require(reinforce_raw, "activation", "reinforce")),
+        lr=float(_require(reinforce_raw, "lr", "reinforce")),
+        use_baseline=bool(_require(reinforce_raw, "use_baseline", "reinforce")),
+        baseline_lr=float(_require(reinforce_raw, "baseline_lr", "reinforce")),
+        grad_clip_norm=float(_require(reinforce_raw, "grad_clip_norm", "reinforce")),
+        train_seed_start=int(_require(reinforce_raw, "train_seed_start", "reinforce")),
+    )
+
     if not 0.0 < common.gamma <= 1.0:
         raise ConfigError("'common.gamma' must be in (0, 1]")
     for name, alpha in (("sarsa", sarsa.alpha), ("monte_carlo", monte_carlo.alpha)):
@@ -237,6 +271,7 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         "sarsa": sarsa.train_seed_start,
         "monte_carlo": monte_carlo.train_seed_start,
         "dqn": dqn.train_seed_start,
+        "reinforce": reinforce.train_seed_start,
     }
     for name, start in seed_starts.items():
         if start < 100_000:
@@ -315,6 +350,24 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         if divisor <= 0:
             raise ConfigError(f"'features.scales.{name}' must be positive, got {divisor}")
 
+    # Phase 4 checks. Same rule as the Phase 3 block above: each of these fails
+    # at runtime as a bad result rather than as an error. A zero learning rate
+    # trains a policy that never moves, which reads as "the task is hard".
+    if not reinforce.hidden_layers or any(h <= 0 for h in reinforce.hidden_layers):
+        raise ConfigError("'reinforce.hidden_layers' must be a non-empty list of positive ints")
+    if reinforce.activation not in ("relu", "tanh"):
+        raise ConfigError(
+            f"'reinforce.activation' must be relu or tanh, got {reinforce.activation!r}"
+        )
+    if reinforce.lr <= 0:
+        raise ConfigError("'reinforce.lr' must be positive")
+    if reinforce.baseline_lr <= 0:
+        # Checked even when use_baseline is false: an ablation run must be able
+        # to switch the baseline back on without the config being wrong.
+        raise ConfigError("'reinforce.baseline_lr' must be positive")
+    if reinforce.grad_clip_norm <= 0:
+        raise ConfigError("'reinforce.grad_clip_norm' must be positive")
+
     if dp.value_iteration_theta <= 0 or dp.policy_eval_theta <= 0:
         raise ConfigError("DP convergence thresholds must be positive")
     if dp.estimation_seed_start < 10_000:
@@ -331,4 +384,5 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         monte_carlo=monte_carlo,
         features=features,
         dqn=dqn,
+        reinforce=reinforce,
     )
