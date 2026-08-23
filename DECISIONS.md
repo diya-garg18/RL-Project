@@ -586,3 +586,19 @@ The first sweep therefore ran at a setting slower than the alternative, not fast
 **The correction that matters most, and it is not a tuning parameter.** Even at 8 the first sweep degraded from 27 min/run to **195 min/run** over five hours, with CPU at 19% and ~96000 page faults/sec against almost no disk reads. The cause was almost certainly **Mem Reduct**, a third-party memory tool set to auto-clean whenever memory exceeded 90%, with "Working set" among the regions it clears. Clearing a working set calls `EmptyWorkingSet` on every process; the trainers' resident pages are evicted and must immediately be faulted back in, which is exactly the soft-fault storm observed. Early runs were fast because memory sat near 69%, below the trigger; runs slowed 7x once the baseline crossed 90%. Recorded as the *likely* cause — the tool's own log was not inspected — because the evidence is circumstantial but fits every measurement.
 
 **Consequences:** benchmark numbers taken on a freshly rebooted, otherwise-idle machine are not predictions about an 8-hour unattended run. The 800-episode benchmark above projected 9.9 min/run; reality was 27 at best and 195 at worst. The benchmark measured the right quantity under the wrong conditions, which is the same failure as D-024's compute-budget probe — a fragment measured accurately and generalised wrongly. Any future capacity claim in this project should say what else was running on the machine.
+
+---
+
+## D-031 — `config.py` is split into a package, and the split is behaviour-neutral by construction
+
+**Date:** 2026-08-23 · **Model:** Claude Opus 5 · **Phase:** 4 · **Status:** active
+
+**Decision:** `src/soc_triage/config.py` (657 lines) becomes the package `src/soc_triage/config/`, in four files: `validation.py` (ConfigError plus the three shared checks), `environment.py` (the env YAML loader), `training.py` (the training YAML loader), and `__init__.py` (re-exports only).
+
+**Why now, and why it is Phase 4 work rather than tidying.** It was the only file in the repo over the 500-line limit (CONSTRAINTS #12) and the violation predated Phase 3. Phase 4 adds two more config sections — `reinforce` and `actor_critic` — plus their seed-block checks, so the choice was to split it or to break the limit further with every Phase 4 commit. Splitting first is cheaper than splitting later with two more phases' worth of loaders inside it.
+
+**How the split was chosen.** Along the seam that already existed: two YAML files, two loaders, sharing nothing but three validation helpers. No function was rewritten, reordered or renamed — the bodies were moved verbatim, which is what makes the next paragraph true.
+
+**Why `__init__.py` re-exports everything.** Twenty-seven call sites across `src/`, `scripts/` and `tests/` import from `soc_triage.config`. Re-exporting means none of them changed, so **the existing 130 tests are a real check on the move**: they exercise the same public names through the same import path, and a passing suite means the split changed nothing observable. Had the imports been rewritten instead, the tests would have been checking the new arrangement rather than checking the move. Verified: 130 passed before, 130 passed after.
+
+**Known cost.** The word "config" now names two things one directory apart — `config/` at the repo root holds YAML, `soc_triage.config` is the code that reads it. That collision is called out at the top of `__init__.py` rather than left for a reader to trip over. Renaming the package would have touched all 27 call sites and destroyed the property in the paragraph above, which was judged the worse trade.
