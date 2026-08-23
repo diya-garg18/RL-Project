@@ -2,8 +2,10 @@
 
 Every check here exists because the failure it prevents is silent: a
 learning_starts below batch_size deadlocks the first sample() call, a
-feature_scales typo silently leaves one column unscaled, and a duplicated
-train_seed_start makes two experiments share alert streams (D-016).
+duplicated train_seed_start makes two experiments share alert streams (D-016).
+
+Input scaling is no longer tested here: it moved to a shared `features:` block
+in D-032, and its tests moved with it to tests/test_feature_scales.py.
 """
 
 from pathlib import Path
@@ -12,7 +14,6 @@ import pytest
 import yaml
 
 from soc_triage.config import ConfigError, load_training_config
-from soc_triage.state import FEATURE_NAMES, feature_scale_vector
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "training_default.yaml"
 
@@ -36,39 +37,6 @@ def test_dqn_section_loads():
     assert dqn.loss == "huber"
     assert dqn.no_replay is False
     assert dqn.no_target_network is False
-
-
-def test_feature_scales_cover_every_column_exactly():
-    dqn = load_training_config(CONFIG_PATH).dqn
-    assert {name for name, _ in dqn.feature_scales} == set(FEATURE_NAMES)
-
-
-def test_scale_vector_is_ordered_like_feature_names():
-    dqn = load_training_config(CONFIG_PATH).dqn
-    vector = feature_scale_vector(dqn.feature_scales)
-    lookup = dict(dqn.feature_scales)
-    assert vector.shape == (len(FEATURE_NAMES),)
-    for i, name in enumerate(FEATURE_NAMES):
-        assert vector[i] == lookup[name]
-
-
-def test_scale_vector_rejects_a_missing_column():
-    partial = tuple((n, 1.0) for n in FEATURE_NAMES[:-1])
-    with pytest.raises(ValueError, match=FEATURE_NAMES[-1]):
-        feature_scale_vector(partial)
-
-
-def test_scale_vector_rejects_an_unknown_column():
-    extra = tuple((n, 1.0) for n in FEATURE_NAMES) + (("not_a_feature", 1.0),)
-    with pytest.raises(ValueError, match="not_a_feature"):
-        feature_scale_vector(extra)
-
-
-def test_zero_divisor_is_rejected(tmp_path):
-    raw = _raw()
-    raw["dqn"]["feature_scales"]["queue_len"] = 0.0
-    with pytest.raises(ConfigError, match="queue_len"):
-        load_training_config(_write(tmp_path, raw))
 
 
 def test_learning_starts_below_batch_size_is_rejected(tmp_path):

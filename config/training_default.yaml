@@ -70,12 +70,22 @@ dqn:                             # Phase 3 — DQN over the 17-dim continuous st
   train_seed_start: 1000000      # own block (D-016), disjoint from q_learning 200000,
                                  # sarsa 400000, monte_carlo 600000, ablations 800000
   ablation_seed_start: 1200000   # the Phase 3 ablation sweep gets its own block too
-  feature_scales:                # D-023. Divisors are domain constants, never tuned.
-                                 # Measured spread across 888 observations was 470x
-                                 # (max_age_min reaches 473.6, frac_type_* stay in
-                                 # [0,1]); unscaled, the age columns dominate every
-                                 # gradient. Lives here and NOT in env_default.yaml,
-                                 # which is content-hashed into every EpisodeRecord.
+  ablations:                     # Phase 3 required ablations — expect visible instability
+    no_replay: false
+    no_target_network: false
+
+features:                        # D-032. Shared by EVERY function-approximation
+                                 # agent -- the DQN (Phase 3), REINFORCE and
+                                 # actor-critic (Phase 4) all consume the same 17
+                                 # columns from state.featurise, so scaling them
+                                 # differently would make the sample-efficiency
+                                 # comparison a comparison of preprocessing.
+  scales:                        # D-023. Divisors are domain constants, never tuned.
+                               # Measured spread across 888 observations was 470x
+                               # (max_age_min reaches 473.6, frac_type_* stay in
+                               # [0,1]); unscaled, the age columns dominate every
+                               # gradient. Lives here and NOT in env_default.yaml,
+                               # which is content-hashed into every EpisodeRecord.
     queue_len: 150.0             # observed ceiling 148; unbounded in principle
     mean_severity: 3.0           # severity.levels runs 0-3
     max_severity: 3.0
@@ -93,9 +103,6 @@ dqn:                             # Phase 3 — DQN over the 17-dim continuous st
     time_left_norm: 1.0          # already normalised by construction
     alerts_handled: 50.0         # observed ceiling 45
     incidents_confirmed: 10.0    # observed ceiling 6
-  ablations:                     # Phase 3 required ablations — expect visible instability
-    no_replay: false
-    no_target_network: false
 
 reinforce:
   lr: 0.001

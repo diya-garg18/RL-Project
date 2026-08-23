@@ -70,10 +70,27 @@ class MonteCarloConfig:
 
 
 @dataclass(frozen=True)
+class FeaturesConfig:
+    """Input scaling for every function-approximation agent (D-032).
+
+    `scales` is (name, divisor) pairs rather than a dict so the whole config
+    stays hashable and frozen; `state.feature_scale_vector` turns it into the
+    ordered array the agent multiplies by.
+
+    This lived under `dqn:` through Phase 3, when the DQN was the only consumer.
+    It is shared now because the divisors are domain constants -- the shift is
+    480 minutes, severity runs 0-3 -- and Phase 4's REINFORCE and actor-critic
+    read the identical 17 columns. Two copies would let the DQN and REINFORCE be
+    scaled differently with nothing failing, which would quietly turn the
+    sample-efficiency comparison into a comparison of preprocessing.
+    """
+
+    scales: tuple[tuple[str, float], ...]
+
+
+@dataclass(frozen=True)
 class DQNConfig:
-    """Phase 3. `feature_scales` is (name, divisor) pairs rather than a dict so
-    the whole config stays hashable and frozen; `state.feature_scale_vector`
-    turns it into the ordered array the agent multiplies by."""
+    """Phase 3 hyperparameters. Input scaling is NOT here -- see FeaturesConfig."""
 
     hidden_layers: tuple[int, ...]
     activation: str
@@ -86,7 +103,6 @@ class DQNConfig:
     grad_clip_norm: float
     loss: str
     huber_delta: float
-    feature_scales: tuple[tuple[str, float], ...]
     train_seed_start: int
     ablation_seed_start: int
     no_replay: bool
@@ -101,6 +117,7 @@ class TrainingConfig:
     q_learning: QLearningConfig
     sarsa: SarsaConfig
     monte_carlo: MonteCarloConfig
+    features: FeaturesConfig
     dqn: DQNConfig
 
 
@@ -155,9 +172,15 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         train_seed_start=int(_require(mc_raw, "train_seed_start", "monte_carlo")),
     )
 
+    # Shared input scaling (D-032). Read before the agents that consume it.
+    features_raw = _require(raw, "features", "training")
+    scales_raw = _require(features_raw, "scales", "features")
+    features = FeaturesConfig(
+        scales=tuple((str(k), float(v)) for k, v in scales_raw.items()),
+    )
+
     # Phase 3 section, added when Phase 3 started (no building ahead).
     dqn_raw = _require(raw, "dqn", "training")
-    scales_raw = _require(dqn_raw, "feature_scales", "dqn")
     ablations_raw = _require(dqn_raw, "ablations", "dqn")
     dqn = DQNConfig(
         hidden_layers=tuple(int(h) for h in _require(dqn_raw, "hidden_layers", "dqn")),
@@ -171,7 +194,6 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         grad_clip_norm=float(_require(dqn_raw, "grad_clip_norm", "dqn")),
         loss=str(_require(dqn_raw, "loss", "dqn")),
         huber_delta=float(_require(dqn_raw, "huber_delta", "dqn")),
-        feature_scales=tuple((str(k), float(v)) for k, v in scales_raw.items()),
         train_seed_start=int(_require(dqn_raw, "train_seed_start", "dqn")),
         ablation_seed_start=int(_require(dqn_raw, "ablation_seed_start", "dqn")),
         no_replay=bool(_require(ablations_raw, "no_replay", "dqn.ablations")),
@@ -287,9 +309,11 @@ def load_training_config(path: str | Path) -> TrainingConfig:
             f"collapse threshold of 50 (E-016). Values at or under 25 make the "
             f"agent collapse to BULK_CLOSE and catch ~1% of incidents."
         )
-    for name, divisor in dqn.feature_scales:
+    # An unscaled or negatively-scaled column does not raise anywhere downstream;
+    # it just trains worse. Caught here or not at all.
+    for name, divisor in features.scales:
         if divisor <= 0:
-            raise ConfigError(f"'dqn.feature_scales.{name}' must be positive, got {divisor}")
+            raise ConfigError(f"'features.scales.{name}' must be positive, got {divisor}")
 
     if dp.value_iteration_theta <= 0 or dp.policy_eval_theta <= 0:
         raise ConfigError("DP convergence thresholds must be positive")
@@ -305,5 +329,6 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         q_learning=q_learning,
         sarsa=sarsa,
         monte_carlo=monte_carlo,
+        features=features,
         dqn=dqn,
     )

@@ -602,3 +602,19 @@ The first sweep therefore ran at a setting slower than the alternative, not fast
 **Why `__init__.py` re-exports everything.** Twenty-seven call sites across `src/`, `scripts/` and `tests/` import from `soc_triage.config`. Re-exporting means none of them changed, so **the existing 130 tests are a real check on the move**: they exercise the same public names through the same import path, and a passing suite means the split changed nothing observable. Had the imports been rewritten instead, the tests would have been checking the new arrangement rather than checking the move. Verified: 130 passed before, 130 passed after.
 
 **Known cost.** The word "config" now names two things one directory apart — `config/` at the repo root holds YAML, `soc_triage.config` is the code that reads it. That collision is called out at the top of `__init__.py` rather than left for a reader to trip over. Renaming the package would have touched all 27 call sites and destroyed the property in the paragraph above, which was judged the worse trade.
+
+---
+
+## D-032 — The 17 input divisors move from `dqn:` to a shared `features:` block
+
+**Date:** 2026-08-23 · **Model:** Claude Opus 5 · **Phase:** 4 · **Status:** active, **extends D-023** (which chose the divisors and where the file they live in)
+
+**Decision:** `feature_scales` leaves the `dqn:` section of `training_default.yaml` and becomes `features.scales`, loaded into a new `FeaturesConfig` on `TrainingConfig`. `DQNConfig` no longer carries it. The values are unchanged, all 17 of them.
+
+**Why.** Phase 4's REINFORCE and actor-critic read the same 17 columns from `state.featurise` as the DQN does, so they need the same divisors. Three ways to give them those: read `dqn.feature_scales` from a Phase 4 agent (Phase 4 depending on Phase 3's config section, and a lie about what the section means), duplicate the 17 numbers under `reinforce:` (two copies of a domain constant, which is one copy that can drift), or promote. The divisors were never DQN hyperparameters — the shift is 480 minutes long and severity runs 0-3 whatever is consuming them. D-023 put them under `dqn:` because the DQN was the only thing that could use them, not because they belong to it.
+
+**What the duplicate would actually have cost, which is the real argument.** The Phase 4 deliverable is a sample-efficiency comparison of DQN vs REINFORCE vs actor-critic. If those agents can be scaled differently and nothing fails, the comparison silently stops being a comparison of algorithms and becomes partly a comparison of preprocessing — and it would look completely normal in the results table. That is the same shape of defect as E-016 and BUG_003: no error, no crash, just a number that means something other than what its label says. `tests/test_feature_scales.py::test_the_dqn_section_does_not_keep_a_private_copy_of_the_scales` fails if the copy is ever re-added.
+
+**Backwards compatibility deliberately not provided.** The loader raises on a config with no `features:` block rather than falling back to `dqn.feature_scales`. A silent fallback would let a stale config from before this change train an agent on unscaled columns — the exact failure D-023 exists to prevent. Covered by `test_a_missing_features_block_is_refused`.
+
+**Verified:** 132 passed (130 before, minus 5 scale tests moved out of `test_dqn_config.py`, plus 7 in the new `test_feature_scales.py`).

@@ -84,7 +84,7 @@ def build_agent(tcfg: TrainingConfig, seed: int, no_replay: bool, no_target_netw
         epsilon_min=tcfg.epsilon.min,
         epsilon_decay=tcfg.epsilon.decay,
         seed=seed,
-        feature_scales=feature_scale_vector(dcfg.feature_scales),
+        feature_scales=feature_scale_vector(tcfg.features.scales),
     )
 
 
