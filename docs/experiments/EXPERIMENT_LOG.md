@@ -839,3 +839,84 @@ Removing one of DQN's two headline stabilisers improved recall, reward, volatili
 ### Why this is worth the entry
 
 Three of the four results here contradict something we expected. The one that should travel furthest is Result 3: **we wrote the instability measures down in advance precisely so we could not fit them to the data afterwards, and they still gave the wrong answer** — because choosing a metric early protects against one failure mode (post-hoc rationalisation) and not against another (measuring the wrong quantity). Pre-registration is necessary and not sufficient. The only reason the error was caught is that the per-run numbers were read directly instead of trusting the summary line.
+
+---
+
+## E-018 — REINFORCE runs, and at 300 episodes it has become severity-sort exactly — 2026-08-23
+
+**Model:** Claude Opus 5 · **Phase:** 4 · **Decisions:** none yet — this is a diagnostic, not a result.
+Smoke runs only. Artefacts deleted after measurement (D-018); regenerate with the command below.
+
+### Status of these numbers
+
+**NOT a result and must not be quoted as one.** One repeat, 300 episodes, no seed variation:
+CONSTRAINTS #3 requires >=5 seeds for any headline figure. This entry exists because two of
+the observations change what the next session should do, and because the project logs what it
+measured rather than only what it wanted.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/train_reinforce.py --episodes 300 --repeats 1 --eval-every 300 --no-plot
+```
+
+### 1. The agent trains, and the cost is ~24 min per full run
+
+300 episodes took ~22 s of training (36.9 s wall including imports and one 10-episode greedy
+diagnostic). That is **~0.073 s/episode**, so a 20,000-episode run projects to **~24 minutes** —
+the same order as the DQN's measured 27 min.
+
+**This projection is stated with D-024's and D-030's warning attached**: it was taken on a short
+run on a quiet machine, which is exactly the condition under which this project's compute
+estimates have been wrong twice. Treat 24 min as a lower bound, not a plan.
+
+### 2. At 300 episodes the greedy policy IS severity-sort, bit for bit
+
+| | recall@deadline | total reward | std |
+|---|---|---|---|
+| REINFORCE greedy, 300 episodes | **0.8443** | **40.44** | +-220.12 |
+| severity_sort (E-014, 30 eval seeds) | **0.84** | **40.4** | +-220.1 |
+
+Identical to every digit reported. Per CONSTRAINTS #5 this was treated as a bug report and
+checked before being written down.
+
+**It is not a bug.** `baselines.py:55-56` defines `severity_sort` as a constant policy —
+`act()` returns `PULL_HIGHEST_SEVERITY` unconditionally. Counting the greedy REINFORCE policy's
+actions across all 30 evaluation episodes gives **`PULL_HIGHEST_SEVERITY` 1131 times and nothing
+else**. Two policies that emit the same action in every state produce identical trajectories on
+identical seeds, so identical metrics are the correct outcome, not a coincidence.
+
+**What it means, stated carefully.** After 300 episodes REINFORCE has *rediscovered the industry
+baseline* — which is a real thing to have learned from scratch, and also means it has **matched
+severity-sort, not beaten it**, against a Phase 4 exit criterion that asks for beating it.
+
+**What is genuinely open:** whether this is a way-point or a terminus. The greedy reading is
+already degenerate at 300 episodes — one action, every state — which is what premature
+convergence looks like. `reinforce:` has no entropy bonus (the `actor_critic:` section does have
+`entropy_coef`), so nothing in the configuration resists a policy sharpening early. Whether
+20,000 episodes moves off this point or is pinned to it is the first question the next run
+answers, and **either answer is publishable** — "policy gradient converges to the human heuristic
+and stops" would be a genuinely interesting finding about this environment's reward.
+
+### 3. The gradient is being clipped by two orders of magnitude
+
+Logged pre-clip policy-gradient norms: **1584.68** at episode 10, **2228.17** at episode 300,
+against `grad_clip_norm: 10.0`. The clip is therefore active on essentially every step, at a
+ratio of ~150-220x.
+
+That makes the update, in practice, a **fixed-size step in the gradient's direction** — the
+magnitude information the `(G_t - b(s_t))` factor carries is discarded before the optimiser sees
+it. It is doing what the config asks and nothing is failing, which is precisely the shape of
+problem E-016 was: a defensible-looking setting quietly changing what algorithm is running.
+
+**Not changed here.** `grad_clip_norm` is a tuning parameter and the eval seeds have already been
+touched by these smoke runs' evaluation step, so tuning against anything measured today would be
+the mistake CONSTRAINTS #2 exists to prevent. The clean move is a train-seed-only comparison at
+two or three clip values, run as a named experiment. Flagged for a human in `HANDOVER.md`.
+
+### What this changes for the next session
+
+1. The full run is affordable (~24 min x repeats) — but it needs approval before launching
+   (CLAUDE.md: >10 min).
+2. Do not report any Phase 4 number against "beats severity-sort" until the humans have taken
+   the one decision covering Phases 1-3's unmet gates. Matching severity-sort exactly is precisely
+   the awkward case that decision has to cover.
+3. The clipping ratio deserves a named experiment before the full sweep, not after.
