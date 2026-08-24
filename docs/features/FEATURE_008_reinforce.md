@@ -1,7 +1,7 @@
 # FEATURE_008 — REINFORCE: Monte Carlo policy gradient, with a baseline
 
 **Phase:** 4
-**Status:** in progress — config and tests first, then the agent.
+**Status:** built, tested (16 tests, tiny-MDP anchor on 3 seeds) and smoke-run. **Exit criterion NOT measured** — no full training run yet, and E-018 records why one should not start before the humans take the gate decision.
 **Date started:** 2026-08-23
 **Model:** Claude Opus 5
 
@@ -76,4 +76,5 @@ Returns in this environment reach ±500. The policy-gradient step is proportiona
 
 ## Status log
 
+- **2026-08-23 (later)** — agent, tests and `scripts/train_reinforce.py` landed; 156 tests pass. A 300-episode smoke run reproduced `severity_sort` exactly (E-018): the greedy policy emitted `PULL_HIGHEST_SEVERITY` on 1131 of 1131 eval steps, which is that baseline's entire definition. Matched, not beaten. Also logged: pre-clip gradient norms of 1584-2228 against a clip of 10, left untouched pending a train-seed-only experiment.
 - **2026-08-23** — feature doc written. Prerequisites landed first: `config.py` split into a package (D-031) and `feature_scales` promoted to a shared block (D-032) so REINFORCE and the DQN provably share input scaling.

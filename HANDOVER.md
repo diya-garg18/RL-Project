@@ -10,83 +10,131 @@
 
 | | |
 |---|---|
-| **Last session** | 2026-08-19 (session 8, overnight) |
+| **Last session** | 2026-08-23 (session 9, on Diya's PC) |
 | **Model** | Claude Opus 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified; cause also refuted (E-015). |
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020). All 8 boxes done; gate not met, deliberately not restated. |
-| **Phase 3** | **Sweep COMPLETE (46 runs). Gate NOT met (E-017).** Replay essential; target network harmful. ROADMAP boxes still unticked — a human decides whether the gate is amended. |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. **19 Phase 3 commits, all unpushed.** |
-| **Tests passing** | **130/130** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~66 s alongside a running sweep) |
-| **Blockers** | None blocking. The sweep is running; results are the only thing missing. |
-
+| **Phase 3** | **Sweep COMPLETE (46 runs). Gate NOT met (E-017).** Replay essential; target network harmful. Closed built-but-not-passed. |
+| **Phase 4** | **STARTED.** REINFORCE built, tested and smoke-run (FEATURE_008, E-018). Gate NOT measured. Actor-critic, the sample-efficiency comparison and the variance demo are still to do. |
+| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 12 Phase 4 commits, **pushed**. |
+| **Tests passing** | **156/156** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~8 min — REINFORCE's tiny-MDP anchor is the slow part) |
+| **Blockers** | Nothing blocks building. **Two decisions block reporting** — see "Still owed by the humans". |
 ---
 
-## 🔑 STARTING ON THE OTHER MACHINE — do these first, in order
+## 🔑 STARTING THE NEXT SESSION — do these first, in order
 
-> Written 2026-08-19 for Diya picking this up on her PC. Phase 3 is finished and
-> pushed; **Phase 4 is the next block and it is hers** (commit balance below).
+> Rewritten 2026-08-23 at the end of session 9. Phase 4 has begun and everything
+> is pushed. The commit balance is **level**, so either person can take the next
+> block — see "Whose turn is it".
 
-**1. Get the work.** Twenty Phase 3 commits were pushed on 2026-08-19.
+**1. Get the work.** Twelve Phase 4 commits were pushed on 2026-08-23.
 
 ```powershell
 cd <your RL-Project folder>
 git checkout master          # the default branch is master, NOT main
 git pull
-git log --oneline -8         # newest should be: phase3: fix BUG_003 ...
+git log --oneline -12        # newest should be: phase4: fix test_reinforce _rcfg ...
 ```
 
-If `git pull` reports a conflict, stop and talk to Pranav — nothing here should
-conflict, so a conflict means someone committed on top.
-
-**2. Set up the environment** (only needed the first time, or if `pytest` fails
-to import):
+**2. Set up the environment** (first time only, or if `pytest` fails to import):
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Tested on **Python 3.13.1** with `torch==2.13.0+cpu`, `numpy 2.5.2`,
-`pytest 9.1.1`. **`torch` is a CPU-only build on purpose** — see "Watch out for"
-before trying to use a GPU, and note that changing it is a dependency change
-needing approval (CONSTRAINTS #8).
+Tested on **Python 3.13.1** with `torch==2.13.0+cpu`, `numpy 2.5.2`, `pytest 9.1.1`.
+`torch` is CPU-only **on purpose** — changing it is a dependency change needing
+approval (CONSTRAINTS #8).
 
 **3. Prove the repo is healthy before writing anything:**
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 130 passed, ~35 s
-python scripts/commit_balance.py                     # expect: Diya should take the next block
+.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 156 passed, ~8 min
+python scripts/commit_balance.py                  # expect: BALANCED
 ```
 
-If those two disagree with this file, trust the commands and fix this file.
+**The suite is now ~8 minutes, up from ~1.** REINFORCE's tiny-MDP anchor runs 3
+seeds x 60 episodes x 800 steps and costs most of it. That is deliberate and the
+episode count is measured (table in `tests/test_reinforce.py`) — 20 episodes
+already passes on all three seeds, 60 is margin against a flaky anchor. If you
+need a fast loop while working, run the file you are touching, but **run the whole
+suite before committing**: session 9 broke 16 tests by adding one dataclass field
+and not doing that.
 
-**4. Read, in this order** — about 15 minutes, and it is the difference between
-continuing the project and restarting it:
+**4. Read, in this order** — about 15 minutes:
 
 | file | why |
 |---|---|
 | `CLAUDE.md` | the operating rules; read every session |
 | this file | where things stand |
-| `docs/experiments/EXPERIMENT_LOG.md` **E-016, E-017** | what Phase 3 actually found |
-| `docs/bugs/BUG_002`, `BUG_003` | the two defects that nearly produced false conclusions |
-| `ROADMAP.md` Phase 4 | the next block |
-| `DECISIONS.md` **D-029, D-030** | the two decisions Phase 3 added |
+| `docs/experiments/EXPERIMENT_LOG.md` **E-018** | what Phase 4 has found so far — read before running anything |
+| `docs/features/FEATURE_008_reinforce.md` | what REINFORCE is and why it is built the way it is |
+| `DECISIONS.md` **D-031, D-032** | the two decisions session 9 added |
+| `ROADMAP.md` Phase 4 | the three boxes still open |
 
 **5. You do NOT need anything from `results/`.** It is gitignored and every
-artefact is regenerable — commands under "Reproduce on this device". You do not
-need to re-run Phase 3 to start Phase 4.
+artefact is regenerable. Session 9 deliberately deleted its own smoke artefacts
+(D-018) — a reduced run left where a real one writes gets averaged in.
 
-**⚠️ One thing that does NOT transfer: the 66 DQN run files.** `results/dqn_runs/`
-holds 46 corrected runs plus the 20 preserved collapsed runs from E-016, and it
-is **only on Pranav's machine**. Every number from them is already written into
-E-017, so nothing is lost for the write-up — but **if you need to re-run any DQN
-analysis script, you must regenerate the runs first (~1.4 h at 5 parallel)**, and
-you should read D-030 about this machine's memory behaviour before you do.
+**⚠️ Still true from session 8: the 66 DQN run files are only on Pranav's machine.**
+Every number from them is already in E-017, so nothing is lost for the write-up,
+but re-running any DQN analysis script means regenerating the runs first (~1.4 h
+at 5 parallel — read D-030 first).
 
-**6. Then start Phase 4** (`ROADMAP.md` — REINFORCE, then actor–critic). Phase 3
-is closed; do not reopen it to chase the gate without a human decision first —
-see "Still owed by the humans".
+---
+
+## 📍 PHASE 4 — where it actually stands, and what to do next
+
+**Built, tested, committed:** `agents/reinforce.py` (S&B §13.3/13.4, policy
+gradient with an optional learned baseline), `scripts/train_reinforce.py`, 16
+tests including a tiny-MDP anchor, `ReinforceConfig` with its own train and
+ablation seed blocks (1400000 / 1600000), and `FEATURE_008`.
+
+**Not done:** `agents/actor_critic.py`, the DQN-vs-REINFORCE-vs-actor-critic
+sample-efficiency comparison, the variance demonstration, and any full training
+run. **ROADMAP's Phase 4 boxes are all still unticked and that is correct** —
+same treatment as Phase 3, where boxes stayed unticked until the criterion was
+actually measured.
+
+### The finding you must read before running anything (E-018)
+
+A 300-episode smoke run scored **recall 0.8443, reward 40.44 +- 220.1** — which is
+`severity_sort`'s E-014 row to every digit reported. Treated as a bug report per
+CONSTRAINTS #5 and checked: **not a bug.** `severity_sort` is a constant
+`PULL_HIGHEST_SEVERITY` policy (`baselines.py:55-56`), and the greedy REINFORCE
+policy emitted that action on **1131 of 1131** eval steps. Identical policies give
+identical numbers.
+
+So at 300 episodes REINFORCE has **rediscovered severity-sort and matched it, not
+beaten it** — against a Phase 4 criterion that asks for beating it. Whether 20,000
+episodes moves off that point is the first question the full run answers, and
+**either answer is reportable**.
+
+### Three things to decide before the full run
+
+1. **The gate decision (blocking, see "Still owed").** Phase 4's criterion is
+   written exactly like the three that already failed. Matching severity-sort
+   *exactly* is the awkward case that decision has to cover, and taking it after
+   seeing the number is the failure mode this project exists to avoid.
+2. **The clipping ratio (E-018 §3).** Pre-clip gradient norms were 1584-2228
+   against `grad_clip_norm: 10.0`, so the clip fires on essentially every step and
+   the update is in practice a fixed-size step along the gradient direction. Not
+   changed, because it is a tuning parameter and today's eval seeds have been
+   touched — it needs a **train-seed-only** experiment at two or three values.
+3. **Compute.** ~0.073 s/episode measured, so a 20,000-episode run projects to
+   **~24 min** per repeat. Stated as a lower bound, not a plan: D-024 and D-030
+   are both cases where a short-run projection on a quiet machine was wrong.
+   Anything over ~10 min needs human approval (CLAUDE.md).
+
+### The next block of work, if nothing else is decided
+
+`agents/actor_critic.py`, test-first, same shape as REINFORCE. The one thing to
+get right is what separates them: the critic **bootstraps** (`r + gamma*v(s')`)
+where REINFORCE's baseline does not. Two networks is not what makes an
+actor-critic — bootstrapping is, and `reinforce.py` has a test pinning that it
+does not.
 
 ---
 
@@ -228,26 +276,27 @@ DP never leaves its estimated core, and **D-011's convention never fires at eval
 
 ## Whose turn is it — read before starting work
 
-**Measured 2026-08-19 (`python scripts/commit_balance.py`, D-021 / CONSTRAINTS #24-26):**
+**Measured 2026-08-23 (`python scripts/commit_balance.py`, D-021 / CONSTRAINTS #24-26):**
 
 | author | commits | share |
 |---|---|---|
-| Pranav Upadhyay | 29 | 63.0% |
-| Diya Garg | 17 | 37.0% |
+| Pranav Upadhyay | 30 | 51.7% |
+| Diya Garg | 28 | 48.3% |
 
-Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 6 (Diya 3, Pranav 3) · **Phase 2** 4 (all Pranav) · **Phase 3** 20 (all Pranav).
+Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 6 (Diya 3, Pranav 3) · **Phase 2** 4 (all Pranav) · **Phase 3** 20 (all Pranav) · **Phase 4** 12 (all Diya).
 
-> ⚠️ **Pranav is 12 commits ahead. The next block is DIYA'S — roughly 9-12 commits.**
+> ✅ **BALANCED — gap is 3, which is the threshold. Either person may take the next block.**
 >
-> Phase 3 ran entirely on Pranav's machine because the sweep did (D-021), and it
-> cost 20 commits: the DQN itself, then the collapse, the fix, the re-run and
-> three bug files. The gap is real work, not padding, but it has to come back.
+> Session 9 closed a 13-commit gap to 3. Phase 4's first half was Diya's and it
+> was real work: the config split, the shared feature scales, the REINFORCE agent
+> and its tests, the trainer, and the documentation.
 >
-> **Phase 4 is the natural block** — `agents/reinforce.py`, `agents/actor_critic.py`,
-> the sample-efficiency comparison and the variance demonstration. That is
-> comfortably 9-12 honest commits and it needs no Phase 3 artefacts to start.
+> **If Pranav takes the next block**, the natural unit is `agents/actor_critic.py`
+> plus the sample-efficiency comparison — comparable in size, and it needs nothing
+> from Diya's machine. **If Diya continues**, watch the balance: another full block
+> would put her ahead and the same rule applies in reverse.
 >
-> **Do not manufacture commits to close the gap**, and do not commit on the other
+> **Do not manufacture commits to close a gap**, and do not commit on the other
 > person's behalf: an examiner may ask either student to explain any commit under
 > their name (CONSTRAINTS #24).
 
@@ -306,6 +355,23 @@ python scripts/ablations.py                                        # ~4 min
 .\.venv\Scripts\python.exe scripts/dqn_ablations.py
 ```
 
+**Phase 4 (REINFORCE) — measured at ~0.073 s/episode, so ~24 min per 20000-episode run:**
+
+```powershell
+# smoke test (~40 s) -- proves the trainer works end to end
+.\.venv\Scripts\python.exe scripts/train_reinforce.py --episodes 300 --repeats 1 --eval-every 300 --no-plot
+
+# the full run -- NEEDS HUMAN APPROVAL FIRST (>10 min, CLAUDE.md)
+.\.venv\Scripts\python.exe scripts/train_reinforce.py --repeats 5
+
+# the variance ablation (ROADMAP box 4), on its own seed block
+.\.venv\Scripts\python.exe scripts/train_reinforce.py --no-baseline --repeats 5
+```
+
+**Delete `results/reinforce_runs/` after any smoke test.** Same trap as the DQN
+(D-018): a 300-episode run left where a 20000-episode run writes gets averaged in,
+and the stale file looks entirely valid.
+
 **Measured costs, and every earlier number here was wrong at least once (D-024, D-030).** A 20,000-episode run is **~27 min** when the machine is healthy, and one training process costs **~940 MB of private commit** — not the 301 MB working set that an earlier note quoted, which understated it 3x and is why the memory guard used to launch too eagerly.
 
 Parallelism was measured, not guessed: throughput peaks at 8 and *falls* after (4/6/8/10/12 = 28.8/39.0/48.6/47.3/47.6 runs per hour). **But use 5 for a long unattended sweep.** A benchmark on a freshly-rebooted idle machine projected 9.9 min/run; the real overnight sweep degraded to **195 min/run**. Benchmarks taken on a clean machine are not predictions about an 8-hour run — that is the same failure as D-024's compute probe.
@@ -328,6 +394,31 @@ All eight roadmap boxes:
 - **`ablations.py`** (E-012) — **none of α, γ or ε-decay clears the noise floor.** Reported as a negative result rather than filled in.
 
 ## Watch out for
+
+**Added 2026-08-23 (session 9):**
+
+- **Adding a field to a frozen config dataclass breaks every construction site of
+  it, including the ones in tests.** `ablation_seed_start` was added to
+  `ReinforceConfig` and all 16 REINFORCE tests died with `TypeError`, because
+  `_rcfg()` builds the dataclass from an explicit field dict. It went unnoticed for
+  three commits because only the two config test files were run afterwards. **Run
+  the whole suite after any config dataclass change**, not the tests that look
+  related.
+- **The test suite is now ~8 minutes, up from ~1.** REINFORCE's tiny-MDP anchor is
+  most of it. Budget for that before starting a tight edit-test loop.
+- **`BUG_001`'s zero-byte stray files are still happening**, and heredocs are a new
+  source of them: three appeared this session (`the`, `100000`, `28}`).
+  `git status --porcelain` before every commit, and never `git add -A`.
+- **Writing files with backslashes or box-drawing characters through a bash
+  heredoc mangles them.** The venv path acquired a doubled segment once,
+  doubled backslashes were silently eaten twice, and one heredoc failed
+  outright with `unexpected EOF`. Use the editor for those files, or build
+  the path with `chr(92)`. Same family as session 3's `Set-Content` em-dash
+  damage.
+- **Do not read anything into REINFORCE matching severity-sort exactly** without
+  reading E-018 first. It is a genuine constant-policy collapse, not a scoring
+  bug, and the distinction is the whole point.
+
 
 **Added 2026-08-19 (session 8) — read these first, they cost the most time:**
 
@@ -364,6 +455,21 @@ All eight roadmap boxes:
 - Seed blocks: train-diag 1–10 · **eval 101–130** · calibration 1000–3099 · DP estimation 10000–59999 · q_learning 200000+ · sarsa 400000+ · monte_carlo 600000+ · ablations 800000+. Disjointness is enforced in `config.py`, not trusted to comments.
 
 ## Still owed by the humans
+
+- 🔴 **THE GATE DECISION IS NOW BLOCKING PHASE 4, not just Phases 1-3.** REINFORCE
+  at 300 episodes reproduces severity-sort *exactly* (E-018). Phase 4's criterion
+  says all three learners must **beat** severity-sort. So the decision already
+  owed on three failed gates now determines whether Phase 4 can report anything at
+  all — and taking it after the full run's number is known is precisely the failure
+  this project exists to avoid. **Take it before the full run.**
+- 🟠 **Whether the REINFORCE gradient clip needs its own experiment.** Pre-clip
+  norms are 1584-2228 against `grad_clip_norm: 10.0`, so the clip fires on
+  essentially every step and the update becomes a fixed-size step along the
+  gradient direction (E-018 §3). Nothing is broken; the algorithm is quietly not
+  the one the docstring describes. A train-seed-only sweep at 2-3 values would
+  settle it. Not done, because tuning against anything measured today would use
+  eval seeds that have already been looked at.
+
 
 - 🔴 **THE BIG ONE — three phases have now failed their originally-written exit criteria.** Phase 1 (D-022), Phase 2 (D-020) and Phase 3 (E-017) are all closed as *built-but-not-passed*, and each gate was deliberately left unmet and unamended for a human. That is no longer three separate footnotes; it is a pattern about how the criteria were written, and it needs one decision covering all three before the report is drafted. Options as we see them: (a) restate the gates on **total reward**, the environment's actual objective, as D-012 proposed for Phase 1; (b) keep them as written and present three honest failures as the project's spine; (c) case-by-case. **Do not let a later phase quietly adopt one of these readings without the decision being recorded.**
 - **Whether Phase 3 gets a second attempt.** E-017's two ablation findings suggest an obvious follow-up — a DQN with replay and *no* target network, which beat the control on recall, reward and stability at n=8. That is a new experiment, not a fix, and it needs a human to say whether Phase 3 reopens or the finding is simply reported.
