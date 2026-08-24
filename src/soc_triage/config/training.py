@@ -133,6 +133,31 @@ class ReinforceConfig:
 
 
 @dataclass(frozen=True)
+class ActorCriticConfig:
+    """Phase 4, S&B §13.5. Note what is here that ReinforceConfig does not have.
+
+    `entropy_coef` has no counterpart in REINFORCE and none in the textbook
+    either: S&B's boxed one-step actor-critic carries no entropy term. It is this
+    project's addition, and setting it to 0.0 recovers the textbook update
+    exactly -- which is why the loader accepts zero and rejects only negatives.
+    A negative coefficient would reward CERTAINTY and delete exploration while
+    still training and still logging a curve.
+
+    There is no `ablation_seed_start` here. ROADMAP's Phase 4 requires an ablation
+    of REINFORCE's baseline, not of the entropy bonus, and a seed block for an
+    experiment nobody has been asked to run is building ahead.
+    """
+
+    hidden_layers: tuple[int, ...]
+    activation: str
+    actor_lr: float
+    critic_lr: float
+    entropy_coef: float
+    grad_clip_norm: float
+    train_seed_start: int
+
+
+@dataclass(frozen=True)
 class TrainingConfig:
     common: CommonTrainingConfig
     dp: DPConfig
@@ -143,6 +168,7 @@ class TrainingConfig:
     features: FeaturesConfig
     dqn: DQNConfig
     reinforce: ReinforceConfig
+    actor_critic: ActorCriticConfig
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
@@ -242,6 +268,19 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         ),
     )
 
+    actor_critic_raw = _require(raw, "actor_critic", "training")
+    actor_critic = ActorCriticConfig(
+        hidden_layers=tuple(
+            int(h) for h in _require(actor_critic_raw, "hidden_layers", "actor_critic")
+        ),
+        activation=str(_require(actor_critic_raw, "activation", "actor_critic")),
+        actor_lr=float(_require(actor_critic_raw, "actor_lr", "actor_critic")),
+        critic_lr=float(_require(actor_critic_raw, "critic_lr", "actor_critic")),
+        entropy_coef=float(_require(actor_critic_raw, "entropy_coef", "actor_critic")),
+        grad_clip_norm=float(_require(actor_critic_raw, "grad_clip_norm", "actor_critic")),
+        train_seed_start=int(_require(actor_critic_raw, "train_seed_start", "actor_critic")),
+    )
+
     if not 0.0 < common.gamma <= 1.0:
         raise ConfigError("'common.gamma' must be in (0, 1]")
     for name, alpha in (("sarsa", sarsa.alpha), ("monte_carlo", monte_carlo.alpha)):
@@ -278,6 +317,7 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         "monte_carlo": monte_carlo.train_seed_start,
         "dqn": dqn.train_seed_start,
         "reinforce": reinforce.train_seed_start,
+        "actor_critic": actor_critic.train_seed_start,
     }
     for name, start in seed_starts.items():
         if start < 100_000:
@@ -404,6 +444,29 @@ def load_training_config(path: str | Path) -> TrainingConfig:
     if reinforce.grad_clip_norm <= 0:
         raise ConfigError("'reinforce.grad_clip_norm' must be positive")
 
+    if not actor_critic.hidden_layers or any(h <= 0 for h in actor_critic.hidden_layers):
+        raise ConfigError("'actor_critic.hidden_layers' must be a non-empty list of positive ints")
+    if actor_critic.activation not in ("relu", "tanh"):
+        raise ConfigError(
+            f"'actor_critic.activation' must be relu or tanh, got {actor_critic.activation!r}"
+        )
+    if actor_critic.actor_lr <= 0:
+        raise ConfigError("'actor_critic.actor_lr' must be positive")
+    if actor_critic.critic_lr <= 0:
+        raise ConfigError("'actor_critic.critic_lr' must be positive")
+    if actor_critic.grad_clip_norm <= 0:
+        raise ConfigError("'actor_critic.grad_clip_norm' must be positive")
+    if actor_critic.entropy_coef < 0:
+        # Zero is allowed and is S&B §13.5 exactly. Negative is not an aggressive
+        # setting of the same knob -- it flips the sign of the term, paying the
+        # policy to become deterministic. It trains, it logs a curve, and it
+        # does the opposite of what the key is named for.
+        raise ConfigError(
+            f"'actor_critic.entropy_coef' must be >= 0 (0.0 is the textbook "
+            f"algorithm); a negative value rewards certainty and deletes "
+            f"exploration, got {actor_critic.entropy_coef}"
+        )
+
     if dp.value_iteration_theta <= 0 or dp.policy_eval_theta <= 0:
         raise ConfigError("DP convergence thresholds must be positive")
     if dp.estimation_seed_start < 10_000:
@@ -421,4 +484,5 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         features=features,
         dqn=dqn,
         reinforce=reinforce,
+        actor_critic=actor_critic,
     )

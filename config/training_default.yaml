@@ -138,10 +138,40 @@ reinforce:                     # Phase 4 - Monte Carlo policy gradient (S&B 13.3
                                # epsilon-greedy on would make it a different
                                # algorithm (tests/test_reinforce_config.py).
 
-actor_critic:
-  actor_lr: 0.001
-  critic_lr: 0.005
-  entropy_coef: 0.01
+actor_critic:                  # Phase 4 - one-step actor-critic (S&B 13.5)
+  hidden_layers: [128, 128]    # same shape as the DQN and REINFORCE nets. The
+  activation: relu             # sample-efficiency comparison is between
+                               # ALGORITHMS; differing here would make the plot a
+                               # comparison of network size wearing three
+                               # algorithm names (the capacity half of D-032).
+  actor_lr: 0.001              # matched to reinforce.lr so the two policy-gradient
+                               # methods differ by their TARGET, not their step size.
+  critic_lr: 0.005             # faster than the actor, for the same reason
+                               # reinforce.baseline_lr is: the actor's update is
+                               # SCALED by the TD error the critic produces, so an
+                               # actor outrunning its critic chases an estimate
+                               # that has not caught up.
+  entropy_coef: 0.01           # NOT in S&B 13.5 -- this project's addition, and
+                               # 0.0 recovers the textbook algorithm exactly.
+                               # E-018 found REINFORCE's greedy policy degenerate
+                               # (one action in every state) by 300 episodes with
+                               # nothing in the configuration resisting a policy
+                               # sharpening early, and E-019 showed the gradient
+                               # clip is not what causes it. The bonus adds a
+                               # term that pays for keeping pi spread out.
+  grad_clip_norm: 10.0         # a DIFFERENT regime from reinforce.grad_clip_norm
+                               # despite the identical number: this gradient comes
+                               # from ONE step's TD error, not a whole episode's
+                               # summed returns, so the pre-clip norms E-019
+                               # measured at 600-4000 do not transfer. The trainer
+                               # logs the actual norms rather than assuming.
+  train_seed_start: 2000000    # own block (D-016), disjoint from q_learning
+                               # 200000, sarsa 400000, monte_carlo 600000,
+                               # ablations 800000, dqn 1000000, dqn ablations
+                               # 1200000, reinforce 1400000, reinforce ablations
+                               # 1600000 and the E-019 clip sweep 1800000.
+                               # NOTE: no epsilon key, deliberately -- same
+                               # structural point as `reinforce:`.
 
 ppo:                           # optional; first thing to cut if time runs short
   enabled: false
