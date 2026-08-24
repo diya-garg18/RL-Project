@@ -94,3 +94,33 @@ def test_reinforce_ablation_block_differs_from_every_other_block(tmp_path):
         raw["reinforce"]["ablation_seed_start"] = raw[other_section][key]
         with pytest.raises(ConfigError):
             load_training_config(_write(tmp_path, raw))
+
+
+def test_clip_experiment_has_its_own_seed_block():
+    """E-019's clip sweep is a tuning exercise, so it trains on shifts no
+    headline run has seen. If it shared the control's block, a clip value chosen
+    here would have been chosen on the same alert streams the reported run uses,
+    which is how tuning launders itself into a result (D-016)."""
+    reinforce = load_training_config(CONFIG_PATH).reinforce
+    assert reinforce.clip_experiment_seed_start >= 100_000
+
+
+def test_clip_experiment_block_differs_from_every_other_block(tmp_path):
+    for other_section, key in (
+        ("reinforce", "train_seed_start"),
+        ("reinforce", "ablation_seed_start"),
+        ("dqn", "train_seed_start"),
+        ("dqn", "ablation_seed_start"),
+        ("q_learning", "train_seed_start"),
+    ):
+        raw = _raw()
+        raw["reinforce"]["clip_experiment_seed_start"] = raw[other_section][key]
+        with pytest.raises(ConfigError):
+            load_training_config(_write(tmp_path, raw))
+
+
+def test_clip_experiment_block_stays_clear_of_the_low_blocks(tmp_path):
+    raw = _raw()
+    raw["reinforce"]["clip_experiment_seed_start"] = 130
+    with pytest.raises(ConfigError, match="clip_experiment_seed_start"):
+        load_training_config(_write(tmp_path, raw))

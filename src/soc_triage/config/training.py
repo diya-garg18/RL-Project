@@ -129,6 +129,7 @@ class ReinforceConfig:
     grad_clip_norm: float
     train_seed_start: int
     ablation_seed_start: int
+    clip_experiment_seed_start: int
 
 
 @dataclass(frozen=True)
@@ -236,6 +237,9 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         grad_clip_norm=float(_require(reinforce_raw, "grad_clip_norm", "reinforce")),
         train_seed_start=int(_require(reinforce_raw, "train_seed_start", "reinforce")),
         ablation_seed_start=int(_require(reinforce_raw, "ablation_seed_start", "reinforce")),
+        clip_experiment_seed_start=int(
+            _require(reinforce_raw, "clip_experiment_seed_start", "reinforce")
+        ),
     )
 
     if not 0.0 < common.gamma <= 1.0:
@@ -306,6 +310,23 @@ def load_training_config(path: str | Path) -> TrainingConfig:
             f"'reinforce.ablation_seed_start' ({reinforce.ablation_seed_start}) must "
             f"differ from every other seed block, including 'dqn.ablation_seed_start' "
             f"({dqn.ablation_seed_start})"
+        )
+    # E-019's clip sweep is the third named block under `reinforce:`, and it gets
+    # the same treatment as the other two: a tuning run must never share alert
+    # streams with a run whose number gets reported.
+    if reinforce.clip_experiment_seed_start < 100_000:
+        raise ConfigError(
+            "'reinforce.clip_experiment_seed_start' must be >= 100000 to stay clear "
+            "of the train, eval, calibration and DP estimation seed blocks"
+        )
+    if reinforce.clip_experiment_seed_start in seed_starts.values() or (
+        reinforce.clip_experiment_seed_start
+        in (dqn.ablation_seed_start, reinforce.ablation_seed_start)
+    ):
+        raise ConfigError(
+            f"'reinforce.clip_experiment_seed_start' "
+            f"({reinforce.clip_experiment_seed_start}) must differ from every other "
+            f"seed block, including the two ablation blocks"
         )
     if dqn.ablation_seed_start in seed_starts.values():
         raise ConfigError(

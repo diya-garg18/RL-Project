@@ -126,6 +126,13 @@ reinforce:                     # Phase 4 - Monte Carlo policy gradient (S&B 13.3
                                # its own block, so the control and the ablated
                                # condition never share alert streams -- the one
                                # confound an ablation must not have (D-027).
+  clip_experiment_seed_start: 1800000
+                               # E-019. The grad_clip_norm sweep is a TUNING
+                               # exercise, so it trains on shifts no reported run
+                               # has seen -- a clip value chosen on the control's
+                               # own alert streams would launder tuning into the
+                               # result it is later quoted beside (D-016,
+                               # CONSTRAINTS #2).
                                # NOTE: no epsilon key, deliberately. Policy gradient
                                # explores by sampling its own policy; bolting
                                # epsilon-greedy on would make it a different
