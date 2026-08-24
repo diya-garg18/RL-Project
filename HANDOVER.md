@@ -17,7 +17,7 @@
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020). All 8 boxes done; gate not met, deliberately not restated. |
 | **Phase 3** | **Sweep COMPLETE (46 runs). Gate NOT met (E-017).** Replay essential; target network harmful. Closed built-but-not-passed. |
 | **Phase 4** | **STARTED.** REINFORCE built, tested and smoke-run (FEATURE_008, E-018). Gate NOT measured. Actor-critic, the sample-efficiency comparison and the variance demo are still to do. |
-| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 12 Phase 4 commits, **pushed**. |
+| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 13 Phase 4 commits, **pushed**. |
 | **Tests passing** | **156/156** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~8 min — REINFORCE's tiny-MDP anchor is the slow part) |
 | **Blockers** | Nothing blocks building. **Two decisions block reporting** — see "Still owed by the humans". |
 ---
@@ -28,13 +28,13 @@
 > is pushed. The commit balance is **level**, so either person can take the next
 > block — see "Whose turn is it".
 
-**1. Get the work.** Twelve Phase 4 commits were pushed on 2026-08-23.
+**1. Get the work.** Thirteen Phase 4 commits were pushed on 2026-08-23.
 
 ```powershell
 cd <your RL-Project folder>
 git checkout master          # the default branch is master, NOT main
 git pull
-git log --oneline -12        # newest should be: phase4: fix test_reinforce _rcfg ...
+git log --oneline -13        # newest should be: phase4: correct the commit-balance ...
 ```
 
 **2. Set up the environment** (first time only, or if `pytest` fails to import):
@@ -280,14 +280,14 @@ DP never leaves its estimated core, and **D-011's convention never fires at eval
 
 | author | commits | share |
 |---|---|---|
-| Pranav Upadhyay | 30 | 51.7% |
-| Diya Garg | 28 | 48.3% |
+| Pranav Upadhyay | 30 | 50.8% |
+| Diya Garg | 29 | 49.2% |
 
-Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 6 (Diya 3, Pranav 3) · **Phase 2** 4 (all Pranav) · **Phase 3** 20 (all Pranav) · **Phase 4** 12 (all Diya).
+Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 6 (Diya 3, Pranav 3) · **Phase 2** 4 (all Pranav) · **Phase 3** 20 (all Pranav) · **Phase 4** 13 (all Diya, this commit included).
 
-> ✅ **BALANCED — gap is 3, which is the threshold. Either person may take the next block.**
+> ✅ **BALANCED — gap is 1. Either person may take the next block.**
 >
-> Session 9 closed a 13-commit gap to 3. Phase 4's first half was Diya's and it
+> Session 9 closed a 13-commit gap to 1. Phase 4's first half was Diya's and it
 > was real work: the config split, the shared feature scales, the REINFORCE agent
 > and its tests, the trainer, and the documentation.
 >
