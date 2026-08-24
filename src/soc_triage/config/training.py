@@ -155,6 +155,7 @@ class ActorCriticConfig:
     entropy_coef: float
     grad_clip_norm: float
     train_seed_start: int
+    entropy_experiment_seed_start: int
 
 
 @dataclass(frozen=True)
@@ -279,6 +280,9 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         entropy_coef=float(_require(actor_critic_raw, "entropy_coef", "actor_critic")),
         grad_clip_norm=float(_require(actor_critic_raw, "grad_clip_norm", "actor_critic")),
         train_seed_start=int(_require(actor_critic_raw, "train_seed_start", "actor_critic")),
+        entropy_experiment_seed_start=int(
+            _require(actor_critic_raw, "entropy_experiment_seed_start", "actor_critic")
+        ),
     )
 
     if not 0.0 < common.gamma <= 1.0:
@@ -367,6 +371,26 @@ def load_training_config(path: str | Path) -> TrainingConfig:
             f"'reinforce.clip_experiment_seed_start' "
             f"({reinforce.clip_experiment_seed_start}) must differ from every other "
             f"seed block, including the two ablation blocks"
+        )
+    # E-020's entropy sweep, treated exactly as E-019's clip sweep is: a tuning
+    # run must never share alert streams with a run whose number gets reported.
+    if actor_critic.entropy_experiment_seed_start < 100_000:
+        raise ConfigError(
+            "'actor_critic.entropy_experiment_seed_start' must be >= 100000 to stay "
+            "clear of the train, eval, calibration and DP estimation seed blocks"
+        )
+    if actor_critic.entropy_experiment_seed_start in seed_starts.values() or (
+        actor_critic.entropy_experiment_seed_start
+        in (
+            dqn.ablation_seed_start,
+            reinforce.ablation_seed_start,
+            reinforce.clip_experiment_seed_start,
+        )
+    ):
+        raise ConfigError(
+            f"'actor_critic.entropy_experiment_seed_start' "
+            f"({actor_critic.entropy_experiment_seed_start}) must differ from every "
+            f"other seed block, including the ablation and clip-sweep blocks"
         )
     if dqn.ablation_seed_start in seed_starts.values():
         raise ConfigError(

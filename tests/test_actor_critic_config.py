@@ -130,3 +130,32 @@ def test_actor_critic_seed_block_stays_clear_of_the_low_blocks(tmp_path):
     raw["actor_critic"]["train_seed_start"] = 120
     with pytest.raises(ConfigError, match="actor_critic"):
         load_training_config(_write(tmp_path, raw))
+
+
+def test_the_entropy_sweep_has_its_own_seed_block():
+    """E-020 chooses entropy_coef, which is tuning. It trains on shifts no
+    headline run has seen, for the reason E-019's clip sweep does (D-016)."""
+    actor_critic = load_training_config(CONFIG_PATH).actor_critic
+    assert actor_critic.entropy_experiment_seed_start >= 100_000
+
+
+def test_entropy_sweep_block_differs_from_every_other_block(tmp_path):
+    for other_section, key in (
+        ("actor_critic", "train_seed_start"),
+        ("reinforce", "train_seed_start"),
+        ("reinforce", "ablation_seed_start"),
+        ("reinforce", "clip_experiment_seed_start"),
+        ("dqn", "train_seed_start"),
+        ("dqn", "ablation_seed_start"),
+    ):
+        raw = _raw()
+        raw["actor_critic"]["entropy_experiment_seed_start"] = raw[other_section][key]
+        with pytest.raises(ConfigError):
+            load_training_config(_write(tmp_path, raw))
+
+
+def test_entropy_sweep_block_stays_clear_of_the_low_blocks(tmp_path):
+    raw = _raw()
+    raw["actor_critic"]["entropy_experiment_seed_start"] = 110
+    with pytest.raises(ConfigError, match="entropy_experiment_seed_start"):
+        load_training_config(_write(tmp_path, raw))

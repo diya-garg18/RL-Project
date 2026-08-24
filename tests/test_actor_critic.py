@@ -59,6 +59,7 @@ def _accfg(**overrides) -> ActorCriticConfig:
         "entropy_coef": shipped.entropy_coef,
         "grad_clip_norm": shipped.grad_clip_norm,
         "train_seed_start": shipped.train_seed_start,
+        "entropy_experiment_seed_start": shipped.entropy_experiment_seed_start,
     }
     fields.update(overrides)
     return ActorCriticConfig(**fields)
