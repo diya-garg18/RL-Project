@@ -51,6 +51,7 @@ def _rcfg(**overrides) -> ReinforceConfig:
         "baseline_lr": shipped.baseline_lr,
         "grad_clip_norm": shipped.grad_clip_norm,
         "train_seed_start": shipped.train_seed_start,
+        "ablation_seed_start": shipped.ablation_seed_start,
     }
     fields.update(overrides)
     return ReinforceConfig(**fields)
