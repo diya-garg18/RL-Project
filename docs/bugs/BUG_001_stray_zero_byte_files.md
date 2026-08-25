@@ -84,3 +84,55 @@ It is documented because two prior sessions each spent effort re-noticing it and
 Every so often an empty file with a strange name — `Watch`, `There`, `6.8` — turns up in the project folder. We now know why: when the AI writes documentation containing a `>` character, something in the chain of tools between it and the disk mistakes that for the command-line symbol meaning "save output into a file", and creates an empty file named after whatever word came next. Since `>` is how you write a quoted paragraph in Markdown, and our documents are full of quoted paragraphs, it happens fairly often.
 
 The files are empty and harmless. The only real risk is accidentally committing them into the project history, so the rule is to name files explicitly when committing rather than using the "add everything" shortcut, and to sweep for empty files first. We are not fixing the underlying tool, because it cannot damage any code or any result — it just leaves litter.
+
+
+---
+
+## Recurrence, 2026-08-25 (session 11) — and this time they reached the HISTORY
+
+**Status change: "mitigated by convention" was too optimistic.** Six strays appeared in one
+session and **four were committed**, which had never happened before.
+
+| name | how it ended up there |
+|---|---|
+| `E-020` | heredoc prose parsed as a redirect |
+| `through` | same heredoc, second word |
+| `114` | a `for`-loop over quoted strings |
+| `'` | shell quote-parsing; **committed** by `git add -A` |
+| `0.05)` `10000` `5}` | tokens inside a COMMIT MESSAGE body; **committed** in a31dc49 |
+
+### What is actually new here
+
+The earlier occurrences were created by *writing Markdown*. These were created by **writing commit
+messages** — `git commit -F -` with a heredoc body containing `0.05)`, `10000` and `5}` caused the
+shell to create files with those names, which the *next* `git add -A` then staged. `10000` was
+additionally re-created on top of an older tracked copy from `e942c27`.
+
+So the trigger is broader than BUG_001 originally recorded: **any** heredoc carrying prose with
+parentheses, braces or bare numbers can do it, including the ones used for commit messages.
+
+### The guard, stated as an ordering rather than a habit
+
+The mitigation was already "run `git status` before pushing", and it failed — because the check was
+being run in the *same command* as `git add -A`, so its output was printed after the staging had
+already happened. Correct ordering:
+
+```powershell
+git status --porcelain      # READ this, as a separate step
+git add <explicit paths>    # prefer named paths over -A
+git commit ...
+```
+
+`git add -A` is the amplifier: it converts a nuisance file into a committed one. Naming paths
+explicitly would have stopped all four.
+
+### Detection for the transfer checklist
+
+This finds them wherever they are, including ones already tracked, and excludes the legitimate
+`.gitkeep` markers:
+
+```bash
+git ls-files | while read -r f; do [ -f "$f" ] && [ ! -s "$f" ] && echo "$f"; done | grep -v gitkeep
+```
+
+Run at handover time. It is what caught the three committed ones, three commits after they landed.

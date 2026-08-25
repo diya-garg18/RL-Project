@@ -18,7 +18,7 @@
 | **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
 | **Phase 4** | **HALF BUILT.** REINFORCE (FEATURE_008) and actor-critic (FEATURE_009) both built and tested. Boxes 3 and 4 not written. **No full training run of either exists.** The shipped `entropy_coef` breaks the actor-critic. |
 | **Phase 5** | Not started. This is the next block, and it is Pranav's. |
-| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 10 session-10 commits, **pushed**. |
+| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 15 commits this session, **all pushed**. |
 | **Tests passing** | **191/191** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
 | **Blockers** | Nothing blocks building. **The big gate decision is TAKEN (D-033).** One new decision is owed - greedy vs sampled evaluation, E-019 section 3. |
 
@@ -29,13 +29,13 @@
 > Rewritten 2026-08-25 at the end of session 10. Everything is pushed. The commit
 > balance is **IMBALANCED, Diya ahead** - see "Whose turn is it". **Phase 5 is Pranav's.**
 
-**1. Get the work.** Ten commits were pushed on 2026-08-25.
+**1. Get the work.** 15 commits were pushed on 2026-08-25.
 
 ```powershell
 cd <your RL-Project folder>
 git checkout master          # the default branch is master, NOT main
 git pull
-git log --oneline -10        # newest should be: phase4: update HANDOVER ...
+git log --oneline -15       # newest should be: phase4: clear the stray files ...
 ```
 
 **2. Set up the environment** (first time only, or if `pytest` fails to import):
