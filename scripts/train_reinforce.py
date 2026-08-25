@@ -156,6 +156,7 @@ def train_one_run(
     seed_base = seed_start + repeat_index * n_episodes
 
     episode_rewards: list[float] = []
+    episode_steps: list[int] = []
     grad_norms: list[float] = []
     curve: list[tuple[int, float]] = []
     t0 = time.perf_counter()
@@ -163,6 +164,11 @@ def train_one_run(
     for episode in range(n_episodes):
         record = run_episode(env, agent, seed_base + episode, cfg, cfg_hash, learn=True)
         episode_rewards.append(record["outcome"]["total_reward"])
+        # Sample efficiency is measured against STEPS, not episodes: a
+        # bulk-closing policy makes more decisions per 480-minute shift
+        # than a verifying one, so episodes are not a common currency
+        # (ROADMAP box 3).
+        episode_steps.append(len(record["steps"]))
         # The entire update happens here. Forgetting this line trains nothing at
         # all — REINFORCE buffers during the episode and learns only at its end
         # (the same D-015 trap the tabular learners have, with a worse failure:
@@ -182,7 +188,7 @@ def train_one_run(
                 f"greedy(train-diag) {curve[-1][1]:8.1f}  [{elapsed / 60:.1f} min]"
             )
 
-    return agent, episode_rewards, curve, grad_norms
+    return agent, episode_rewards, episode_steps, curve, grad_norms
 
 
 def smooth(values: list[float], window: int) -> np.ndarray:
@@ -240,15 +246,17 @@ def main() -> None:
 
     repeats = [args.only_repeat] if args.only_repeat is not None else list(range(args.repeats))
     all_rewards: list[list[float]] = []
+    all_steps: list[list[int]] = []
     all_curves: list[list[tuple[int, float]]] = []
     all_grad_norms: list[list[float]] = []
     final_agent: ReinforceAgent | None = None
 
     for repeat_index in repeats:
-        agent, rewards, curve, grad_norms = train_one_run(
+        agent, rewards, steps, curve, grad_norms = train_one_run(
             cfg, tcfg, cfg_hash, repeat_index, n_episodes, eval_every, seed_start, no_baseline
         )
         all_rewards.append(rewards)
+        all_steps.append(steps)
         all_curves.append(curve)
         all_grad_norms.append(grad_norms)
         final_agent = agent
@@ -275,6 +283,7 @@ def main() -> None:
         "no_baseline": no_baseline,
         "seed_start": seed_start,
         "episode_rewards": all_rewards,
+        "episode_steps": all_steps,
         "curves": all_curves,
         "grad_norms": all_grad_norms,
         "eval_summary": summary,

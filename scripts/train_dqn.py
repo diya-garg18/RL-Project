@@ -144,6 +144,7 @@ def train_one_run(
     seed_base = seed_start + repeat_index * n_episodes
 
     episode_rewards: list[float] = []
+    episode_steps: list[int] = []
     episode_losses: list[float] = []
     curve: list[tuple[int, float]] = []
     t0 = time.perf_counter()
@@ -151,6 +152,11 @@ def train_one_run(
     for episode in range(n_episodes):
         record = run_episode(env, agent, seed_base + episode, cfg, cfg_hash, learn=True)
         episode_rewards.append(record["outcome"]["total_reward"])
+        # Sample efficiency is measured against STEPS, not episodes: a
+        # bulk-closing policy makes more decisions per 480-minute shift
+        # than a verifying one, so episodes are not a common currency
+        # (ROADMAP box 3).
+        episode_steps.append(len(record["steps"]))
         # nan until the buffer passes learning_starts; plotted as a gap rather
         # than as a zero, which would read as "the loss was low here".
         episode_losses.append(agent.last_loss)
@@ -169,7 +175,7 @@ def train_one_run(
                 f"greedy(train-diag) {curve[-1][1]:8.1f}  [{elapsed / 60:.1f} min]"
             )
 
-    return agent, episode_rewards, curve, episode_losses
+    return agent, episode_rewards, episode_steps, curve, episode_losses
 
 
 def smooth(values: list[float], window: int) -> np.ndarray:
@@ -245,7 +251,7 @@ def main() -> None:
     if args.only_repeat is not None:
         repeat = args.only_repeat
         t0 = time.perf_counter()
-        agent, rewards, curve, losses = train_one_run(
+        agent, rewards, steps, curve, losses = train_one_run(
             cfg, tcfg, cfg_hash, repeat, n_episodes, eval_every,
             seed_start, no_replay, no_target_network,
         )
@@ -275,6 +281,7 @@ def main() -> None:
                     "no_target_network": no_target_network,
                     "wall_min": (time.perf_counter() - t0) / 60,
                     "episode_rewards": rewards,
+                    "episode_steps": steps,
                     "episode_losses": losses,
                     "curve": curve,
                     "summary": summary,
@@ -300,7 +307,9 @@ def main() -> None:
 
     t_start = time.perf_counter()
     for repeat in range(args.repeats):
-        agent, rewards, curve, losses = train_one_run(
+        # steps are recorded only on the --only-repeat path, which is the one
+        # that writes JSON; this branch plots and does not persist a payload.
+        agent, rewards, _steps, curve, losses = train_one_run(
             cfg, tcfg, cfg_hash, repeat, n_episodes, eval_every,
             seed_start, no_replay, no_target_network,
         )

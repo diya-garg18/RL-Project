@@ -155,6 +155,7 @@ def train_one_run(
     seed_base = seed_start + repeat_index * n_episodes
 
     episode_rewards: list[float] = []
+    episode_steps: list[int] = []
     td_error_stds: list[float] = []
     entropies: list[float] = []
     curve: list[tuple[int, float]] = []
@@ -163,6 +164,11 @@ def train_one_run(
     for episode in range(n_episodes):
         record = run_episode(env, agent, seed_base + episode, cfg, cfg_hash, learn=True)
         episode_rewards.append(record["outcome"]["total_reward"])
+        # Sample efficiency is measured against STEPS, not episodes: a
+        # bulk-closing policy makes more decisions per 480-minute shift
+        # than a verifying one, so episodes are not a common currency
+        # (ROADMAP box 3).
+        episode_steps.append(len(record["steps"]))
         # Read once per episode rather than averaged over every step:
         # last_entropy is a scalar the agent overwrites each update, and
         # accumulating it per step would cost a list of ~50 floats per episode to
@@ -189,7 +195,7 @@ def train_one_run(
                 flush=True,
             )
 
-    return agent, episode_rewards, curve, td_error_stds, entropies
+    return agent, episode_rewards, episode_steps, curve, td_error_stds, entropies
 
 
 def smooth(values: list[float], window: int) -> np.ndarray:
@@ -239,16 +245,18 @@ def main() -> None:
 
     repeats = [args.only_repeat] if args.only_repeat is not None else list(range(args.repeats))
     all_rewards: list[list[float]] = []
+    all_steps: list[list[int]] = []
     all_curves: list[list[tuple[int, float]]] = []
     all_td_stds: list[list[float]] = []
     all_entropies: list[list[float]] = []
     final_agent: ActorCriticAgent | None = None
 
     for repeat_index in repeats:
-        agent, rewards, curve, td_stds, entropies = train_one_run(
+        agent, rewards, steps, curve, td_stds, entropies = train_one_run(
             cfg, tcfg, cfg_hash, repeat_index, n_episodes, eval_every, seed_start
         )
         all_rewards.append(rewards)
+        all_steps.append(steps)
         all_curves.append(curve)
         all_td_stds.append(td_stds)
         all_entropies.append(entropies)
@@ -275,6 +283,7 @@ def main() -> None:
         "repeats": repeats,
         "seed_start": seed_start,
         "episode_rewards": all_rewards,
+        "episode_steps": all_steps,
         "curves": all_curves,
         "td_error_std": all_td_stds,
         "entropies": all_entropies,
