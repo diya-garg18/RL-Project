@@ -244,3 +244,59 @@ Not automatable, and the most important one:
 - [ ] Both can state the project's limitations without looking them up
 
 If any of these fail, the project is not done — regardless of what the metrics say.
+
+
+---
+
+## Phase 4 - actor-critic and the two tuning experiments (added 2026-08-25)
+
+### The suite
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/ -q          # expect 191 passed
+```
+
+**Wall time is not stable.** 56 s and 8 min 49 s were both observed on the same commit in
+one session, on machine load alone. Do not treat a slow run as a hang.
+
+### Actor-critic alone
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_actor_critic.py tests/test_actor_critic_config.py -q
+```
+
+Expect **32 passed** (18 agent + 14 config), ~100 s.
+
+The two that matter most, and why:
+
+| test | what breaks if it goes |
+|---|---|
+| `test_the_critic_bootstraps` | the agent silently becomes REINFORCE-with-a-baseline |
+| `test_the_critic_converges_to_the_hand_computable_value` | `v = 1 + gamma*v = 10` at gamma 0.9. A non-bootstrapping critic converges to 1.0, so this is arithmetic proof the target contains `v(s')` |
+
+### Smoke runs before any long run
+
+```powershell
+.\.venv\Scripts\python.exe scripts/train_actor_critic.py --episodes 60 --repeats 1 --eval-every 30
+.\.venv\Scripts\python.exe scripts/reinforce_clip_experiment.py --episodes 20 --repeats 1
+.\.venv\Scripts\python.exe scripts/actor_critic_entropy_experiment.py --episodes 3 --repeats 1
+```
+
+**What to look at in the actor-critic smoke, and it is not the reward.** Watch the
+`entropy` column. At the shipped `entropy_coef: 0.01` it reads `0.000` by episode 30 and the
+greedy diagnostic sits on -515.4 - that is the known-broken state (E-020), not a bad seed. A
+healthy run holds entropy well above zero; uniform over 5 actions is `ln 5 = 1.609`.
+
+### The experiments
+
+```powershell
+.\.venv\Scripts\python.exe scripts/reinforce_clip_experiment.py            # E-019, ~3.7 min, DONE
+.\.venv\Scripts\python.exe scripts/actor_critic_entropy_experiment.py      # E-020, ~10 min, NOT YET RUN
+```
+
+Both print the **between-value spread beside the within-value spread** and say plainly when
+the first does not exceed the second. Read that line before reading the ranking - E-008 and
+E-012 both turned on that comparison being made rather than assumed.
+
+Both refuse to run if a training seed collides with the evaluation block
+(`_assert_no_eval_seeds`). That is CONSTRAINTS #2 enforced in code rather than by comment.

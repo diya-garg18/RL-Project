@@ -10,31 +10,32 @@
 
 | | |
 |---|---|
-| **Last session** | 2026-08-23 (session 9, on Diya's PC) |
+| **Last session** | 2026-08-25 (session 10, on Diya's PC) |
 | **Model** | Claude Opus 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
-| **Phase 1** | **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified; cause also refuted (E-015). |
-| **Phase 2** | **CLOSED as built-but-not-passed** (D-020). All 8 boxes done; gate not met, deliberately not restated. |
-| **Phase 3** | **Sweep COMPLETE (46 runs). Gate NOT met (E-017).** Replay essential; target network harmful. Closed built-but-not-passed. |
-| **Phase 4** | **STARTED.** REINFORCE built, tested and smoke-run (FEATURE_008, E-018). Gate NOT measured. Actor-critic, the sample-efficiency comparison and the variance demo are still to do. |
-| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 14 Phase 4 commits, **pushed**. |
-| **Tests passing** | **156/156** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`, ~8 min — REINFORCE's tiny-MDP anchor is the slow part) |
-| **Blockers** | Nothing blocks building. **Two decisions block reporting** — see "Still owed by the humans". |
+| **Phase 1** | **CLOSED as built-but-not-passed** (D-022, confirmed final by **D-033**). |
+| **Phase 2** | **CLOSED as built-but-not-passed** (D-020, confirmed final by **D-033**). One work item is genuinely unfinished - see below. |
+| **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
+| **Phase 4** | **HALF BUILT.** REINFORCE (FEATURE_008) and actor-critic (FEATURE_009) both built and tested. Boxes 3 and 4 not written. **No full training run of either exists.** The shipped `entropy_coef` breaks the actor-critic. |
+| **Phase 5** | Not started. This is the next block, and it is Pranav's. |
+| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 10 session-10 commits, **pushed**. |
+| **Tests passing** | **191/191** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
+| **Blockers** | Nothing blocks building. **The big gate decision is TAKEN (D-033).** One new decision is owed - greedy vs sampled evaluation, E-019 section 3. |
+
 ---
 
-## 🔑 STARTING THE NEXT SESSION — do these first, in order
+## 🔑 STARTING THE NEXT SESSION - do these first, in order
 
-> Rewritten 2026-08-23 at the end of session 9. Phase 4 has begun and everything
-> is pushed. The commit balance is **level**, so either person can take the next
-> block — see "Whose turn is it".
+> Rewritten 2026-08-25 at the end of session 10. Everything is pushed. The commit
+> balance is **IMBALANCED, Diya ahead** - see "Whose turn is it". **Phase 5 is Pranav's.**
 
-**1. Get the work.** Fourteen Phase 4 commits were pushed on 2026-08-23.
+**1. Get the work.** Ten commits were pushed on 2026-08-25.
 
 ```powershell
 cd <your RL-Project folder>
 git checkout master          # the default branch is master, NOT main
 git pull
-git log --oneline -14        # newest should be: phase4: correct the commit-balance ...
+git log --oneline -10        # newest should be: phase4: update HANDOVER ...
 ```
 
 **2. Set up the environment** (first time only, or if `pytest` fails to import):
@@ -45,96 +46,102 @@ python -m venv .venv
 ```
 
 Tested on **Python 3.13.1** with `torch==2.13.0+cpu`, `numpy 2.5.2`, `pytest 9.1.1`.
-`torch` is CPU-only **on purpose** — changing it is a dependency change needing
+`torch` is CPU-only **on purpose** - changing it is a dependency change needing
 approval (CONSTRAINTS #8).
 
 **3. Prove the repo is healthy before writing anything:**
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 156 passed, ~8 min
-python scripts/commit_balance.py                  # expect: BALANCED
+.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 191 passed
+python scripts/commit_balance.py                  # expect: IMBALANCED, Diya ahead
 ```
 
-**The suite is now ~8 minutes, up from ~1.** REINFORCE's tiny-MDP anchor runs 3
-seeds x 60 episodes x 800 steps and costs most of it. That is deliberate and the
-episode count is measured (table in `tests/test_reinforce.py`) — 20 episodes
-already passes on all three seeds, 60 is margin against a flaky anchor. If you
-need a fast loop while working, run the file you are touching, but **run the whole
-suite before committing**: session 9 broke 16 tests by adding one dataclass field
-and not doing that.
+**Suite timing is NOT stable, and the old "~8 min" figure was misleading.** The same
+191 tests on the same commit took **56 s** once and **8 min 49 s** later the same
+session, purely on machine load. Both anchors (REINFORCE 60x800 steps, actor-critic
+40x200) dominate. Run the file you are touching while working; **run the whole suite
+before every commit** - session 9 broke 16 tests by adding one dataclass field and not
+doing that, and session 10 nearly repeated it for exactly the same reason.
 
-**4. Read, in this order** — about 15 minutes:
+**4. Read, in this order** - about 20 minutes:
 
 | file | why |
 |---|---|
 | `CLAUDE.md` | the operating rules; read every session |
 | this file | where things stand |
-| `docs/experiments/EXPERIMENT_LOG.md` **E-018** | what Phase 4 has found so far — read before running anything |
-| `docs/features/FEATURE_008_reinforce.md` | what REINFORCE is and why it is built the way it is |
-| `DECISIONS.md` **D-031, D-032** | the two decisions session 9 added |
-| `ROADMAP.md` Phase 4 | the three boxes still open |
+| `DECISIONS.md` **D-033** | the gate decision, finally taken. It unblocks the report. |
+| `docs/experiments/EXPERIMENT_LOG.md` **E-019, E-020** | what Phase 4 measured, and the one thing that must run before any actor-critic number counts |
+| `docs/features/FEATURE_009_actor_critic.md` | what the actor-critic is and why it is built the way it is |
+| `DECISIONS.md` **D-034, D-035** | the design, and the two hyperparameters deliberately left alone |
+| `ROADMAP.md` Phase 5 | where the next block starts |
 
-**5. You do NOT need anything from `results/`.** It is gitignored and every
-artefact is regenerable. Session 9 deliberately deleted its own smoke artefacts
-(D-018) — a reduced run left where a real one writes gets averaged in.
+**5. You do NOT need anything from `results/`.** It is gitignored and every artefact is
+regenerable - commands under "Reproduce on this device".
 
-**⚠️ Still true from session 8: the 66 DQN run files are only on Pranav's machine.**
-Every number from them is already in E-017, so nothing is lost for the write-up,
-but re-running any DQN analysis script means regenerating the runs first (~1.4 h
-at 5 parallel — read D-030 first).
+**Still true: the 66 DQN run files are only on Pranav's machine.** Every number from them
+is in E-017, so nothing is lost for the write-up, but the Phase 4 sample-efficiency
+comparison needs DQN reward-vs-steps **curves**, and E-017 recorded final numbers, not
+curves. If that comparison is built on Diya's machine the DQN sweep must be regenerated
+first (~1.4 h at 5 parallel - read D-030). On Pranav's machine the runs already exist,
+which makes his the cheaper place to do box 3.
 
 ---
 
-## 📍 PHASE 4 — where it actually stands, and what to do next
+## 📍 PHASE 4 - where it actually stands
 
-**Built, tested, committed:** `agents/reinforce.py` (S&B §13.3/13.4, policy
-gradient with an optional learned baseline), `scripts/train_reinforce.py`, 16
-tests including a tiny-MDP anchor, `ReinforceConfig` with its own train and
-ablation seed blocks (1400000 / 1600000), and `FEATURE_008`.
+**Built, tested, committed, pushed:**
 
-**Not done:** `agents/actor_critic.py`, the DQN-vs-REINFORCE-vs-actor-critic
-sample-efficiency comparison, the variance demonstration, and any full training
-run. **ROADMAP's Phase 4 boxes are all still unticked and that is correct** —
-same treatment as Phase 3, where boxes stayed unticked until the criterion was
-actually measured.
+- `agents/reinforce.py` + `scripts/train_reinforce.py` (FEATURE_008, session 9)
+- `agents/actor_critic.py` + `scripts/train_actor_critic.py` (FEATURE_009, session 10), 18 tests
+- `scripts/reinforce_clip_experiment.py` (E-019) - **run, complete**
+- `scripts/actor_critic_entropy_experiment.py` (E-020) - built, smoke-verified, **NOT run**
 
-### The finding you must read before running anything (E-018)
+**Not done:** ROADMAP boxes 3 (sample-efficiency comparison) and 4 (variance demonstration)
+are not written, and **no full training run of any Phase 4 agent exists.** The boxes stay
+unticked and that is correct - same treatment as Phase 3.
 
-A 300-episode smoke run scored **recall 0.8443, reward 40.44 +- 220.1** — which is
-`severity_sort`'s E-014 row to every digit reported. Treated as a bug report per
-CONSTRAINTS #5 and checked: **not a bug.** `severity_sort` is a constant
-`PULL_HIGHEST_SEVERITY` policy (`baselines.py:55-56`), and the greedy REINFORCE
-policy emitted that action on **1131 of 1131** eval steps. Identical policies give
-identical numbers.
+### Do this before anything else in Phase 4
 
-So at 300 episodes REINFORCE has **rediscovered severity-sort and matched it, not
-beaten it** — against a Phase 4 criterion that asks for beating it. Whether 20,000
-episodes moves off that point is the first question the full run answers, and
-**either answer is reportable**.
+**Run E-020 (~10 min) and set `entropy_coef` from it.**
 
-### Three things to decide before the full run
+```powershell
+.\.venv\Scripts\python.exe scripts/actor_critic_entropy_experiment.py
+```
 
-1. **The gate decision (blocking, see "Still owed").** Phase 4's criterion is
-   written exactly like the three that already failed. Matching severity-sort
-   *exactly* is the awkward case that decision has to cover, and taking it after
-   seeing the number is the failure mode this project exists to avoid.
-2. **The clipping ratio (E-018 §3).** Pre-clip gradient norms were 1584-2228
-   against `grad_clip_norm: 10.0`, so the clip fires on essentially every step and
-   the update is in practice a fixed-size step along the gradient direction. Not
-   changed, because it is a tuning parameter and today's eval seeds have been
-   touched — it needs a **train-seed-only** experiment at two or three values.
-3. **Compute.** ~0.073 s/episode measured, so a 20,000-episode run projects to
-   **~24 min** per repeat. Stated as a lower bound, not a plan: D-024 and D-030
-   are both cases where a short-run projection on a quiet machine was wrong.
-   Anything over ~10 min needs human approval (CLAUDE.md).
+The shipped `entropy_coef: 0.01` **demonstrably breaks the actor-critic**: the policy
+saturates within five episodes (entropy 0.911 to 0.0003), the actor's gradient norm falls
+to 0.00, and the greedy diagnostic sits on -515.4, the Phase 3 BULK_CLOSE collapse value.
+The bonus contributes at most 0.016 against TD errors reaching 1410. **No actor-critic
+number means anything until this is settled.** It was not changed in session 10 because a
+20-episode eyeball is not a basis for choosing a hyperparameter (D-035).
 
-### The next block of work, if nothing else is decided
+### The two findings from E-019 that change what Phase 4 reports
 
-`agents/actor_critic.py`, test-first, same shape as REINFORCE. The one thing to
-get right is what separates them: the critic **bootstraps** (`r + gamma*v(s')`)
-where REINFORCE's baseline does not. Two networks is not what makes an
-actor-critic — bootstrapping is, and `reinforce.py` has a test pinning that it
-does not.
+**1. The sampled policy beats its own argmax, in all nine runs.** Positive sampled reward
+(+6 to +112) against strongly negative greedy reads (-80 to -515) of the *same policy at
+the same moment*. The mixture is the strategy; the argmax of a spread-out policy is a
+different and worse policy. **Both trainers evaluate through a `_GreedyView`.** This is the
+new decision owed.
+
+**2. The degenerate greedy policy is not the clip's fault.** Seven of nine runs produced
+exactly -515.4 or -78.7 (constant-action policies) at every clip value tested. That is why
+the actor-critic has an entropy bonus rather than inheriting REINFORCE's exploration story.
+
+### Compute budget for the next machine - measured, and E-018's projection was wrong
+
+| agent | measured | 20000 episodes x 5 repeats |
+|---|---|---|
+| REINFORCE | **~0.016 s/episode** | **~27 min** (E-018 projected ~2 h - 4.5x pessimistic) |
+| actor-critic | **~0.6 s/episode** | **~3.3 h per repeat** - 37x costlier, it updates every STEP |
+
+The actor-critic is by far the most expensive item in Phase 4 and it decides the schedule.
+Anything over ~10 min needs human approval (CLAUDE.md).
+
+### The one genuinely unfinished pre-Phase-4 item
+
+`ROADMAP.md` Phase 2, last box: **"SARSA and Monte Carlo measured against the tiny MDP, in
+the same file."** Q-learning has its anchor (FEATURE_003); the other two learners never got
+one. Small, and the only real gap behind us.
 
 ---
 
@@ -274,33 +281,35 @@ DP never leaves its estimated core, and **D-011's convention never fires at eval
 
 ---
 
-## Whose turn is it — read before starting work
+## Whose turn is it - read before starting work
 
-**Measured 2026-08-23 (`python scripts/commit_balance.py`, D-021 / CONSTRAINTS #24-26):**
+**Measured 2026-08-25 (`python scripts/commit_balance.py`, D-021 / CONSTRAINTS #24-26).**
+Run it again yourself rather than trusting this table - it is a snapshot and it goes stale
+with the next commit.
 
-| author | commits | share |
-|---|---|---|
-| Pranav Upadhyay | 30 | 49.2% |
-| Diya Garg | 31 | 50.8% |
-
-Per phase: **Phase 0** 12 (all Diya) · **Phase 1** 6 (Diya 3, Pranav 3) · **Phase 2** 4 (all Pranav) · **Phase 3** 20 (all Pranav) · **Phase 4** 14 (all Diya). Counted including session 9's final commit, which is this documentation fix.
-
-> ✅ **BALANCED — Diya 1 ahead. Either person may take the next block.**
+> **IMBALANCED - Diya is ahead, past the threshold of 3. PRANAV SHOULD TAKE THE NEXT BLOCK.**
 >
-> Session 9 closed a 13-commit gap and crossed to 1 the other way. Phase 4's first half was Diya's and it
-> was real work: the config split, the shared feature scales, the REINFORCE agent
-> and its tests, the trainer, and the documentation.
+> Session 10 was Diya's and it was a full block of real work: the actor-critic agent and its
+> 18 tests, its trainer, two experiment harnesses, a config split, and the documentation.
+> That put Phase 4 entirely under one name.
 >
-> **If Pranav takes the next block**, the natural unit is `agents/actor_critic.py`
-> plus the sample-efficiency comparison — comparable in size, and it needs nothing
-> from Diya's machine. **If Diya continues**, watch the balance: another full block
-> would put her ahead and the same rule applies in reverse.
+> **Phase 5 is the correction, and it is the right one.** It is the largest phase in the
+> roadmap (`rlhf/pairs.py`, the episode renderer, `rlhf/store.py`, the labelling UI, 300
+> labelled pairs, Cohen's kappa, the reward model, the re-trained policies) and it is the
+> phase the project is actually about. Pranav taking it in full brings the history back
+> level and puts the differentiating work under the name that needs it.
 >
-> **Do not manufacture commits to close a gap**, and do not commit on the other
-> person's behalf: an examiner may ask either student to explain any commit under
-> their name (CONSTRAINTS #24).
+> **Do not correct the balance by attributing Diya's work to Pranav** (CONSTRAINTS #24). A
+> commit under a name is a claim that that person did the work and can walk an examiner
+> through it. The balance is corrected by handing over the work, which is what is happening.
 
-`.mailmap` collapses Diya's two author identities (personal + GitHub noreply), so these counts are accurate where a raw `git shortlog` would over-split her.
+**What Pranav should know before starting Phase 5.** Nothing in Phase 5 depends on Phase 4
+finishing - CONSTRAINTS #11 guarantees it. Phase 4's remaining boxes (the sample-efficiency
+comparison and the variance demo) can be picked up later by either person, and the DQN runs
+that box 3 needs already exist on Pranav's machine, which makes his the cheaper place for it
+whenever it happens.
+
+---
 
 ## Before the machine changes hands
 
@@ -456,23 +465,23 @@ All eight roadmap boxes:
 
 ## Still owed by the humans
 
-- 🔴 **THE GATE DECISION IS NOW BLOCKING PHASE 4, not just Phases 1-3.** REINFORCE
-  at 300 episodes reproduces severity-sort *exactly* (E-018). Phase 4's criterion
-  says all three learners must **beat** severity-sort. So the decision already
-  owed on three failed gates now determines whether Phase 4 can report anything at
-  all — and taking it after the full run's number is known is precisely the failure
-  this project exists to avoid. **Take it before the full run.**
-- 🟠 **Whether the REINFORCE gradient clip needs its own experiment.** Pre-clip
-  norms are 1584-2228 against `grad_clip_norm: 10.0`, so the clip fires on
-  essentially every step and the update becomes a fixed-size step along the
-  gradient direction (E-018 §3). Nothing is broken; the algorithm is quietly not
-  the one the docstring describes. A train-seed-only sweep at 2-3 values would
-  settle it. Not done, because tuning against anything measured today would use
-  eval seeds that have already been looked at.
-
-
-- 🔴 **THE BIG ONE — three phases have now failed their originally-written exit criteria.** Phase 1 (D-022), Phase 2 (D-020) and Phase 3 (E-017) are all closed as *built-but-not-passed*, and each gate was deliberately left unmet and unamended for a human. That is no longer three separate footnotes; it is a pattern about how the criteria were written, and it needs one decision covering all three before the report is drafted. Options as we see them: (a) restate the gates on **total reward**, the environment's actual objective, as D-012 proposed for Phase 1; (b) keep them as written and present three honest failures as the project's spine; (c) case-by-case. **Do not let a later phase quietly adopt one of these readings without the decision being recorded.**
-- **Whether Phase 3 gets a second attempt.** E-017's two ablation findings suggest an obvious follow-up — a DQN with replay and *no* target network, which beat the control on recall, reward and stability at n=8. That is a new experiment, not a fix, and it needs a human to say whether Phase 3 reopens or the finding is simply reported.
+- **THE BIG ONE IS DONE.** The gate decision covering Phases 1-4 was taken by Diya on
+  2026-08-25 and recorded as **D-033**: the criteria stay exactly as written, and failing
+  phases close *built-but-not-passed*. Option (b) of the three this file listed. The report
+  is no longer blocked on it, and Phase 4 will be judged against its criterion unchanged.
+- **NEW, and it affects every Phase 4 number: greedy or sampled evaluation?** E-019
+  section 3 found that in all nine runs the sampled policy earned positive reward while the
+  greedy read of that same policy earned strongly negative reward. Both Phase 4 trainers
+  evaluate through a `_GreedyView`, so every number they produce - including E-018's
+  "REINFORCE has become severity-sort exactly" - describes the argmax rather than the agent.
+  **A stochastic policy's argmax is not that policy.** Options: report the sampled policy,
+  report the greedy one with the caveat stated, or report both. Take it before the full
+  runs, not after seeing which scores better.
+- **The REINFORCE gradient clip is settled** (E-019, D-035). It stays at 10.0 - not
+  vindicated, but the between-value spread (74.4) is a third of the within-value spread
+  (211.6), so nothing justifies moving it.
+- **`entropy_coef` is NOT settled** and blocks the actor-critic. E-020 is built and costs
+  ~10 min. See the Phase 4 section above.
 
 - **The pen-and-paper derivations.** FEATURE_001's MRP and FEATURE_002's tiny MDP are both ticked because the derivation and its verification exist — not because Pranav and Diya can reproduce them cold, which is what the viva tests. FEATURE_002 is the likelier exam question: two states, four numbers, γ = 0.9.
 - KPMG analyst contact for preference labels — longest-lead item in the project; Phase 5 cannot start without it.

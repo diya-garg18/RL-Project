@@ -2,7 +2,9 @@
 
 Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not just written). Each phase ends with an **exit criterion** — a concrete, checkable statement. Do not start the next phase until the current one's exit criterion is met and `TEST_CHECKLIST.md` passes.
 
-**Current status (2026-08-18):**
+**Current status (2026-08-25):**
+- **THE GATE DECISION IS TAKEN (D-033, Diya, 2026-08-25).** The exit criteria for Phases 1, 2, 3 and 4 stay **exactly as written**, and a phase that fails its criterion closes *built-but-not-passed*. Four honest failures become the report's spine. This resolves the "still owed" item that had been blocking the write-up since Phase 1, and it covers Phase 4 in advance so the criterion cannot be adjusted after the numbers arrive.
+- **Phase 4** — **HALF BUILT.** REINFORCE (FEATURE_008) and actor-critic (FEATURE_009) are built and tested; boxes 3 and 4 are not written and **no full training run exists**. The shipped `entropy_coef` breaks the actor-critic until E-020 runs.
 - **Phase 0** — closed, gate **passes** on the 30-seed block (oracle strictly best on total reward, 168.0 vs 40.4). One piece of its amendment *rationale* is weakened by E-014, but the criterion itself holds.
 - **Phase 1** — **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified by E-014 (DP −201.2 on 30 seeds, not +305.9 on 5). Gate deliberately not amended a second time. E-015 then refuted the stated *cause* as well: DP never leaves its estimated core.
 - **Phase 2** — **CLOSED as built-but-not-passed.** All 8 boxes complete; exit criterion not met and deliberately not restated (D-020).
