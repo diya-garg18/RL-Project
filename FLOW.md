@@ -313,8 +313,23 @@ seeds with `_assert_no_eval_seeds` making the separation a runtime failure rathe
 
 ```
 scripts/reinforce_clip_experiment.py       -> E-019, 3 clip values x 3 repeats x 1500 eps  (~3.7 min)
-scripts/actor_critic_entropy_experiment.py -> E-020, 4 entropy values x 3 repeats x 80 eps (~10 min, NOT YET RUN)
+scripts/actor_critic_entropy_experiment.py -> E-020, 4 entropy values x 3 repeats x 80 eps (~6.7 min)
 ```
+
+**And two analysis flows**, which report rather than tune:
+
+```
+scripts/variance_demo.py               drives all three agents itself, 3 seeds x 30 eps
+                                       -> results/variance_demo/  (E-021, ~3 min, DONE)
+
+scripts/compare_sample_efficiency.py   reads the TRAINERS' artefacts, runs nothing
+                                       -> results/sample_efficiency/  (needs the full runs)
+```
+
+`compare_sample_efficiency.py` is the only Phase 4 script that touches no environment at all -
+it consumes `episode_rewards`, `episode_steps` and `curves` from whatever the trainers left in
+`results/`, and refuses (with a message) any artefact predating the `episode_steps` recording
+rather than approximating the x-axis.
 
 ---
 

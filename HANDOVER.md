@@ -96,9 +96,18 @@ which makes his the cheaper place to do box 3.
 - `scripts/reinforce_clip_experiment.py` (E-019) - **run, complete**
 - `scripts/actor_critic_entropy_experiment.py` (E-020) - built, smoke-verified, **NOT run**
 
-**Not done:** ROADMAP boxes 3 (sample-efficiency comparison) and 4 (variance demonstration)
-are not written, and **no full training run of any Phase 4 agent exists.** The boxes stay
-unticked and that is correct - same treatment as Phase 3.
+**Box 4 is DONE and measured** (E-021, `scripts/variance_demo.py`): coefficient std 146.94
+unbaselined, 147.68 baselined, 30.89 for the actor-critic. **The textbook baseline reduction
+did NOT replicate (1.00x)**; bootstrapping's 4.78x did. See FEATURE_010 for why that is the
+better result.
+
+**Box 3 is BUILT and smoke-verified but NOT RUN** (`scripts/compare_sample_efficiency.py`).
+All three trainers now record `episode_steps`, so the x-axis is real environment steps rather
+than an estimate - the actor-critic takes ~88 steps/shift against REINFORCE's ~47, so
+per-episode plotting would have been materially wrong. It needs the full training runs.
+
+**Still true: no full training run of any Phase 4 agent exists**, so the exit criterion is
+unmeasured. That is the only thing standing between Phase 4 and a verdict.
 
 ### E-020 is DONE - `entropy_coef` is now 1.0 and the agent trains
 

@@ -1195,3 +1195,84 @@ it is the other half of the trade that bought the actor-critic a 6x smaller tiny
 3. Only then consider full runs, budgeting from the actor-critic figure above, not REINFORCE's.
    The full run is also the first honest test of whether the argmax stays degenerate past 80
    episodes.
+
+
+---
+
+## E-021 - the baseline does NOT reduce REINFORCE's variance here, and bootstrapping does - 2026-08-25
+
+**Model:** Claude Opus 5 · **Phase:** 4 · **Machine:** Diya's PC · **Decisions:** none; this is ROADMAP box 4's deliverable.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/variance_demo.py
+```
+
+3 seeds x 30 episodes per condition, each on its own seed block, 3.0 min. The quantity sampled is
+the **coefficient multiplying `grad ln pi(a|s)`** - the one place the three algorithms differ,
+since network shape, input scaling (D-032) and optimiser are identical across them.
+
+### Status of these numbers
+
+A property of the **estimator**, not a training outcome, which is why 30 episodes is enough:
+each episode contributes ~50 coefficients, so every condition is sampled 4000+ times. It is
+**not** a statement about which agent triages better - that is box 3's job.
+
+### The result
+
+| condition | coefficient std | 99th pct magnitude | largest magnitude |
+|---|---|---|---|
+| REINFORCE (no baseline) | 146.94 | 582.43 | 737.32 |
+| REINFORCE (with baseline) | **147.68** | 572.98 | 900.29 |
+| actor-critic (TD error) | **30.89** | 135.52 | 839.21 |
+
+**Claim 1 - the baseline reduces REINFORCE's spread: NOT CONFIRMED.** 146.94 to 147.68, a ratio
+of **1.00x**. The textbook variance reduction (S&B 13.4) does not appear at all.
+
+**Claim 2 - bootstrapping is narrower still: CONFIRMED, and decisively.** 147.68 to 30.89, a
+ratio of **4.78x**.
+
+### The failed claim replicates E-013's shape, and that is why the budget matters
+
+At an 8-episode smoke the same script reported claim 1 **CONFIRMED at 1.09x**. At 30 episodes it
+is 1.00x. The apparent effect was noise, and it disappeared under a better measurement - exactly
+what happened to E-009's strategy-shift claim in E-013. **The smoke was not wrong to run; it was
+wrong to believe.**
+
+### Why the baseline does nothing here, stated as mechanism rather than excuse
+
+Subtracting `b(s)` reduces variance **only when `b(s)` is close to `E[G_t | s]`**. The identity
+that makes it unbiased - `E[b(s) * grad ln pi] = b(s) * grad 1 = 0` - holds for *any* function of
+the state, including a useless one. A baseline that is merely wrong subtracts a number
+uncorrelated with the return and reduces nothing.
+
+At 30 episodes the value head has seen 30 fresh shifts, each a new alert stream, and has not
+learned `v(s)` to any useful accuracy. So the theory is not contradicted; its precondition is
+simply not met yet.
+
+**The unit test that appears to disagree is not in conflict**, and the difference is instructive.
+`tests/test_reinforce.py::test_a_trained_baseline_centres_the_update_coefficients` feeds the
+**same episode 40 times** and shows the coefficients collapsing by more than half. That is the
+mechanism working under a condition the real environment never provides - identical returns to
+learn. The test proves the code implements the baseline correctly; E-021 shows the environment
+does not let it pay off within this budget. Both are true, and neither should be quoted without
+the other.
+
+### Why bootstrapping's reduction is different in kind
+
+The 4.78x is **structural**, not conditional on training. `G_t` sums ~50 noisy rewards; the TD
+error is one reward plus one estimate. Even a poor critic produces a narrower coefficient, because
+the summation that creates the spread never happens. That is the honest version of the
+bias-variance story: REINFORCE is unbiased and wide, the actor-critic is biased and narrow, and
+**the narrowing does not have to be earned the way the baseline's does.**
+
+Note the 99th-percentile and maximum columns tell a subtler story than the std. The actor-critic's
+largest single coefficient (839.21) is comparable to REINFORCE's, but its 99th percentile (135.52)
+is four times smaller - the distribution is narrow with rare large excursions, rather than
+uniformly wide.
+
+### What is still open
+
+Whether the baseline earns itself over a **full** 20000-episode run, once the value head has
+actually converged, is not answered here and should not be guessed. The full-run artefacts will
+contain the data to revisit it; the budget was NOT extended until the claim agreed, which would
+have been the wrong way to resolve it.

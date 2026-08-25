@@ -309,3 +309,21 @@ E-012 both turned on that comparison being made rather than assumed.
 
 Both refuse to run if a training seed collides with the evaluation block
 (`_assert_no_eval_seeds`). That is CONSTRAINTS #2 enforced in code rather than by comment.
+
+
+### Phase 4 boxes 3 and 4 (added 2026-08-25)
+
+```powershell
+.\.venv\Scripts\python.exe scripts/variance_demo.py                    # box 4, ~3 min, DONE (E-021)
+.\.venv\Scripts\python.exe scripts/compare_sample_efficiency.py        # box 3, needs full runs first
+```
+
+`variance_demo.py` prints its two claims with an explicit **CONFIRMED / NOT CONFIRMED** verdict
+rather than leaving a reader to compare the numbers. As of E-021 the expected output is claim 1
+**NOT CONFIRMED** (the baseline does not reduce the spread at this budget) and claim 2
+**CONFIRMED** at ~4.8x. If claim 1 ever reads CONFIRMED at the default budget, check the ratio
+before believing it - at an 8-episode smoke it read CONFIRMED at 1.09x, which was noise.
+
+`compare_sample_efficiency.py` exits with the training commands when no artefacts exist, and
+**skips** any artefact lacking `episode_steps` rather than approximating the x-axis. If every
+agent prints SKIPPED, the artefacts predate the step recording and the trainers must be re-run.

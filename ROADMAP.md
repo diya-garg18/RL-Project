@@ -100,7 +100,7 @@ Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not ju
 - [ ] Tests: Q-learning converges on a tiny hand-checkable 2-state MDP with a known answer
   - [x] **The 2-state MDP itself, hand-solved and verified** *(FEATURE_002, E-006, D-014 — `src/soc_triage/tiny_mdp.py`, 13 tests. `q_* = [[10.0, 6.7], [10.7, 13.0]]` derived on paper, Bellman-optimality residual 1.78e-15, and `agents/dp.value_iteration` reproduces it.)* **Built first, ahead of the learners** — deliberately out of box order, because an anchor built afterwards cannot say whether a disagreement is the learner's fault or its own (D-014).
   - [x] **Q-learning measured against it** *(FEATURE_003, E-007 — `tests/test_tabular.py`, 20 tests. Includes the single-backup assertion that distinguishes Q-learning from SARSA, which no convergence test can.)*
-  - [ ] SARSA and Monte Carlo measured against it, in the same file
+  - [x] SARSA and Monte Carlo measured against it *(`tests/test_on_policy.py` — split out of `test_tabular.py`, which was near the 500-line limit. Both are graded against `tiny_mdp.epsilon_soft_q(epsilon)`, NOT `HAND_COMPUTED_Q`: they are on-policy, so their fixed point is q_pi for the epsilon-greedy policy they follow, and grading them against q\* would mark a correct implementation badly broken. The soft target is itself anchored — at epsilon=0 it reproduces the pen-and-paper q\* exactly.)*
 
 **Exit criterion:** Q-learning beats severity-sort on recall@deadline and MTTD across 5 seeds (report mean ± std), and the printed policy table shows a *behaviourally interpretable* strategy shift as time runs out.
 
@@ -167,10 +167,10 @@ Final assessment on the **30-seed** eval block (D-019, E-014):
 
 ## Phase 4 — Policy gradient & actor–critic (Week 3, second half) — CO3, CO4
 
-- [ ] `agents/reinforce.py` — Monte Carlo policy gradient, with a baseline for variance reduction
-- [ ] `agents/actor_critic.py` — separate actor and critic heads
-- [ ] Sample-efficiency comparison: DQN vs REINFORCE vs actor–critic (reward vs environment steps)
-- [ ] Show REINFORCE's variance explicitly — it is high, and being able to say *why* (full-return estimates, no bootstrapping) is a strong interview answer
+- [x] `agents/reinforce.py` — Monte Carlo policy gradient, with a baseline for variance reduction *(FEATURE_008, E-018. Built and tested; **no full training run yet**.)*
+- [x] `agents/actor_critic.py` — separate actor and critic heads *(FEATURE_009, D-034, 18 tests. Bootstrapping is the criterion, not the head count. `entropy_coef` set to 1.0 from E-020.)*
+- [~] Sample-efficiency comparison: DQN vs REINFORCE vs actor–critic (reward vs environment steps) *(`scripts/compare_sample_efficiency.py` **built and smoke-verified**; the three trainers now record `episode_steps` so the x-axis is real rather than estimated — actor-critic takes ~88 steps/shift against REINFORCE's ~47, so per-episode plotting would have been wrong. **NOT YET RUN**: needs the full training runs, which are Pranav's machine.)*
+- [x] Show REINFORCE's variance explicitly *(`scripts/variance_demo.py`, **E-021**. Measured: the coefficient std is 146.94 unbaselined, 147.68 baselined, 30.89 for the actor-critic. **The textbook baseline reduction did NOT replicate (1.00x)** — the value head is not accurate enough at this budget for it to pay off — while bootstrapping's 4.78x is structural. A negative result on the half everyone quotes, and the better interview answer for it.)*
 - [ ] *Optional, cut first if time is short:* PPO with clipped objective
 
 **Exit criterion:** all three learners train to a policy beating severity-sort, and the sample-efficiency plot shows a clear ordering you can explain.

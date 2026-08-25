@@ -218,6 +218,20 @@ share alert streams with a reported one (D-035):
 `scripts/reinforce_clip_experiment.py` (E-019) and
 `scripts/actor_critic_entropy_experiment.py` (E-020).
 
+Two **analysis** scripts complete the phase, and the distinction from the harnesses above is
+worth keeping straight: the harnesses *choose a setting*, these *report a result*.
+
+| script | box | reads | status |
+|---|---|---|---|
+| `scripts/variance_demo.py` | 4 | drives the agents directly, short budget | **done** (E-021) |
+| `scripts/compare_sample_efficiency.py` | 3 | the trainers' JSON artefacts | built, needs the full runs |
+
+`variance_demo.py` samples the coefficient multiplying `grad ln pi` under three conditions and is
+the only place the bias-variance trade is *measured* rather than described.
+`compare_sample_efficiency.py` plots reward against **environment steps** - which is why all three
+trainers now record `episode_steps`; the agents consume samples at very different rates per shift
+(~88 vs ~47), so episodes are not a common currency.
+
 ---
 
 ## 5. Where each phase adds code
