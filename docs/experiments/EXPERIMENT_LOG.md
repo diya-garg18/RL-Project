@@ -1032,11 +1032,13 @@ sampled policy, the greedy one, or both is **a decision for the humans**, now li
 
 ### Status of these numbers
 
-**THE SWEEP WAS NOT RUN.** This entry records a **diagnostic** and a **built harness**, not a
-result. Session compute was scoped to build-only by Diya. What follows is 20-episode single-seed
-probing plus a 3-episode smoke of the sweep script - far under CONSTRAINTS #3's five-seed floor,
-and not quotable as a finding about the algorithm. It is logged because it changes what the next
-session must do before any actor-critic number means anything.
+**The sweep RAN on 2026-08-25** (4 values x 3 repeats x 80 episodes, 6.7 min) and its result is
+in "The sweep result" below. `entropy_coef` was set to **1.0** on the strength of it.
+
+**Budget caveat, stated up front.** 80 episodes x 3 repeats against a headline run's 20000 x 5.
+That is enough to answer the structural question this sweep was built for - does the policy stay
+non-degenerate - and **not** enough to rank values on reward. The reward column is reported below
+and explicitly not used.
 
 ### How it surfaced
 
@@ -1108,8 +1110,65 @@ sweep is for.
 |---|---|---|---|---|
 | final entropy | 0.0263 | 0.2419 | 1.1138 | 1.5660 |
 
-Monotone in the coefficient, approaching `ln 5` from below. **`entropy_coef` was NOT changed.**
-A 20-episode eyeball is not a basis for choosing a hyperparameter, and choosing one is tuning.
+Monotone in the coefficient, approaching `ln 5` from below.
+
+### The sweep result
+
+```powershell
+.\.venv\Scripts\python.exe scripts/actor_critic_entropy_experiment.py
+```
+
+4 values x 3 repeats x 80 episodes on `actor_critic.entropy_experiment_seed_start` (2200000),
+measured on the train-diagnostic seeds. 6.7 min.
+
+| entropy_coef | greedy reward (mean +- std) | mean entropy | final entropy | mean abs TD |
+|---|---|---|---|---|
+| 0.01 (was shipped) | -515.4 +- 0.0 | 0.0087 | **0.0000** | 2.89 |
+| 0.1 | -515.4 +- 0.0 | 0.0158 | **0.0000** | 2.81 |
+| **1.0 (now shipped)** | -515.4 +- 0.0 | 0.9890 | **0.8279** | 7.14 |
+| 10.0 | -515.4 +- 0.0 | 1.5639 | **1.5707** | 20.42 |
+
+**COLLAPSE verdict: degenerate at 0.01 and 0.1.** The diagnostic is confirmed at three seeds
+each: the shipped value could not hold the policy open, and neither could a 10x increase.
+
+### The reward column is VACUOUS, and that is a finding about the harness
+
+Every one of the twelve runs scored **exactly -515.4, std 0.0**. The script duly reported
+"the between-value spread does NOT clear the noise floor", which is true and also describes the
+wrong failure. The greedy diagnostic here is not *noisy* - it is **constant**. Any policy whose
+argmax is BULK_CLOSE in every state earns exactly that on the fixed train-diagnostic seeds,
+deterministically, so the metric has no ability to discriminate at all.
+
+**Two consequences, and the second is the more important.**
+
+1. `scripts/actor_critic_entropy_experiment.py`'s reward verdict cannot distinguish "the values
+   are indistinguishable" from "the metric is saturated". A future version should say so. Logged
+   rather than fixed, because the sweep it was built for has already answered its question.
+2. **The entropy bonus fixes the sampled policy and does NOT fix the argmax.** At coefficient 1.0
+   the policy is genuinely stochastic (entropy 0.83) and its greedy read is *still* constant
+   BULK_CLOSE. This is E-019 section 3's finding arriving from the opposite direction, and it
+   sharpens the decision owed there: if the argmax is degenerate at every setting that keeps the
+   agent learning, then evaluating Phase 4 through a `_GreedyView` may be measuring an artefact
+   of the argmax rather than the agent. **80 episodes is far too short to call this permanent** -
+   it is a flag for the full run, not a conclusion.
+
+### Why 1.0, stated so the choice can be defended
+
+Bounded from both sides by the structural criterion, not by reward:
+
+- **0.01, 0.1 - ruled out.** Final entropy 0.0000 on every repeat. The policy collapses to one
+  action and `grad ln pi` vanishes, so learning stops.
+- **10.0 - ruled out.** Final entropy 1.5707 against a uniform maximum of `ln 5 = 1.6094` -
+  **97.6% of maximum**. The bonus dominates the TD signal; the policy is barely expressing a
+  preference about anything. Note `|TD|` climbing to 20.42 here against 7.14 at 1.0: the critic
+  is chasing a policy that will not settle.
+- **1.0 - chosen.** Final entropy 0.8279: comfortably away from collapse, and comfortably below
+  uniform, so the policy is both exploring and committing.
+
+**Sampled reward is reported and deliberately not used as the reason.** Means: -674.5 (0.01),
+-526.0 (0.1), -157.2 (1.0), -213.3 (10.0). The 1.0-vs-10.0 gap of ~56 sits against within-value
+spreads of ~72 and ~47 and does not clear. **1.0 is not claimed to be the best-scoring value** -
+it is the only value that is neither collapsed nor uniform.
 
 ### Compute facts for the next machine
 
@@ -1128,7 +1187,11 @@ it is the other half of the trade that bought the actor-critic a 6x smaller tiny
 
 ### What the next session must do first
 
-1. **Run the E-020 sweep** (~10 min) and set `entropy_coef` from it. No actor-critic number is
-   meaningful until this happens - the shipped config demonstrably breaks the agent.
-2. Take the **greedy-vs-sampled evaluation decision** from E-019 section 3.
+1. ~~Run the E-020 sweep and set `entropy_coef` from it.~~ **DONE 2026-08-25.** `entropy_coef`
+   is 1.0, chosen on the collapse boundary. 191 tests pass with it, tiny-MDP anchor included.
+2. Take the **greedy-vs-sampled evaluation decision** from E-019 section 3. This sweep made it
+   more urgent, not less: the argmax was constant BULK_CLOSE at **every** coefficient tested,
+   including the two where the sampled policy stayed healthy.
 3. Only then consider full runs, budgeting from the actor-critic figure above, not REINFORCE's.
+   The full run is also the first honest test of whether the argmax stays degenerate past 80
+   episodes.

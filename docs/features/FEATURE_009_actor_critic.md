@@ -2,8 +2,8 @@
 
 **Phase:** 4
 **Status:** built and tested (18 tests, tiny-MDP anchor on 3 seeds, arithmetic critic anchor).
-**Exit criterion NOT measured** - no full training run, and the shipped `entropy_coef` is known
-to break the agent until E-020 runs.
+**Exit criterion NOT measured** - no full training run yet. `entropy_coef` is now set from
+E-020 (1.0) and the agent trains; the open question is the degenerate argmax, not the config.
 **Date:** 2026-08-25
 **Model:** Claude Opus 5
 **Decisions:** D-034 (design), D-035 (why entropy_coef was not edited), D-033 (the gate)
@@ -122,9 +122,20 @@ critic runs at the shipped 0.005, and all three seeds then pass with `v(QUIET)` 
 
 ## Known state, stated plainly
 
-**The shipped configuration breaks this agent.** At `entropy_coef: 0.01` the policy saturates
-within five episodes (entropy 0.911 to 0.0003, actor gradient norm to 0.00) and the greedy
-diagnostic sits on -515.4, the Phase 3 BULK_CLOSE collapse value. E-020 diagnoses it as a scale
-mismatch - the bonus contributes at most 0.016 against TD errors reaching 1410 - and builds the
-sweep that should settle it. **The sweep has not been run.** No number from this agent means
-anything until it has.
+**The configuration is now measured, and the agent trains.** `entropy_coef` was 0.01, which broke
+it: the policy saturated within five episodes (entropy 0.911 to 0.0003, actor gradient norm to
+0.00). E-020 diagnosed a scale mismatch - the bonus contributes at most `coef * ln 5` against TD
+errors reaching 1410 - and its sweep set the value to **1.0**, bounded by collapse at 0.01 and 0.1
+and by 97.6%-of-uniform entropy at 10.0.
+
+**What is still open, and it is not small.** At *every* coefficient tested - including the ones
+where the sampled policy stayed healthy - the **greedy read of the policy was constant
+BULK_CLOSE**, scoring exactly -515.4 on all twelve runs. The entropy bonus fixes the policy; it
+does not fix the argmax. Combined with E-019 section 3, where REINFORCE's sampled policy beat its
+own argmax in nine of nine runs, that puts the evaluation protocol itself in question: both Phase
+4 trainers report through a `_GreedyView`. **A decision is owed** before the full runs.
+
+80 episodes is far too short to call the degenerate argmax permanent. The full run is the first
+honest test of it.
+
+**Still not measured:** the Phase 4 exit criterion. No full training run of this agent exists.

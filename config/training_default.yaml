@@ -151,14 +151,22 @@ actor_critic:                  # Phase 4 - one-step actor-critic (S&B 13.5)
                                # SCALED by the TD error the critic produces, so an
                                # actor outrunning its critic chases an estimate
                                # that has not caught up.
-  entropy_coef: 0.01           # NOT in S&B 13.5 -- this project's addition, and
+  entropy_coef: 1.0            # E-020. NOT in S&B 13.5 -- this project's addition, and
                                # 0.0 recovers the textbook algorithm exactly.
-                               # E-018 found REINFORCE's greedy policy degenerate
-                               # (one action in every state) by 300 episodes with
-                               # nothing in the configuration resisting a policy
-                               # sharpening early, and E-019 showed the gradient
-                               # clip is not what causes it. The bonus adds a
-                               # term that pays for keeping pi spread out.
+                               # 1.0 is MEASURED, not guessed (E-020, 4 values x 3
+                               # repeats x 80 episodes on the entropy block). The
+                               # sweep bounds it from both sides: at 0.01 and 0.1
+                               # the policy COLLAPSES (final entropy 0.0000, one
+                               # action in every state) because the bonus, capped
+                               # at coef*ln5, cannot compete with TD errors
+                               # reaching 1410; at 10.0 entropy pins to 1.571 of a
+                               # 1.609 maximum -- 97.6% of uniform -- so the bonus
+                               # dominates the TD signal and the policy stops
+                               # expressing preferences at all. 1.0 holds entropy
+                               # near 0.83: stochastic, but still clearly below
+                               # uniform. Chosen on that STRUCTURAL criterion --
+                               # the sweep does NOT establish 1.0 as best on
+                               # reward and must not be quoted as if it did.
   grad_clip_norm: 10.0         # a DIFFERENT regime from reinforce.grad_clip_norm
                                # despite the identical number: this gradient comes
                                # from ONE step's TD error, not a whole episode's

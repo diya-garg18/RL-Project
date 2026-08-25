@@ -100,20 +100,31 @@ which makes his the cheaper place to do box 3.
 are not written, and **no full training run of any Phase 4 agent exists.** The boxes stay
 unticked and that is correct - same treatment as Phase 3.
 
-### Do this before anything else in Phase 4
+### E-020 is DONE - `entropy_coef` is now 1.0 and the agent trains
 
-**Run E-020 (~10 min) and set `entropy_coef` from it.**
+Ran 2026-08-25, 4 values x 3 repeats x 80 episodes, 6.7 min. Bounded from both sides:
 
-```powershell
-.\.venv\Scripts\python.exe scripts/actor_critic_entropy_experiment.py
-```
+| entropy_coef | final entropy | verdict |
+|---|---|---|
+| 0.01 (was shipped) | 0.0000 | **collapsed** |
+| 0.1 | 0.0000 | **collapsed** |
+| **1.0 (now shipped)** | 0.8279 | stochastic, still below uniform - chosen |
+| 10.0 | 1.5707 | 97.6% of uniform (`ln 5` = 1.6094) - bonus dominates the TD signal |
 
-The shipped `entropy_coef: 0.01` **demonstrably breaks the actor-critic**: the policy
-saturates within five episodes (entropy 0.911 to 0.0003), the actor's gradient norm falls
-to 0.00, and the greedy diagnostic sits on -515.4, the Phase 3 BULK_CLOSE collapse value.
-The bonus contributes at most 0.016 against TD errors reaching 1410. **No actor-critic
-number means anything until this is settled.** It was not changed in session 10 because a
-20-episode eyeball is not a basis for choosing a hyperparameter (D-035).
+Chosen on that **structural** criterion. The sweep does **not** establish 1.0 as the best
+value on reward and must not be quoted as if it did - see E-020 for why the reward column
+is unusable. 191 tests pass with the new value, tiny-MDP anchor included.
+
+### The thing E-020 turned up that is NOT resolved
+
+**The argmax was constant BULK_CLOSE at every coefficient tested** - all twelve runs scored
+exactly -515.4, including the two settings where the sampled policy stayed healthy. The
+entropy bonus fixes the policy and does not fix its argmax.
+
+That is E-019 section 3 arriving from the other direction, and together they mean the Phase
+4 evaluation protocol may be measuring an artefact: **both trainers report through a
+`_GreedyView`.** 80 episodes is far too short to call it permanent, but the decision should
+be taken before the full runs, not after.
 
 ### The two findings from E-019 that change what Phase 4 reports
 
@@ -480,8 +491,8 @@ All eight roadmap boxes:
 - **The REINFORCE gradient clip is settled** (E-019, D-035). It stays at 10.0 - not
   vindicated, but the between-value spread (74.4) is a third of the within-value spread
   (211.6), so nothing justifies moving it.
-- **`entropy_coef` is NOT settled** and blocks the actor-critic. E-020 is built and costs
-  ~10 min. See the Phase 4 section above.
+- **`entropy_coef` is settled** (E-020, 2026-08-25). Set to **1.0**, bounded by collapse at
+  0.01/0.1 and by 97.6%-of-uniform entropy at 10.0. No longer a blocker.
 
 - **The pen-and-paper derivations.** FEATURE_001's MRP and FEATURE_002's tiny MDP are both ticked because the derivation and its verification exist — not because Pranav and Diya can reproduce them cold, which is what the viva tests. FEATURE_002 is the likelier exam question: two states, four numbers, γ = 0.9.
 - KPMG analyst contact for preference labels — longest-lead item in the project; Phase 5 cannot start without it.

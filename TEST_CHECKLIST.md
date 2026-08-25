@@ -283,15 +283,24 @@ The two that matter most, and why:
 ```
 
 **What to look at in the actor-critic smoke, and it is not the reward.** Watch the
-`entropy` column. At the shipped `entropy_coef: 0.01` it reads `0.000` by episode 30 and the
-greedy diagnostic sits on -515.4 - that is the known-broken state (E-020), not a bad seed. A
-healthy run holds entropy well above zero; uniform over 5 actions is `ln 5 = 1.609`.
+`entropy` column. At the shipped `entropy_coef: 1.0` a healthy run holds entropy around
+**0.8-1.0** - clearly off the floor, clearly below the uniform maximum of `ln 5 = 1.609`.
+
+- Entropy falling to `0.000` means the policy has collapsed to one action and learning has
+  stopped. That was the pre-E-020 state at `entropy_coef: 0.01`; if it reappears at 1.0,
+  something has regressed.
+- Entropy pinned near `1.609` means the bonus is dominating the TD signal and the policy is
+  not committing to anything. That was E-020's finding at 10.0.
+
+**Do NOT read the greedy diagnostic as a health signal in a short run.** It sat on exactly
+-515.4 in all twelve E-020 runs regardless of coefficient, because any policy whose argmax is
+BULK_CLOSE everywhere scores exactly that on fixed seeds. It is saturated, not informative.
 
 ### The experiments
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/reinforce_clip_experiment.py            # E-019, ~3.7 min, DONE
-.\.venv\Scripts\python.exe scripts/actor_critic_entropy_experiment.py      # E-020, ~10 min, NOT YET RUN
+.\.venv\Scripts\python.exe scripts/actor_critic_entropy_experiment.py      # E-020, 6.7 min, DONE -- set entropy_coef to 1.0
 ```
 
 Both print the **between-value spread beside the within-value spread** and say plainly when

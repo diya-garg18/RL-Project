@@ -717,7 +717,7 @@ over-corrects. The actor keeps the 10x; the critic runs at the shipped 0.005.
 
 ## D-035 - Two hyperparameters found suspect this session were NOT changed, and each got a named experiment instead
 
-**Date:** 2026-08-25 · **Model:** Claude Opus 5 · **Phase:** 4 · **Status:** active; E-020's sweep still to run
+**Date:** 2026-08-25 · **Model:** Claude Opus 5 · **Phase:** 4 · **Status:** active. **Both experiments have now run; `entropy_coef` was set to 1.0 from E-020 the same day** - see the outcome note at the end.
 
 **Decision.** `reinforce.grad_clip_norm` stays at 10.0 and `actor_critic.entropy_coef` stays at
 0.01, despite both being demonstrated this session to be doing something other than what they
@@ -752,3 +752,21 @@ hyperparameter whose scale was never checked against the environment's reward sc
 tuning choice, it is an untested assumption.** Nothing errors in any of the three, the loss curve
 looks healthy in all of them, and two were caught only because a number in a results table looked
 wrong. Phase 6's audit should include a scale check rather than relying on that.
+
+**OUTCOME (same day).** E-020 ran: 4 values x 3 repeats x 80 episodes, 6.7 min. It bounded the
+coefficient from both sides - collapse (final entropy 0.0000) at 0.01 **and** at 0.1, and 97.6%
+of uniform entropy at 10.0 - and `entropy_coef` was set to **1.0** on that structural criterion.
+191 tests pass with the new value, tiny-MDP anchor included.
+
+**This vindicates the decision to wait, and it is worth saying why.** The 20-episode eyeball that
+prompted the experiment showed 1.0 looking healthy, and would have produced the same number. What
+it could not have produced is the *reason*: that 0.1 collapses too, so the answer was never a
+small bump; that 10.0 is too large in a specific measurable way; and that the greedy metric is
+saturated rather than noisy. A value set from the eyeball would have been right by luck and
+indefensible in a viva. The experiment cost 6.7 minutes.
+
+**One thing the sweep found that nobody was looking for.** The greedy reward column is identical
+across all twelve runs - exactly -515.4, std 0.0 - because any policy whose argmax is BULK_CLOSE
+everywhere scores exactly that on fixed seeds. So the entropy bonus fixes the *sampled* policy and
+leaves the *argmax* degenerate at every coefficient tested. Together with E-019 section 3 that
+makes the greedy-vs-sampled evaluation decision the most consequential item still owed.
