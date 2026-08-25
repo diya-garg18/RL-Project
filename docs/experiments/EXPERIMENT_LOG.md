@@ -920,3 +920,215 @@ two or three clip values, run as a named experiment. Flagged for a human in `HAN
    the one decision covering Phases 1-3's unmet gates. Matching severity-sort exactly is precisely
    the awkward case that decision has to cover.
 3. The clipping ratio deserves a named experiment before the full sweep, not after.
+
+
+---
+
+## E-019 - the REINFORCE gradient clip does not distinguish itself on reward, and two other things fell out - 2026-08-25
+
+**Model:** Claude Opus 5 · **Phase:** 4 · **Machine:** Diya's PC · **Decisions:** none taken; `grad_clip_norm` left at 10.0.
+
+E-018 flagged that pre-clip policy-gradient norms were 1584-2228 against a configured
+`grad_clip_norm` of 10.0, so the clip fires on essentially every step and the update becomes a
+**fixed-size step along the gradient direction** - the `(G_t - b(s_t))` magnitude divided out
+before the optimiser sees it. E-018 declined to change it, because tuning against numbers
+measured on already-touched eval seeds is what CONSTRAINTS #2 forbids. This is the clean
+train-seed-only replacement.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/reinforce_clip_experiment.py
+```
+
+3 values x 3 repeats x 1500 episodes, trained on `reinforce.clip_experiment_seed_start`
+(1800000 - its own block, D-016), measured on the train-diagnostic seeds (1-10).
+**The eval block was never touched**, and `_assert_no_eval_seeds` makes that a runtime failure
+rather than a comment. Total wall time **3.7 min**.
+
+### Status of these numbers
+
+**Reduced budget, and not quotable beside a headline REINFORCE result.** 1500 x 3 against a
+reported run's 20000 x 5. These rank clip values; they do not measure REINFORCE.
+
+### 1. The headline: the clip value does not clear the noise floor
+
+| clip | greedy reward (mean +- std) | mean pre-clip norm | clip fired |
+|---|---|---|---|
+| 10.0 (shipped) | -369.8 +- 205.9 | 3144.0 | 100.0% |
+| 100.0 | -202.1 +- 223.2 | 3020.4 | 99.7% |
+| 2000.0 | -224.2 +- 205.9 | 1828.4 | 30.4% |
+
+Spread **BETWEEN** values: **74.4**. Spread **WITHIN** a value: **211.6**.
+
+The between-value spread is a third of the within-value spread, so any ranking read off this
+table is a random draw. **`grad_clip_norm` stays at 10.0** - not because 10.0 was vindicated,
+but because nothing here justifies moving it, and moving it on a difference the noise swallows
+is precisely the mistake E-012 documented.
+
+Note what the third column does confirm: at 10.0 and 100.0 the clip fires on ~100% of updates,
+and only at 2000.0 does it fall to 30.4%. So E-018's *mechanical* claim is correct - the clip
+really is active on essentially every step at the shipped value. It simply does not follow that
+this costs anything measurable in reward.
+
+### 2. The greedy policy is degenerate at EVERY clip value
+
+The per-run greedy diagnostics are not spread across a range. They land repeatedly on the same
+few numbers:
+
+```
+clip 10.0     -515.4, -515.4,  -78.7
+clip 100.0     -78.7, -515.4,  -12.2
+clip 2000.0    -78.7, -515.4,  -78.7
+```
+
+Seven of nine runs produced exactly -515.4 or -78.7. Those are constant-action policies, and
+**-515.4 is the same value Phase 3's collapsed DQN produced (E-016)** - the BULK_CLOSE signature.
+
+So the premature convergence E-018 observed at 300 episodes **is not caused by the gradient
+clip**. It happens at a clip firing 100% of the time and at one firing 30% of the time, equally.
+That rules out the most obvious suspect, and it is why `actor_critic:` was given an entropy bonus
+rather than inheriting REINFORCE's exploration story unchanged (see E-020).
+
+### 3. The sampled policy BEATS its own argmax, and the eval protocol reads the argmax
+
+The finding worth carrying into the report, because it questions how every Phase 4 number gets
+measured. Sampled reward over the last 100 training episodes, beside the greedy read of the
+*same* policy at the *same* moment:
+
+| clip | sampled (last 100) | greedy read |
+|---|---|---|
+| 10.0 | +111.7, +25.7, +59.0 | -515.4, -515.4, -78.7 |
+| 100.0 | +50.1, +22.4, +6.0 | -78.7, -515.4, -12.2 |
+| 2000.0 | +6.5, +22.1, +33.3 | -78.7, -515.4, -78.7 |
+
+**Every one of the nine runs collects positive reward while sampling and scores negative when
+read greedily.** These are not different policies - the greedy read is `argmax_a pi(a|s)` of the
+policy that produced the sampled column.
+
+That is not a paradox, and the explanation is the point: the argmax of a spread-out policy throws
+away the mixing that was doing the work. If pi puts 0.4 on PULL_HIGHEST_SEVERITY and 0.35 on
+BULK_CLOSE, its argmax is a *pure* severity policy, and the agent that earned +111 was playing
+neither. **A stochastic policy's argmax is not that policy**, and this environment appears to
+reward the mixture over either pure strategy.
+
+**What this puts in question.** `train_reinforce.py` and `train_actor_critic.py` both evaluate
+through a `_GreedyView`, and E-018's headline finding - "REINFORCE has become severity-sort
+exactly" - is a statement about the argmax, not about the agent. Whether Phase 4 reports the
+sampled policy, the greedy one, or both is **a decision for the humans**, now listed in
+`HANDOVER.md`. It is not a decision to take while looking at which one scores better.
+
+### What this changes for the next session
+
+1. `grad_clip_norm` is settled at 10.0 and needs no further work.
+2. The degenerate-greedy question moves from "maybe the clip" to "the policy genuinely sharpens
+   early", which is what the actor-critic's entropy bonus exists to resist.
+3. **A new decision is owed** - greedy vs sampled evaluation - and it affects every Phase 4
+   number, including E-018's.
+
+---
+
+## E-020 - `entropy_coef: 0.01` is ~1000x too small, and it is the third instance of one pattern - 2026-08-25
+
+**Model:** Claude Opus 5 · **Phase:** 4 · **Machine:** Diya's PC · **Decisions:** none taken; `entropy_coef` left at 0.01.
+
+### Status of these numbers
+
+**THE SWEEP WAS NOT RUN.** This entry records a **diagnostic** and a **built harness**, not a
+result. Session compute was scoped to build-only by Diya. What follows is 20-episode single-seed
+probing plus a 3-episode smoke of the sweep script - far under CONSTRAINTS #3's five-seed floor,
+and not quotable as a finding about the algorithm. It is logged because it changes what the next
+session must do before any actor-critic number means anything.
+
+### How it surfaced
+
+The first smoke run of `scripts/train_actor_critic.py` (60 episodes, 1 repeat) collapsed:
+
+```
+repeat 0  ep 30/60  sampled -508.1  td_err_std 32.79  entropy 0.000  greedy(train-diag) -515.4
+repeat 0  ep 60/60  sampled -658.3  td_err_std 32.90  entropy 0.000  greedy(train-diag) -515.4
+```
+
+Eval-seed recall **0.0000**, reward **-520.55**. The greedy diagnostic sat on **-515.4** - again
+the Phase 3 BULK_CLOSE collapse value. Per CONSTRAINTS #5 this was treated as a bug report before
+being written down.
+
+### The diagnostic: not a bug, a scale mismatch
+
+Three entropy coefficients, 20 episodes, seed 0, on the actor-critic train block. Policy entropy:
+
+| coef | ep0 | ep2 | ep4 | ep9 | ep19 |
+|---|---|---|---|---|---|
+| 0.01 (shipped) | 0.9112 | 0.0061 | 0.0003 | 0.0003 | **0.00001** |
+| 1.0 | 1.0165 | 1.1164 | 1.2280 | 0.9021 | 1.3291 |
+| 50.0 | 1.6013 | 1.6074 | 1.6071 | 1.6074 | 1.6077 |
+
+Uniform over 5 actions is `ln 5 = 1.6094`; zero means one action in every state.
+
+At 0.01 the actor's **gradient norm** follows the entropy down: 34.40, 0.86, 0.32, 0.03, 0.00.
+The policy saturates, `grad ln pi` vanishes, and learning stops. At 50.0 entropy pins to uniform
+and the policy never commits to anything. At 1.0 it holds near 1.0, and that run produced rewards
+of **+225.6** (ep 4) and **+19.3** (ep 19) where the 0.01 run reached **-1364.5**.
+
+**The arithmetic.** The actor's loss is `I * delta * ln pi`. Measured `|delta|` reaches **1410**
+in this environment. The bonus is `entropy_coef * H(pi)` with `H <= ln 5 = 1.609`, so at
+coefficient 0.01 it contributes at most **0.016** against a term three to four orders of
+magnitude larger. It is not a weak preference for exploration - it is arithmetically incapable
+of affecting the update.
+
+### The pattern, which is worth more than the fix
+
+**This is the third time this project has hit the same defect shape.**
+
+| | the default | what it faced | what it silently did |
+|---|---|---|---|
+| E-016 | `huber_delta` 1.0 (torch's) | penalties of -150 to -200 | flattened catastrophes to routine errors; 20 runs collapsed |
+| E-019 | `grad_clip_norm` 10.0 | gradient norms 1584-2228 | replaced the update's magnitude with a constant |
+| E-020 | `entropy_coef` 0.01 | TD errors reaching 1410 | bonus arithmetically inert; policy saturates in 5 episodes |
+
+In all three: **nothing errors, the loss curve looks healthy, and a defensible-looking default
+quietly replaces the algorithm with a different one.** The generalisation for the report: *a
+hyperparameter whose scale was never checked against the environment's reward scale is not a
+tuning choice, it is an untested assumption.* Two of the three were caught only because a number
+in a results table looked wrong, which is a bad detection mechanism.
+
+### What was built and deliberately not run
+
+`scripts/actor_critic_entropy_experiment.py`, with `actor_critic.entropy_experiment_seed_start`
+(2200000) as its own block. It sweeps 0.01 / 0.1 / 1.0 / 10.0 - three orders of magnitude,
+because the question is one of scale rather than which nearby value is best - at 80 episodes x 3
+repeats, a budget set by the ~10-minute no-approval limit at a measured **~0.6 s/episode**.
+
+It reports two verdicts separately, and that separation is deliberate: **reward** against the
+noise floor (expected to be inconclusive at this budget), and **COLLAPSE** - which values left
+the policy degenerate. The second is structural rather than a noisy mean, and it is the one the
+sweep is for.
+
+3-episode smoke, confirming the mechanism behaves as predicted (final entropy):
+
+| coef | 0.01 | 0.1 | 1.0 | 10.0 |
+|---|---|---|---|---|
+| final entropy | 0.0263 | 0.2419 | 1.1138 | 1.5660 |
+
+Monotone in the coefficient, approaching `ln 5` from below. **`entropy_coef` was NOT changed.**
+A 20-episode eyeball is not a basis for choosing a hyperparameter, and choosing one is tuning.
+
+### Compute facts for the next machine
+
+Measured on Diya's PC this session. Both correct E-018's projection:
+
+- **REINFORCE: ~0.016 s/episode** (13,500 episodes in 3.7 min) - **4.5x faster** than E-018's
+  0.073 estimate. A 20000 x 5 run projects to **~27 min**, not ~2 h.
+- **Actor-critic: ~0.6 s/episode** - **~37x costlier per episode than REINFORCE**, because it
+  updates every STEP rather than once per episode. A 20000-episode run projects to **~3.3 h per
+  repeat**, making it by far the most expensive item in Phase 4 and the one that decides the
+  phase's schedule.
+
+The asymmetry is not a defect and belongs in the report: it is the price of online learning, and
+it is the other half of the trade that bought the actor-critic a 6x smaller tiny-MDP anchor
+(40 episodes x 200 steps against REINFORCE's 60 x 800).
+
+### What the next session must do first
+
+1. **Run the E-020 sweep** (~10 min) and set `entropy_coef` from it. No actor-critic number is
+   meaningful until this happens - the shipped config demonstrably breaks the agent.
+2. Take the **greedy-vs-sampled evaluation decision** from E-019 section 3.
+3. Only then consider full runs, budgeting from the actor-critic figure above, not REINFORCE's.

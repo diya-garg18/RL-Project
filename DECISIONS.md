@@ -618,3 +618,137 @@ The first sweep therefore ran at a setting slower than the alternative, not fast
 **Backwards compatibility deliberately not provided.** The loader raises on a config with no `features:` block rather than falling back to `dqn.feature_scales`. A silent fallback would let a stale config from before this change train an agent on unscaled columns — the exact failure D-023 exists to prevent. Covered by `test_a_missing_features_block_is_refused`.
 
 **Verified:** 132 passed (130 before, minus 5 scale tests moved out of `test_dqn_config.py`, plus 7 in the new `test_feature_scales.py`).
+
+
+---
+
+## D-033 - The four exit criteria stay exactly as written; phases close built-but-not-passed
+
+**Date:** 2026-08-25 · **Model:** Claude Opus 5 · **Phase:** 4 · **Decided by:** Diya · **Status:** active, **covers D-012, D-020, E-017 and Phase 4**
+
+**Decision.** The exit criteria for Phases 1, 2, 3 and 4 are **not amended**. Where a phase fails
+its criterion it closes as *built-but-not-passed*, and the honest failures become the project's
+spine in the report. This is option (b) of the three `HANDOVER.md` listed.
+
+**What was owed and why it was blocking.** Three phases had already closed against unmet criteria
+with the gate deliberately left for a human (D-022, D-020, E-017). `HANDOVER.md` recorded that as
+"THE BIG ONE" - no longer three footnotes but a pattern about how the criteria were written,
+needing one decision covering all of them. Phase 4 then made it urgent rather than merely tidy:
+E-018 found REINFORCE at 300 episodes reproducing `severity_sort`'s metrics **to every digit
+reported**, against a Phase 4 criterion demanding the learners *beat* severity-sort. Matching it
+exactly is the awkward boundary case, and taking the decision after seeing a full run's number is
+the exact failure this project exists to avoid.
+
+**Why (b) rather than restating the gates on total reward.** Option (a) had a real argument -
+total reward is the MDP's actual objective, and D-012 legitimately amended Phase 1's criterion on
+precisely that ground. What makes it wrong *now* is timing. D-012 was defensible because Phase 1's
+original criterion contained a **category error**: it asked a reward-maximiser to top a metric
+(recall) it does not optimise. No such error exists in Phases 2, 3 or 4 - those learners simply
+did not do the thing their criteria describe. Rewriting four criteria after four results are known
+would also taint D-012 retrospectively, converting a principled amendment into the first move of a
+pattern of moving goalposts. D-020 already rejected this reasoning once for Phase 2, including its
+most tempting version (restating Phase 2 on reward *consistency*, where the learners genuinely
+win); applying the same logic across all four is consistency, not stubbornness.
+
+**What this decision explicitly does NOT do.** It does not declare the phases failed as
+engineering. Every work item in Phases 1 and 3 is genuinely complete and independently verified,
+and the pattern of four unmet criteria is itself a reportable finding about criterion-writing -
+worth more than four passes would have been.
+
+**Consequence for Phase 4.** Its criterion stands: *all three learners train to a policy beating
+severity-sort, and the sample-efficiency plot shows a clear ordering you can explain.* When the
+full runs happen, whatever they produce is reported against that sentence unchanged. If REINFORCE
+matches severity-sort rather than beating it, Phase 4 closes built-but-not-passed like the others,
+and "policy gradient rediscovers the human heuristic and stops there" is written up as the finding
+it is.
+
+---
+
+## D-034 - The actor-critic uses two separate networks and an entropy bonus that is not in the textbook
+
+**Date:** 2026-08-25 · **Model:** Claude Opus 5 · **Phase:** 4 · **Status:** active
+
+**Decision.** `agents/actor_critic.py` implements S&B 2nd ed. 13.5 (one-step episodic
+actor-critic) with three choices worth recording, two of them departures.
+
+**1. Two separate networks, not a shared trunk with two heads.** The shared trunk is the more
+common engineering choice and it is the wrong one here. It couples the actor's and the critic's
+gradients through weights they both own, and the resulting behaviour cannot be explained in five
+minutes (CONSTRAINTS #13). Separate networks also make the comparison against `reinforce.py`'s
+policy-plus-baseline pair like-for-like, which matters because those two agents differ in exactly
+one respect and the code should not add a second difference.
+
+**2. An entropy bonus, which S&B 13.5 does not have.** `entropy_coef: 0.0` recovers the textbook
+update exactly, and `test_zero_entropy_coefficient_is_the_textbook_update` pins that. It is here
+because E-018 found REINFORCE's greedy policy degenerate - one action in every state - by 300
+episodes, and E-019 then ruled out the gradient clip as the cause across nine runs at three clip
+values. A policy-gradient method has no epsilon to hold exploration open; the only thing that can
+keep pi spread out is a term that pays for spread. **The departure is declared in the module
+docstring under its own heading**, because an addition to a textbook algorithm that goes
+unmentioned is how a student ends up defending code they cannot name.
+
+**3. The bootstrap is dropped at the shift boundary.** `done=True` means the target is `r` alone,
+not `r + gamma*v(s')`. The shift ends at 480 minutes with the end-of-shift penalty already
+charged, so there is no future left to value. Worth knowing for the viva: bootstrapping through a
+**time limit** rather than a true terminal is a real bias in many published implementations. Here
+the shift end is a genuine episode end rather than a truncation, so treating it as terminal is
+correct rather than merely conventional.
+
+**What makes it an actor-critic, stated because it is the likeliest thing to be caught out on.**
+Not the network count - `reinforce.py` also has two networks and is not an actor-critic. The
+difference is one term: REINFORCE's coefficient is `G_t - b(s_t)`, the **observed** return; this
+agent's is `r + gamma*v(s') - v(s)`, the successor's **estimate**. `tests/test_reinforce.py` pins
+that REINFORCE does not bootstrap and `tests/test_actor_critic.py` pins that this does; the two
+files are deliberate mirror images.
+
+**Verified:** 18 new tests, including a tiny-MDP anchor recovering `HAND_COMPUTED_POLICY` on 3
+seeds and an arithmetic anchor - a self-looping state paying 1.0 has `v = 1 + gamma*v = 10` at
+gamma 0.9, which a non-bootstrapping critic could never reach from single-step rewards of 1.0.
+188 passed overall.
+
+**One thing found by the anchor rather than by reasoning, kept because it is instructive.** The
+tiny-MDP fixture does *not* copy REINFORCE's 10x learning-rate scaling. At `critic_lr` 0.05 the
+critic collapses to a constant, returning 10.000 for both states to seven digits, and the policy
+anchor fails on seed 1. The critic takes one step per **step** where REINFORCE's baseline takes
+one per **episode** - 200x more updates on this fixture - so scaling its rate up as well
+over-corrects. The actor keeps the 10x; the critic runs at the shipped 0.005.
+
+---
+
+## D-035 - Two hyperparameters found suspect this session were NOT changed, and each got a named experiment instead
+
+**Date:** 2026-08-25 · **Model:** Claude Opus 5 · **Phase:** 4 · **Status:** active; E-020's sweep still to run
+
+**Decision.** `reinforce.grad_clip_norm` stays at 10.0 and `actor_critic.entropy_coef` stays at
+0.01, despite both being demonstrated this session to be doing something other than what they
+appear to do. Each gets a dedicated train-seed-only experiment with its own seed block rather
+than an edit.
+
+**Why not just fix them.** Both are tuning parameters, and CONSTRAINTS #2 puts tuning behind two
+gates: never against evaluation seeds, and never on evidence that cannot carry the claim. The
+evidence available at the moment of temptation was, in both cases, too thin - a smoke run for the
+clip (E-018) and a 20-episode single-seed probe for the entropy coefficient. Editing a config on
+that basis produces a number nobody can defend, and it is how a project ends up unable to say why
+any of its settings are what they are.
+
+**What the two experiments cost, and why the shape is repeatable.** E-019 (clip) ran in 3.7 min
+and returned a clean negative: between-value spread 74.4 against a within-value spread of 211.6,
+so the clip value does not clear the noise floor and 10.0 stays by default rather than by
+vindication. E-020 (entropy) is built but **not run** - session compute was scoped to build-only -
+and it is the one that matters, because the diagnostic behind it is not ambiguous: at 0.01 the
+bonus contributes at most 0.016 against TD errors reaching 1410, and the policy saturates within
+five episodes with the actor's gradient norm falling to 0.00.
+
+**The seed-block convention this establishes.** A tuning experiment gets its **own** block, never
+the block whose numbers get reported: `reinforce.clip_experiment_seed_start` (1800000) and
+`actor_critic.entropy_experiment_seed_start` (2200000), both enforced by the loader against every
+other block. Otherwise a value chosen on the control's own alert streams launders tuning into the
+result it is later quoted beside. That is D-016's principle extended from learners to experiments.
+
+**The generalisation, which is the reportable part.** E-016 (`huber_delta` 1.0 against penalties
+of -150 to -200), E-019 (`grad_clip_norm` 10.0 against norms of 1584-2228) and E-020
+(`entropy_coef` 0.01 against TD errors of 1410) are three instances of one defect: **a
+hyperparameter whose scale was never checked against the environment's reward scale is not a
+tuning choice, it is an untested assumption.** Nothing errors in any of the three, the loss curve
+looks healthy in all of them, and two were caught only because a number in a results table looked
+wrong. Phase 6's audit should include a scale check rather than relying on that.
