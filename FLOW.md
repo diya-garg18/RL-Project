@@ -277,6 +277,47 @@ scripts/train_reinforce.py
 
 ---
 
+## Flow H — Actor-critic training (Phase 4) 🟡 *(built 2026-08-25 — FEATURE_009; smoke-tested only, and the shipped entropy_coef breaks it — see E-020)*
+
+Entry point: `scripts/train_actor_critic.py`. Same skeleton as Flow G, with one structural
+difference that is the whole point of the algorithm.
+
+```
+main()
+ |- load_env_config + load_training_config + config_hash
+ |- build_agent(tcfg, seed)          ActorCriticAgent, feature_scales SHARED with DQN/REINFORCE (D-032)
+ |- for repeat in repeats:
+ |   |- train_one_run(...)
+ |   |   |- for episode in range(n_episodes):
+ |   |   |   |- run_episode(env, agent, seed_base+episode, learn=True)
+ |   |   |   |   |- per STEP: agent.act(obs)       sample from pi, no argmax
+ |   |   |   |   |- per STEP: agent.update(...)    <== THE ENTIRE ALGORITHM RUNS HERE
+ |   |   |   |                                         delta = r + gamma*v(s') - v(s)
+ |   |   |   |                                         critic step, then actor step, then I <- gamma*I
+ |   |   |   |- agent.end_episode()                <== only resets I + publishes TD errors
+ |   |   |   |- log entropy, td_error_std
+ |   |   |   |- every eval_every: greedy_diagnostic() on TRAIN-diag seeds (1-10)
+ |   |- agent.save(...)
+ |- run_episodes(_GreedyView(final_agent), cfg.seeds.eval)   <== FIRST AND ONLY eval-seed touch
+ |- summarise + save_records + JSON + 3-panel PNG
+```
+
+**Contrast with Flow G, and it is the thing to notice.** In Flow G (REINFORCE) `agent.update()`
+only *buffers* - forget `end_episode()` and nothing trains at all. Here `agent.update()` *is* the
+learning, and forgetting `end_episode()` does not stop training; it silently leaves `I` decayed
+from the previous shift, so every subsequent episode weights its early steps as though they were
+late ones. **Same two method names, opposite failure modes.**
+
+**Two extra tuning flows**, each on its own seed block (D-035), both measured on train-diagnostic
+seeds with `_assert_no_eval_seeds` making the separation a runtime failure rather than a comment:
+
+```
+scripts/reinforce_clip_experiment.py       -> E-019, 3 clip values x 3 repeats x 1500 eps  (~3.7 min)
+scripts/actor_critic_entropy_experiment.py -> E-020, 4 entropy values x 3 repeats x 80 eps (~10 min, NOT YET RUN)
+```
+
+---
+
 ## Flow D — RLHF (Phase 5) ⬜
 
 Three separate stages. Don't fuse them; each produces an artefact the next consumes.

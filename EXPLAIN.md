@@ -638,3 +638,79 @@ That last check was not optional, incidentally. Phase 1's big finding was that o
 2. **We deliberately built in the assumption that severity labels are a weak predictor** of whether an alert is real. It's grounded in what the industry reports, but it *is* the mechanism that lets our AI beat severity-sorting. If severity were a perfect predictor, sorting by it would already be optimal and there'd be no project. This has to be stated in the report.
 3. **Our human preference labels will come mostly from students**, not working analysts. So we're learning *our* idea of good triage, not a professional's.
 4. **One analyst, one shift.** Real teams have multiple people, shift handovers, and alerts that group together into a single incident. We model none of that.
+
+
+---
+
+## Part 12 - The actor-critic, and two lessons that outlast it (2026-08-25)
+
+### The family tree, finished
+
+Every agent in this project sits in one of three boxes, and by the end of Phase 4 we have all
+three:
+
+1. **Learn how good things are, then do the best-looking thing.** DP, Q-learning, SARSA, Monte
+   Carlo, the DQN. They estimate a *value* and pick the action with the highest one.
+2. **Learn what to do, directly.** REINFORCE. No "best-looking thing" anywhere - it adjusts the
+   probability of each action based on how the whole shift went.
+3. **Both at once.** The actor-critic. One network decides what to do (the *actor*), another
+   judges how things are going (the *critic*), and the critic's judgement is what tells the actor
+   whether it did well.
+
+### What the critic actually changes, in one sentence
+
+REINFORCE has to wait until the shift is over to learn anything, because it needs to know how the
+whole shift went. The actor-critic never waits: after every single alert it asks the critic "was
+that better or worse than you expected?" and adjusts immediately.
+
+The trade is exactly what you would guess. Waiting for the truth is **honest but noisy** - one
+disastrous shift can be bad luck, and REINFORCE cannot tell. Asking the critic is **quiet but
+possibly wrong** - early on the critic has no idea what it is talking about, and the actor
+believes it anyway.
+
+That is the bias-variance trade-off, and it is the thing to be able to say out loud in a viva.
+
+### A nice place where the theory showed up on its own
+
+Both agents get tested against a two-state toy problem with a known answer. REINFORCE needs
+**60 practice runs of 800 steps** to reliably find it. The actor-critic needs **40 runs of 200
+steps** - about six times less work. Nobody tuned that. It falls straight out of the critic
+letting the agent learn from every step instead of every shift.
+
+The price shows up elsewhere: on the real problem the actor-critic takes about **37 times longer
+per shift** than REINFORCE, because it does a full learning update after every alert instead of
+one at the end.
+
+### Lesson one: a stochastic policy's argmax is not that policy
+
+This one genuinely surprised us and it is the most interesting thing this session found.
+
+REINFORCE does not output "do action 3". It outputs something like *"40% chance pull the worst
+alert, 35% chance bulk-close, 25% something else"*, and then rolls a die. When we **evaluate** it
+we have been taking the most likely action and ignoring the dice - the sensible-looking thing to
+do.
+
+Across nine training runs, the agent that rolled the dice earned **positive** reward, and the
+exact same agent with the dice removed earned **strongly negative** reward. Every single time.
+
+The mixture *was* the strategy. Taking the most likely action turns "mostly severity-first with
+some bulk-closing" into "always severity-first", which is a different and worse policy. So an
+honest question now hangs over every Phase 4 number, including our earlier headline that
+"REINFORCE became severity-sort exactly" - that was a statement about the dice-free version, not
+about the agent. **That decision is owed, and is written down as owed.**
+
+### Lesson two: the same mistake, three times
+
+Three times now, a perfectly sensible-looking setting has quietly turned one of our algorithms
+into a different algorithm - and never once produced an error message.
+
+| where | the setting | what it was up against | what happened |
+|---|---|---|---|
+| Phase 3 | Huber delta = 1.0 | penalties of -150 to -200 | catastrophes counted the same as small mistakes; 20 runs collapsed |
+| Phase 4 | gradient clip = 10 | gradients of size ~2000 | the "how much better than expected" signal was thrown away |
+| Phase 4 | entropy bonus = 0.01 | errors reaching 1410 | the bonus was mathematically incapable of doing anything |
+
+The pattern in plain English: **if you never check a setting's size against the size of the
+numbers it has to compete with, it is not a choice you made - it is an assumption you never
+tested.** Two of the three were only caught because a result looked wrong, which is a terrible way
+to find bugs. Phase 6's audit should check this directly.

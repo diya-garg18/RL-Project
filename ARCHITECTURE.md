@@ -193,6 +193,33 @@ class Alert:
 
 ---
 
+## 4b. Phase 4 agents
+
+Both Phase 4 learners are policy-gradient methods over the 17-dim continuous state, and they
+share `_mlp` (defined in `reinforce.py`) so that a network built for one is literally the same
+constructor as a network built for the other.
+
+| module | responsibility | learns when |
+|---|---|---|
+| `agents/reinforce.py` | Monte Carlo policy gradient + optional learned baseline (S&B 13.3/13.4) | `end_episode()` - the whole algorithm |
+| `agents/actor_critic.py` | one-step actor-critic, bootstrapped (S&B 13.5) | `update()` - every step; `end_episode()` only resets `I` |
+
+**The seam between them is one term, not one file.** REINFORCE's update coefficient is
+`G_t - b(s_t)` (the observed return); the actor-critic's is `r + gamma*v(s') - v(s)` (the
+successor's estimate). Two networks is NOT the distinction - `reinforce.py` has two as well.
+See D-034 and FEATURE_009.
+
+Each has its own trainer, per D-025: `scripts/train_reinforce.py` carries a `--no-baseline`
+ablation the other has no use for, and `scripts/train_actor_critic.py` logs TD-error spread and
+policy entropy, which REINFORCE has no equivalent of.
+
+Two tuning harnesses sit beside them, each with its own seed block so a tuning run can never
+share alert streams with a reported one (D-035):
+`scripts/reinforce_clip_experiment.py` (E-019) and
+`scripts/actor_critic_entropy_experiment.py` (E-020).
+
+---
+
 ## 5. Where each phase adds code
 
 | Phase | New modules |
