@@ -14,12 +14,12 @@
 | **Model** | Claude Opus 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022, confirmed final by **D-033**). |
-| **Phase 2** | **CLOSED as built-but-not-passed** (D-020, confirmed final by **D-033**). One work item is genuinely unfinished - see below. |
+| **Phase 2** | **CLOSED as built-but-not-passed** (D-020, confirmed final by **D-033**). Nothing outstanding - the 'unfinished item' was an unticked parent checkbox, corrected 2026-09-01. |
 | **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
 | **Phase 4** | **HALF BUILT.** REINFORCE (FEATURE_008) and actor-critic (FEATURE_009) both built and tested. Boxes 3 and 4 not written. **No full training run of either exists.** The shipped `entropy_coef` breaks the actor-critic. |
 | **Phase 5** | Not started. This is the next block, and it is Pranav's. |
 | **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 15 commits this session, **all pushed**. |
-| **Tests passing** | **191/191** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
+| **Tests passing** | **195/195** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
 | **Blockers** | Nothing blocks building. **Both decisions are TAKEN: D-033** (gates stay as written) **and D-036** (Phase 4 reports the sampled policy for policy gradient, greedy for value-based). D-036 obliges a sampled-eval path in both Phase 4 trainers **before** any full run. |
 
 ---
@@ -52,7 +52,7 @@ approval (CONSTRAINTS #8).
 **3. Prove the repo is healthy before writing anything:**
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 191 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 195 passed
 python scripts/commit_balance.py                  # expect: IMBALANCED, Diya ahead
 ```
 
@@ -82,8 +82,15 @@ regenerable - commands under "Reproduce on this device".
 is in E-017, so nothing is lost for the write-up, but the Phase 4 sample-efficiency
 comparison needs DQN reward-vs-steps **curves**, and E-017 recorded final numbers, not
 curves. If that comparison is built on Diya's machine the DQN sweep must be regenerated
-first (~1.4 h at 5 parallel - read D-030). On Pranav's machine the runs already exist,
-which makes his the cheaper place to do box 3.
+first (~1.4 h at 5 parallel - read D-030).
+
+> ⚠️ **CORRECTED 2026-09-01: this is true on Pranav's machine too.** The sentence that used
+> to end this paragraph - "on Pranav's machine the runs already exist, which makes his the
+> cheaper place to do box 3" - is wrong in the way that matters. The runs exist, but they
+> predate `episode_steps` (commit `86e5a71`), and
+> `scripts/compare_sample_efficiency.py:91` **refuses** every file without that key. Run it
+> today and all 30 control runs print `SKIPPED ... predates the step recording, re-run the
+> trainer`. **Box 3 needs a DQN re-run on either machine.**
 
 ---
 
@@ -157,11 +164,18 @@ the actor-critic has an entropy bonus rather than inheriting REINFORCE's explora
 The actor-critic is by far the most expensive item in Phase 4 and it decides the schedule.
 Anything over ~10 min needs human approval (CLAUDE.md).
 
-### The one genuinely unfinished pre-Phase-4 item
+### ~~The one genuinely unfinished pre-Phase-4 item~~ — RETRACTED 2026-09-01, it was a tick
 
-`ROADMAP.md` Phase 2, last box: **"SARSA and Monte Carlo measured against the tiny MDP, in
-the same file."** Q-learning has its anchor (FEATURE_003); the other two learners never got
-one. Small, and the only real gap behind us.
+This section claimed `ROADMAP.md` Phase 2's last box, *"SARSA and Monte Carlo measured
+against the tiny MDP"*, was real outstanding work. **It is not.** All three sub-boxes under
+that item are `[x]`, including SARSA and Monte Carlo via `tests/test_on_policy.py`, which
+grades them against `tiny_mdp.epsilon_soft_q(epsilon)` rather than `HAND_COMPUTED_Q`
+because they are on-policy (D-017). Only the **parent** checkbox was left unticked, and it
+has now been ticked.
+
+**Nothing was owed behind Phase 4.** Worth recording as a small instance of the project's
+own lesson: a doc claim outlived the artefact it described, and it read as a work item for
+a week because nobody checked the sub-boxes underneath it.
 
 ---
 
@@ -325,9 +339,16 @@ with the next commit.
 
 **What Pranav should know before starting Phase 5.** Nothing in Phase 5 depends on Phase 4
 finishing - CONSTRAINTS #11 guarantees it. Phase 4's remaining boxes (the sample-efficiency
-comparison and the variance demo) can be picked up later by either person, and the DQN runs
-that box 3 needs already exist on Pranav's machine, which makes his the cheaper place for it
-whenever it happens.
+comparison and the variance demo) can be picked up later by either person.
+
+> ⚠️ **CORRECTED 2026-09-01.** This paragraph used to say "the DQN runs that box 3 needs
+> already exist on Pranav's machine, which makes his the cheaper place for it". **Half true
+> and materially misleading.** The runs exist (`results/dqn_runs/dqn/`, 90 files), but they
+> were produced 2026-08-19, **before** commit `86e5a71` added `episode_steps`.
+> `scripts/compare_sample_efficiency.py:91` refuses any file lacking that key, and running
+> it prints `SKIPPED repeatN.json: no 'episode_steps' - predates the step recording, re-run
+> the trainer` for **all 30 control runs**. Box 3 therefore needs the **DQN sweep re-run**
+> even here. Budget for it; do not plan around runs that the script will not accept.
 
 ---
 
@@ -358,7 +379,7 @@ Plus: `HANDOVER.md` (this file) actually describes the current state, and no str
 ```powershell
 cd D:\RLPROJECT
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 126 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 195 passed
 
 python scripts/run_baselines.py                                   # fast
 python scripts/run_dp.py                                          # ~2.5 min
