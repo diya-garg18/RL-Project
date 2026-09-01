@@ -15,6 +15,13 @@ import numpy as np
 
 from soc_triage.config import EnvConfig
 
+# CONSTRAINTS #3: "Never report a single run. Every headline number is mean ± std
+# over at least 5 seeds." This is a protocol floor rather than a tunable, which is
+# why it lives beside the metrics instead of in config/ — the same reasoning that
+# puts MIN_EVAL_SEEDS in tests/test_eval_protocol.py. Trainers cite it when they
+# refuse to present a one-run aggregate as a result (docs/bugs/BUG_004).
+MIN_RUNS_TO_REPORT = 5
+
 
 def episode_metrics(record: dict, cfg: EnvConfig) -> dict:
     """The five headline metrics for one EpisodeRecord."""

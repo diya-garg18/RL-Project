@@ -50,7 +50,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from soc_triage.agents.reinforce import ReinforceAgent
 from soc_triage.config import EnvConfig, TrainingConfig, load_env_config, load_training_config
 from soc_triage.env import SOCTriageEnv
-from soc_triage.evaluation.metrics import summarise
+from soc_triage.evaluation.metrics import MIN_RUNS_TO_REPORT, summarise
 from soc_triage.runner import config_hash, run_episode, run_episodes, save_records
 from soc_triage.state import FEATURE_NAMES, feature_scale_vector
 
@@ -249,7 +249,7 @@ def main() -> None:
     all_steps: list[list[int]] = []
     all_curves: list[list[tuple[int, float]]] = []
     all_grad_norms: list[list[float]] = []
-    final_agent: ReinforceAgent | None = None
+    trained_agents: list[ReinforceAgent] = []
 
     for repeat_index in repeats:
         agent, rewards, steps, curve, grad_norms = train_one_run(
@@ -259,21 +259,71 @@ def main() -> None:
         all_steps.append(steps)
         all_curves.append(curve)
         all_grad_norms.append(grad_norms)
-        final_agent = agent
+        trained_agents.append(agent)
         agent.save(str(results_dir / f"{tag}_repeat{repeat_index}.pt"))
 
-    assert final_agent is not None
+    assert trained_agents
 
     # --- Only now does anything touch the evaluation seeds (CONSTRAINTS #2).
-    print("\nevaluating the final policy on the eval seeds (first look, last step)")
+    #
+    # EVERY repeat is evaluated, not just the last one. Until 2026-09-01 this
+    # block evaluated a single `final_agent`, which made the reported number one
+    # training run dressed up as a result — 30 eval seeds, but one agent, so its
+    # spread described seed difficulty and said nothing about run-to-run
+    # variation. CONSTRAINTS #3 forbids exactly that, and every other phase
+    # already did it properly (`train.py`'s across_runs, `aggregate_dqn.py`).
+    # See docs/bugs/BUG_004.
+    print(f"\nevaluating {len(trained_agents)} trained policies on the eval seeds "
+          f"(first look, last step)")
     env = SOCTriageEnv(cfg)
-    eval_records = run_episodes(
-        env, _GreedyView(final_agent), tuple(cfg.seeds.eval), cfg, cfg_hash, learn=False
-    )
-    save_records(eval_records, results_dir / "eval_records")
-    summary = summarise(eval_records, cfg)
-    for key, value in summary.items():
-        print(f"  {key}: {value}")
+    per_run_summaries: list[dict] = []
+    for position, (repeat_index, agent) in enumerate(zip(repeats, trained_agents)):
+        eval_records = run_episodes(
+            env, _GreedyView(agent), tuple(cfg.seeds.eval), cfg, cfg_hash, learn=False
+        )
+        if position == 0:
+            save_records(eval_records, results_dir / "eval_records")
+        summary = summarise(eval_records, cfg)
+        per_run_summaries.append(summary)
+        print(f"  repeat {repeat_index}: "
+              f"recall {summary['recall_at_deadline']['mean']:.4f}  "
+              f"reward {summary['total_reward']['mean']:8.1f}")
+
+    def across_runs(metric: str) -> dict[str, float | int | None]:
+        """Mean and std ACROSS runs of each run's mean — never a single run
+        (CONSTRAINTS #3). Same convention as `train.py` and `train_dqn.py`,
+        deliberately, so a Phase 4 number and a Phase 2 number mean the same thing.
+
+        A run's mean is None when the metric is undefined for it: `summarise`
+        reports mttd_min as None when no episode caught an incident, which is the
+        honest answer rather than zero. Those runs are dropped from the average
+        and, if none survive, the metric is reported undefined. A policy that
+        catches nothing is a real Phase 4 outcome, not a defensive edge case —
+        E-020's collapsed runs scored recall 0.0000.
+        """
+        means = [s[metric]["mean"] for s in per_run_summaries if s[metric]["mean"] is not None]
+        if not means:
+            return {"mean": None, "std": None, "n_runs": 0}
+        return {"mean": float(np.mean(means)), "std": float(np.std(means)),
+                "n_runs": len(means)}
+
+    eval_across_runs = {metric: across_runs(metric) for metric in per_run_summaries[0]
+                        if isinstance(per_run_summaries[0][metric], dict)}
+
+    print(f"\n  ACROSS {len(per_run_summaries)} RUNS (this is the reportable number):")
+    for metric, stats in eval_across_runs.items():
+        if stats["mean"] is None:
+            print(f"    {metric}: undefined on all {len(per_run_summaries)} runs")
+        else:
+            print(f"    {metric}: {stats['mean']:.4f} +- {stats['std']:.4f}"
+                  f"  (over {stats['n_runs']} run(s))")
+    if len(per_run_summaries) < MIN_RUNS_TO_REPORT:
+        # Not an error: --only-repeat is the parallel-sweep pattern (D-027), and
+        # those per-run files are aggregated later. It is a refusal to let a
+        # one-run std of 0.00 be quoted as if it were a measured spread.
+        print(f"\n  WARNING: {len(per_run_summaries)} run(s) only - NOT a reportable result "
+              f"(CONSTRAINTS #3 wants at least {MIN_RUNS_TO_REPORT}). "
+              f"Aggregate the per-run files before quoting anything.")
 
     payload = {
         "tag": tag,
@@ -286,7 +336,8 @@ def main() -> None:
         "episode_steps": all_steps,
         "curves": all_curves,
         "grad_norms": all_grad_norms,
-        "eval_summary": summary,
+        "eval_per_run": per_run_summaries,
+        "eval_across_runs": eval_across_runs,
     }
     suffix = "" if args.only_repeat is None else f"_repeat{args.only_repeat}"
     (results_dir / f"{tag}{suffix}.json").write_text(json.dumps(payload, indent=1), encoding="utf-8")
