@@ -200,6 +200,22 @@ class ReinforceAgent(Agent):
         probs = probs / probs.sum()
         return int(self._rng.choice(self.n_actions, p=probs))
 
+    def reseed(self, seed: int) -> None:
+        """Restart the action-sampling stream, leaving the learned policy alone.
+
+        D-036 reports Phase 4 on the **sampled** policy, which makes the random
+        draws part of the reported number. Left alone, evaluation would simply
+        continue whatever stream training ended on, so the same weights measured
+        after 200 and after 20000 episodes would be read through different draws
+        — a reported value that moves with the training budget for a reason that
+        has nothing to do with learning.
+
+        Only `self._rng` is touched. The networks and optimisers are untouched,
+        because evaluation must measure the agent that trained rather than one
+        perturbed on the way to being measured.
+        """
+        self._rng = np.random.default_rng(seed)
+
     def state_value(self, obs: np.ndarray) -> float:
         """The baseline's estimate of v(s). Diagnostic; also what gets subtracted."""
         with torch.no_grad():

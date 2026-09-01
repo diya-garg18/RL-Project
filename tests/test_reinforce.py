@@ -111,6 +111,46 @@ def test_same_seed_gives_identical_action_sequences():
     assert [first.act(obs) for _ in range(50)] == [second.act(obs) for _ in range(50)]
 
 
+def test_reseed_restores_the_action_stream_whatever_preceded_it():
+    """D-036 reports Phase 4 on the SAMPLED policy, so the reported number must
+    not depend on how many episodes happened to run before evaluation.
+
+    Without an explicit reseed the evaluation draws simply continue the training
+    stream, and the same weights evaluated after 200 episodes and after 20000
+    would be read through different random draws — a reported number that moves
+    with the training budget for a reason that has nothing to do with learning.
+    """
+    obs = _obs()
+    agent = _agent(seed=7)
+    reference = [agent.act(obs) for _ in range(50)]
+
+    agent.reseed(7)
+    assert [agent.act(obs) for _ in range(50)] == reference
+
+    # Burn an arbitrary amount of the stream, as a longer training run would.
+    for _ in range(1234):
+        agent.act(obs)
+    agent.reseed(7)
+    assert [agent.act(obs) for _ in range(50)] == reference, (
+        "reseed did not restore the stream after intervening sampling"
+    )
+
+
+def test_reseed_touches_the_sampling_stream_and_nothing_else():
+    """It must reseed sampling ONLY. If it perturbed the networks, evaluation
+    would be measuring a different agent from the one that trained."""
+    agent = _agent(seed=3)
+    before = [p.detach().numpy().copy() for p in agent.policy_net.parameters()]
+    before_value = [p.detach().numpy().copy() for p in agent.value_net.parameters()]
+
+    agent.reseed(99)
+
+    for old, new in zip(before, agent.policy_net.parameters()):
+        np.testing.assert_array_equal(old, new.detach().numpy())
+    for old, new in zip(before_value, agent.value_net.parameters()):
+        np.testing.assert_array_equal(old, new.detach().numpy())
+
+
 def test_the_agent_has_no_epsilon():
     """Structural, not cosmetic. Exploration comes from the policy's own
     stochasticity; an epsilon schedule bolted on would make this a different

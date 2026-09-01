@@ -273,23 +273,44 @@ def main() -> None:
     # variation. CONSTRAINTS #3 forbids exactly that, and every other phase
     # already did it properly (`train.py`'s across_runs, `aggregate_dqn.py`).
     # See docs/bugs/BUG_004.
+    # D-036: the SAMPLED policy is Phase 4's headline and the greedy read is a
+    # named diagnostic. Both are computed here, on the same agents and the same
+    # seeds, so neither can later be quietly substituted for the other. The
+    # reason the two differ is not subtle — E-019 found the sampled policy
+    # earning positive reward while its own argmax scored -515.4 in nine runs of
+    # nine — so reporting one without the other hides the finding.
     print(f"\nevaluating {len(trained_agents)} trained policies on the eval seeds "
           f"(first look, last step)")
     env = SOCTriageEnv(cfg)
-    per_run_summaries: list[dict] = []
+    sampled_per_run: list[dict] = []
+    greedy_per_run: list[dict] = []
     for position, (repeat_index, agent) in enumerate(zip(repeats, trained_agents)):
-        eval_records = run_episodes(
+        # Pin the evaluation draws. `repeat_index` is the agent's own
+        # construction seed (see build_agent), so this restarts its own stream
+        # rather than continuing wherever training happened to leave it.
+        agent.reseed(repeat_index)
+        # learn=False, so the runner calls neither update() nor end_episode() —
+        # the agent samples and learns nothing (see runner.run_episode).
+        sampled_records = run_episodes(
+            env, agent, tuple(cfg.seeds.eval), cfg, cfg_hash, learn=False
+        )
+        greedy_records = run_episodes(
             env, _GreedyView(agent), tuple(cfg.seeds.eval), cfg, cfg_hash, learn=False
         )
         if position == 0:
-            save_records(eval_records, results_dir / "eval_records")
-        summary = summarise(eval_records, cfg)
-        per_run_summaries.append(summary)
-        print(f"  repeat {repeat_index}: "
-              f"recall {summary['recall_at_deadline']['mean']:.4f}  "
-              f"reward {summary['total_reward']['mean']:8.1f}")
+            save_records(sampled_records, results_dir / "eval_records_sampled")
+            save_records(greedy_records, results_dir / "eval_records_greedy")
+        sampled = summarise(sampled_records, cfg)
+        greedy = summarise(greedy_records, cfg)
+        sampled_per_run.append(sampled)
+        greedy_per_run.append(greedy)
+        print(f"  repeat {repeat_index}:  SAMPLED recall "
+              f"{sampled['recall_at_deadline']['mean']:.4f} reward "
+              f"{sampled['total_reward']['mean']:8.1f}   |   greedy recall "
+              f"{greedy['recall_at_deadline']['mean']:.4f} reward "
+              f"{greedy['total_reward']['mean']:8.1f}")
 
-    def across_runs(metric: str) -> dict[str, float | int | None]:
+    def across_runs(per_run_summaries: list[dict], metric: str) -> dict[str, float | int | None]:
         """Mean and std ACROSS runs of each run's mean — never a single run
         (CONSTRAINTS #3). Same convention as `train.py` and `train_dqn.py`,
         deliberately, so a Phase 4 number and a Phase 2 number mean the same thing.
@@ -307,21 +328,33 @@ def main() -> None:
         return {"mean": float(np.mean(means)), "std": float(np.std(means)),
                 "n_runs": len(means)}
 
-    eval_across_runs = {metric: across_runs(metric) for metric in per_run_summaries[0]
-                        if isinstance(per_run_summaries[0][metric], dict)}
+    def aggregate(per_run: list[dict]) -> dict[str, dict]:
+        return {metric: across_runs(per_run, metric) for metric in per_run[0]
+                if isinstance(per_run[0][metric], dict)}
 
-    print(f"\n  ACROSS {len(per_run_summaries)} RUNS (this is the reportable number):")
-    for metric, stats in eval_across_runs.items():
-        if stats["mean"] is None:
-            print(f"    {metric}: undefined on all {len(per_run_summaries)} runs")
-        else:
-            print(f"    {metric}: {stats['mean']:.4f} +- {stats['std']:.4f}"
-                  f"  (over {stats['n_runs']} run(s))")
-    if len(per_run_summaries) < MIN_RUNS_TO_REPORT:
+    eval_sampled = aggregate(sampled_per_run)
+    eval_greedy = aggregate(greedy_per_run)
+
+    def report(heading: str, aggregated: dict[str, dict], n_runs: int) -> None:
+        print(f"\n  {heading}")
+        for metric, stats in aggregated.items():
+            if stats["mean"] is None:
+                print(f"    {metric}: undefined on all {n_runs} runs")
+            else:
+                print(f"    {metric}: {stats['mean']:.4f} +- {stats['std']:.4f}"
+                      f"  (over {stats['n_runs']} run(s))")
+
+    report(f"SAMPLED, ACROSS {len(sampled_per_run)} RUNS "
+           f"-- Phase 4's reported number (D-036):", eval_sampled, len(sampled_per_run))
+    report(f"greedy (argmax), ACROSS {len(greedy_per_run)} RUNS "
+           f"-- DIAGNOSTIC ONLY, not the headline (D-036):",
+           eval_greedy, len(greedy_per_run))
+
+    if len(sampled_per_run) < MIN_RUNS_TO_REPORT:
         # Not an error: --only-repeat is the parallel-sweep pattern (D-027), and
         # those per-run files are aggregated later. It is a refusal to let a
         # one-run std of 0.00 be quoted as if it were a measured spread.
-        print(f"\n  WARNING: {len(per_run_summaries)} run(s) only - NOT a reportable result "
+        print(f"\n  WARNING: {len(sampled_per_run)} run(s) only - NOT a reportable result "
               f"(CONSTRAINTS #3 wants at least {MIN_RUNS_TO_REPORT}). "
               f"Aggregate the per-run files before quoting anything.")
 
@@ -336,8 +369,14 @@ def main() -> None:
         "episode_steps": all_steps,
         "curves": all_curves,
         "grad_norms": all_grad_norms,
-        "eval_per_run": per_run_summaries,
-        "eval_across_runs": eval_across_runs,
+        # Named rather than positional, because "eval_summary" is exactly the
+        # key a reader would quote without checking which policy produced it.
+        # D-036: sampled is the headline, greedy is the diagnostic.
+        "eval_policy_convention": "sampled is the reported number (D-036); greedy is diagnostic",
+        "eval_sampled_per_run": sampled_per_run,
+        "eval_sampled_across_runs": eval_sampled,
+        "eval_greedy_per_run": greedy_per_run,
+        "eval_greedy_across_runs": eval_greedy,
     }
     suffix = "" if args.only_repeat is None else f"_repeat{args.only_repeat}"
     (results_dir / f"{tag}{suffix}.json").write_text(json.dumps(payload, indent=1), encoding="utf-8")

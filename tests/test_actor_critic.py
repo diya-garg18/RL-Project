@@ -113,6 +113,42 @@ def test_same_seed_gives_identical_action_sequences():
     assert [first.act(obs) for _ in range(50)] == [second.act(obs) for _ in range(50)]
 
 
+def test_reseed_restores_the_action_stream_whatever_preceded_it():
+    """Mirror of the REINFORCE test, for the same reason (D-036).
+
+    Phase 4 reports the sampled policy, so the evaluation draws must be pinned
+    to a seed rather than inherited from wherever training left the stream.
+    """
+    obs = _obs()
+    agent = _agent(seed=7)
+    reference = [agent.act(obs) for _ in range(50)]
+
+    agent.reseed(7)
+    assert [agent.act(obs) for _ in range(50)] == reference
+
+    for _ in range(1234):
+        agent.act(obs)
+    agent.reseed(7)
+    assert [agent.act(obs) for _ in range(50)] == reference, (
+        "reseed did not restore the stream after intervening sampling"
+    )
+
+
+def test_reseed_touches_the_sampling_stream_and_nothing_else():
+    """Sampling only — never the actor or the critic. Evaluation has to measure
+    the agent that trained, not one perturbed on its way to being measured."""
+    agent = _agent(seed=3)
+    before_actor = [p.detach().numpy().copy() for p in agent.actor_net.parameters()]
+    before_critic = [p.detach().numpy().copy() for p in agent.critic_net.parameters()]
+
+    agent.reseed(99)
+
+    for old, new in zip(before_actor, agent.actor_net.parameters()):
+        np.testing.assert_array_equal(old, new.detach().numpy())
+    for old, new in zip(before_critic, agent.critic_net.parameters()):
+        np.testing.assert_array_equal(old, new.detach().numpy())
+
+
 # ---------------------------------------------------------------------------
 # 2. Bootstrapping — the thing that makes this an actor-critic (S&B §13.5)
 # ---------------------------------------------------------------------------

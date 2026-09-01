@@ -164,6 +164,15 @@ class ActorCriticAgent(Agent):
         probs = probs / probs.sum()
         return int(self._rng.choice(self.n_actions, p=probs))
 
+    def reseed(self, seed: int) -> None:
+        """Restart the action-sampling stream, leaving actor and critic alone.
+
+        Same contract and same reason as `ReinforceAgent.reseed` — D-036 reports
+        Phase 4 on the sampled policy, so the evaluation draws are pinned to a
+        seed rather than inherited from wherever training left the stream.
+        """
+        self._rng = np.random.default_rng(seed)
+
     def state_value(self, obs: np.ndarray) -> float:
         """The critic's v(s). Diagnostic, and the quantity the target bootstraps off."""
         with torch.no_grad():
