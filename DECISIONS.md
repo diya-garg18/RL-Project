@@ -770,3 +770,83 @@ across all twelve runs - exactly -515.4, std 0.0 - because any policy whose argm
 everywhere scores exactly that on fixed seeds. So the entropy bonus fixes the *sampled* policy and
 leaves the *argmax* degenerate at every coefficient tested. Together with E-019 section 3 that
 makes the greedy-vs-sampled evaluation decision the most consequential item still owed.
+
+---
+
+## D-036 - Phase 4 reports each algorithm as the policy it optimised: sampled for policy gradient, greedy for value-based
+
+**Date:** 2026-09-01 · **Model:** Claude Opus 5 · **Phase:** 4 · **Decided by:** Pranav · **Status:** active. **Taken before any full Phase 4 run existed**, which is the point.
+
+**Decision.** Phase 4's headline number for `reinforce` and `actor_critic` is the reward of the
+**sampled** policy - the stochastic policy the agent actually plays. The greedy read
+(`argmax_a pi(a|s)`, the existing `_GreedyView`) is **kept and reported alongside as a named
+diagnostic**, never as the headline. Phases 0-3 are untouched: value-based agents continue to be
+reported greedy.
+
+The rule, stated so it is not a per-phase preference: **each algorithm is reported as the policy
+its own objective optimised.**
+
+**Why the two cases are not analogous, which is the whole argument.** Q-learning's target is
+`q_*`, so the greedy policy read off `Q` is exactly the object the algorithm was learning;
+epsilon is a training scaffold bolted on for exploration and removing it at evaluation recovers
+the intended policy. `train.py:224` and `train_dqn.py:357` both do `agent.epsilon = 0.0` before
+touching the eval seeds, and every number in E-014 and E-017 is therefore an argmax number.
+Policy gradient maximises `J(theta) = E[return | pi_theta]` - the expected return **of the
+stochastic policy**. Its argmax appears nowhere in that objective. Evaluating a policy-gradient
+agent through its argmax measures a policy that was never optimised, and the current protocol -
+`train_reinforce.py:271` and `train_actor_critic.py:272`, both routing final eval through
+`_GreedyView` - treats the two cases as if they were the same.
+
+**The evidence that this is not a theoretical distinction here.** E-019 section 3: in **nine runs
+out of nine**, the sampled policy collected positive reward (+6.0 to +111.7) while the greedy read
+of the *same policy at the same moment* scored strongly negative (-12.2 to -515.4). Seven of the
+nine greedy reads were exactly **-515.4** or **-78.7** - constant-action policies, and -515.4 is
+the same value Phase 3's collapsed DQN produced (E-016, the BULK_CLOSE signature). E-020 then
+found the same degeneracy from the other direction: the greedy column was identical across all
+twelve runs, **-515.4 with std 0.0**, at every entropy coefficient tested - including coefficient
+1.0, where final entropy was 0.8279 and the sampled policy was healthy. The entropy bonus fixes
+the policy and does not fix its argmax.
+
+The mechanism is not a paradox and belongs in the viva answer: if `pi` puts 0.4 on
+PULL_HIGHEST_SEVERITY and 0.35 on BULK_CLOSE, its argmax is a *pure* severity policy, and the
+agent that earned +111.7 was playing neither pure strategy. **A stochastic policy's argmax is not
+that policy**, and this environment appears to reward the mixture over either pure strategy.
+
+**The decisive reason, and it is a measurement argument rather than a preference.** A greedy
+column that reads exactly -515.4 with std 0.0 across twelve runs spanning a 1000x range of
+entropy coefficients - including settings where the agent demonstrably learned and settings where
+it demonstrably collapsed - **has no ability to discriminate**. E-020 already recorded that its
+reward verdict "cannot distinguish 'the values are indistinguishable' from 'the metric is
+saturated'". Grading Phase 4 on that metric would produce a fourth built-but-not-passed phase as
+an artefact of the instrument rather than as a result about the agent, and CONSTRAINTS #5's logic
+runs in this direction too: a catastrophic number from a metric already known to be measuring the
+wrong object is a bug report, not a finding.
+
+**What was given up, stated plainly because it is a real cost.** Phase 4's headline is **not
+directly comparable to Phase 3's DQN number**, because the two phases report different objects.
+The exit criterion names `severity_sort`'s 40.4 (30-seed mean, E-014), which is a deterministic
+policy's score. Any write-up comparing REINFORCE's sampled reward against 40.4 or against the
+DQN's 0.48 recall must say which convention each side uses. The alternative - keeping everything
+greedy for comparability - buys that comparability by reporting a number the evidence above says
+is uninformative, which is the worse trade.
+
+**One asymmetry this decision does NOT resolve, flagged for box 3.** "Sampled" does not mean the
+same thing for the DQN. Its training-time reward is epsilon-greedy behaviour with epsilon floored
+at **0.05** (`config/training_default.yaml`: start 1.0, min 0.05, decay 0.9995) - 5% deliberate
+random actions, a training artefact nobody would deploy. For REINFORCE and the actor-critic the
+sampling **is** the policy. `scripts/compare_sample_efficiency.py` plots a sampled and a greedy
+curve for all three agents; it must **label the convention per agent** rather than implying one
+curve type means one thing. That is a presentation requirement on box 3, not a further decision.
+
+**What this obliges before any run starts.** There is currently no sampled-eval path: both
+trainers evaluate the final policy through `_GreedyView`. Adding one is a code change to
+`train_reinforce.py` and `train_actor_critic.py`, and it must land **before** the full runs, not
+after. Both agents already hold `self._rng = np.random.default_rng(seed)` and sample through it,
+so a sampled number is reproducible - but the eval RNG will be **explicitly reseeded** rather than
+inherited from the end of training, so the reported number does not depend on how many episodes
+preceded it.
+
+**Precedent followed.** D-033 settled that criteria are decided with the criterion in hand and
+never after the result is known. E-019's own next-session list put this decision at item 2, ahead
+of "only then consider full runs". Both are honoured: this was taken while no full Phase 4 run
+existed, so it cannot have been chosen to favour a number.

@@ -20,7 +20,7 @@
 | **Phase 5** | Not started. This is the next block, and it is Pranav's. |
 | **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 15 commits this session, **all pushed**. |
 | **Tests passing** | **191/191** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
-| **Blockers** | Nothing blocks building. **The big gate decision is TAKEN (D-033).** One new decision is owed - greedy vs sampled evaluation, E-019 section 3. |
+| **Blockers** | Nothing blocks building. **Both decisions are TAKEN: D-033** (gates stay as written) **and D-036** (Phase 4 reports the sampled policy for policy gradient, greedy for value-based). D-036 obliges a sampled-eval path in both Phase 4 trainers **before** any full run. |
 
 ---
 
@@ -489,14 +489,21 @@ All eight roadmap boxes:
   2026-08-25 and recorded as **D-033**: the criteria stay exactly as written, and failing
   phases close *built-but-not-passed*. Option (b) of the three this file listed. The report
   is no longer blocked on it, and Phase 4 will be judged against its criterion unchanged.
-- **NEW, and it affects every Phase 4 number: greedy or sampled evaluation?** E-019
-  section 3 found that in all nine runs the sampled policy earned positive reward while the
-  greedy read of that same policy earned strongly negative reward. Both Phase 4 trainers
-  evaluate through a `_GreedyView`, so every number they produce - including E-018's
-  "REINFORCE has become severity-sort exactly" - describes the argmax rather than the agent.
-  **A stochastic policy's argmax is not that policy.** Options: report the sampled policy,
-  report the greedy one with the caveat stated, or report both. Take it before the full
-  runs, not after seeing which scores better.
+- **DONE - greedy vs sampled evaluation was decided on 2026-09-01 and recorded as D-036.**
+  Taken by Pranav while **no full Phase 4 run existed**, which was the whole point. The rule:
+  **each algorithm is reported as the policy its own objective optimised** - sampled for
+  policy gradient, greedy for value-based. So Phase 4's headline for `reinforce` and
+  `actor_critic` is the **sampled** policy, with the `_GreedyView` read kept alongside as a
+  named diagnostic; Phases 0-3 are untouched. E-018's "REINFORCE has become severity-sort
+  exactly" is a statement about the argmax and must be re-read in that light.
+  Two consequences that are **not** optional:
+  1. **Before any full run**, `train_reinforce.py` and `train_actor_critic.py` need a
+     sampled-eval path - today both route final eval through `_GreedyView` (lines 271 and
+     272). The eval RNG gets reseeded explicitly so the number does not depend on training
+     length.
+  2. **Box 3 must label the convention per agent.** "Sampled" is not the same thing for the
+     DQN: its training reward is epsilon-greedy with epsilon floored at 0.05, a training
+     artefact, whereas for the policy-gradient agents the sampling *is* the policy.
 - **The REINFORCE gradient clip is settled** (E-019, D-035). It stays at 10.0 - not
   vindicated, but the between-value spread (74.4) is a third of the within-value spread
   (211.6), so nothing justifies moving it.
