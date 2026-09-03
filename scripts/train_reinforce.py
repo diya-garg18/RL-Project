@@ -315,7 +315,12 @@ def main() -> None:
         greedy_records = run_episodes(
             env, _GreedyView(agent), tuple(cfg.seeds.eval), cfg, cfg_hash, learn=False
         )
-        if position == 0:
+        # Keyed on the REPEAT INDEX, not the loop position. Under --only-repeat
+        # every process is at position 0, so five parallel repeats would each
+        # write these same two directories at the same time and interleave into
+        # each other's files. Only repeat 0 dumps records; the numbers that get
+        # reported live in the JSON payload, which is per-process and safe.
+        if repeat_index == 0:
             save_records(sampled_records, results_dir / "eval_records_sampled")
             save_records(greedy_records, results_dir / "eval_records_greedy")
         sampled = summarise(sampled_records, cfg)
