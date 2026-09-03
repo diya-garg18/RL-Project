@@ -23,6 +23,37 @@ from soc_triage.config import EnvConfig
 MIN_RUNS_TO_REPORT = 5
 
 
+def across_runs_summary(per_run_summaries: list[dict]) -> dict[str, dict]:
+    """Mean and std ACROSS runs of each run's mean — never a single run.
+
+    CONSTRAINTS #3. The convention matches `train.py` and `train_dqn.py`
+    deliberately, so a Phase 4 number and a Phase 2 number mean the same thing:
+    each run contributes ONE value (its own mean over the eval seeds), and the
+    std reported is the spread of those values. A std computed over the pooled
+    episodes instead would describe seed difficulty and would be much smaller —
+    the mistake BUG_004 shipped.
+
+    A run's mean is None when the metric is undefined for it: `summarise`
+    reports mttd_min as None when no episode caught an incident, which is the
+    honest answer rather than zero. Those runs are dropped from that metric's
+    average, and the metric reads undefined if none survive. A policy that
+    catches nothing is a real Phase 4 outcome — E-020's collapsed actor-critic
+    runs scored recall 0.0000 — so this path is load-bearing, not padding.
+    """
+    aggregated: dict[str, dict] = {}
+    for metric, value in per_run_summaries[0].items():
+        if not isinstance(value, dict):
+            continue
+        means = [s[metric]["mean"] for s in per_run_summaries if s[metric]["mean"] is not None]
+        if not means:
+            aggregated[metric] = {"mean": None, "std": None, "n_runs": 0}
+        else:
+            aggregated[metric] = {"mean": float(np.mean(means)),
+                                  "std": float(np.std(means)),
+                                  "n_runs": len(means)}
+    return aggregated
+
+
 def episode_metrics(record: dict, cfg: EnvConfig) -> dict:
     """The five headline metrics for one EpisodeRecord."""
     outcome = record["outcome"]
