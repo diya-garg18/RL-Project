@@ -1276,3 +1276,123 @@ Whether the baseline earns itself over a **full** 20000-episode run, once the va
 actually converged, is not answered here and should not be guessed. The full-run artefacts will
 contain the data to revisit it; the budget was NOT extended until the claim agreed, which would
 have been the wrong way to resolve it.
+
+---
+
+## E-022 - REINFORCE's first full run: it rediscovers severity_sort, exactly, in three runs of five - 2026-09-04
+
+**Model:** Claude Opus 5 · **Phase:** 4 · **Machine:** Pranav's PC · **Decisions applied:** D-036 (sampled is the headline, greedy is a diagnostic)
+
+**The first full training run of any Phase 4 agent.** Everything before this was a
+smoke run or a tuning sweep on a reduced budget, so Phase 4's exit criterion had never
+been measured at all.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\train_reinforce.py --no-plot
+```
+
+5 repeats x 20000 episodes, training seeds from 1400000, policy net [128, 128] relu,
+lr 0.001, baseline ON at lr 0.005, grad_clip 10.0, gamma 0.99. Per-repeat wall time
+**6.1, 6.9, 3.3, 6.2, 2.6 min = 25.1 min total**, against E-019's projection of ~27 min.
+That projection is now confirmed rather than merely believed.
+
+### The reported number (SAMPLED, D-036), across 5 runs
+
+| metric | REINFORCE (sampled) | severity_sort (E-014) |
+|---|---|---|
+| recall_at_deadline | 0.7763 +- 0.0833 | **0.8443** |
+| total_reward | **70.5191 +- 37.6188** | 40.4424 |
+| mttd_min | **21.4559 +- 8.1703** | 28.3481 |
+| wasted_minutes | **313.63 +- 137.21** | 426.17 |
+| critical_misses | 0.1867 +- 0.1108 | 0.10 |
+| composite_cost_inr | 214413 +- 81809 | 149951 |
+
+The greedy diagnostic, same agents, same seeds: recall **0.7589 +- 0.1060**, reward
+**60.1952 +- 26.3592**, mttd 20.8180 +- 8.8658.
+
+### 1. Three runs of five became severity_sort, to four decimal places
+
+| repeat | sampled recall | sampled reward | greedy recall | greedy reward | final grad norm |
+|---|---|---|---|---|---|
+| 0 | 0.6668 | 97.0 | 0.6032 | 69.2 | 14713.85 |
+| 1 | **0.8443** | 42.6 | **0.8443** | 42.7 | 1241.86 |
+| 2 | **0.8443** | **40.4** | **0.8443** | **40.4** | **0.00** |
+| 3 | 0.6821 | 132.1 | 0.6585 | 108.2 | 3198.99 |
+| 4 | **0.8443** | **40.4** | **0.8443** | **40.4** | **0.00** |
+
+Recomputed from `results/runs/severity_sort-seed*.json` at full precision, severity_sort
+scores recall **0.8442676767676767** and reward **40.4424207802521** on the same 30 eval
+seeds. Repeats 1, 2 and 4 match its recall to every digit printed; repeats 2 and 4 match
+its reward as well, and both of those ended with a **policy gradient norm of exactly
+0.00** - the policy has saturated onto one deterministic strategy and stopped moving.
+
+E-018 claimed this at 300 episodes and it was reasonable to suspect an artefact of a tiny
+budget. It is not. **Sixty-seven times more training produces the same answer**, and
+D-033 anticipated it in writing: *"policy gradient rediscovers the human heuristic and
+stops there"* is now the measured outcome rather than a hypothetical.
+
+### 2. The exit criterion is NOT met, and the reason is the spread, not the mean
+
+Phase 4's criterion asks the learners to *beat* severity_sort. Read carefully:
+
+- **On recall REINFORCE is worse**: 0.7763 against 0.8443. Not close, not ambiguous.
+- **On reward the mean is higher** - 70.52 against 40.44 - but the difference is **30.08
+  against an across-run std of 37.62**. The effect is smaller than the spread of the
+  thing producing it. By the rule this project exists to enforce (R6, and the E-014
+  lesson that cost it a sign error), that is not a win.
+
+The two runs that beat severity_sort on reward did it by **trading recall away**: repeat 3
+earned 132.1 at recall 0.6821, repeat 0 earned 97.0 at recall 0.6668. The three runs that
+matched severity_sort's recall earned essentially severity_sort's reward. That is the
+reward-hacking narrative appearing inside a single agent's repeats rather than between
+agents, and it is the cleanest illustration of it the project has produced.
+
+**Phase 4 closes built-but-not-passed for REINFORCE** unless the actor-critic changes the
+picture, which would make it the fourth phase in a row (D-033 governs; the criterion is
+not restated).
+
+### 3. D-036's phenomenon is an EARLY-TRAINING TRANSIENT, and this partly undercuts it
+
+E-019 found the sampled policy beating its own argmax in nine runs of nine, with greedy
+reads of -515.4 against positive sampled reward. At 20000 episodes that gap is **gone**:
+
+| | sampled | greedy | gap |
+|---|---|---|---|
+| recall | 0.7763 | 0.7589 | 0.017 |
+| reward | 70.52 | 60.20 | 10.3, against stds of 37.6 and 26.4 |
+
+The training log shows why. Repeat 0's greedy diagnostic reads -78.7 at episode 500,
+**-515.4 at episodes 1000 and 1500** - the BULK_CLOSE signature - and then **+37.5 by
+episode 2000**, after which it never returns. E-019 measured at exactly 1500 episodes,
+inside the window where the argmax is degenerate.
+
+**Said plainly: the evidence D-036 was decided on was a transient, at least for REINFORCE.**
+The decision is still the right one and was still taken correctly - before any full run
+existed, so it cannot have been chosen to favour a number - and it costs nothing here,
+because the two readings now agree. Whether it matters for the actor-critic is open: that
+agent carries an entropy bonus specifically to keep its policy spread out, so its argmax
+has a standing reason to differ from its samples that REINFORCE's does not. E-020 saw its
+greedy column pinned at -515.4 with std 0.00 at 80 episodes; whether that also dissolves
+by 20000 is the next thing measured.
+
+**What must not be written in the report:** that the greedy/sampled divergence is a
+property of policy-gradient evaluation in this environment. On this evidence it is a
+property of *undertrained* policy-gradient evaluation, and E-019's and E-020's budgets
+(1500 and 80 episodes) are both inside that window.
+
+### 4. Two runs saturated to a zero gradient
+
+Repeats 2 and 4 finished with `grad_norm 0.00`. A vanished policy gradient means
+`grad ln pi` has collapsed - the policy is deterministic, so there is nothing left to
+push. Those are precisely the two runs sitting exactly on severity_sort. The other three
+retained live gradients (14713.85, 1241.86, 3198.99) and are the three that did something
+other than the heuristic. **Whether the run converges to the heuristic is visible in the
+gradient norm**, which makes it a cheap thing to watch rather than something only
+discoverable from the final table.
+
+### Status of these numbers
+
+Full budget, 5 repeats, evaluated once on the 30-seed block after every training decision
+was made (CONSTRAINTS #2). These are reportable. The severity_sort figures they are
+compared against come from E-014's 30-seed block and were recomputed here at full
+precision rather than quoted from a rounded table.
