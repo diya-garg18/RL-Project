@@ -240,7 +240,19 @@ def main() -> None:
     print(f"  training seeds from {seed_start} "
           f"(disjoint from train-diag {list(cfg.seeds.train)} and the eval block)")
 
-    results_dir = ROOT / "results" / "actor_critic_runs" / TAG
+    # Same D-018 guard and same `--only-repeat` exemption as train_reinforce.py.
+    # It matters more here than anywhere else in the project: a full actor-critic
+    # run is ~3.3 h per repeat, so a smoke run overwriting one costs most of a day.
+    is_full_run = (
+        n_episodes == tcfg.common.n_episodes
+        and eval_every == tcfg.common.eval_every
+        and (args.repeats >= MIN_RUNS_TO_REPORT or args.only_repeat is not None)
+    )
+    base_dir = ROOT / "results" if is_full_run else ROOT / "results" / "smoke"
+    results_dir = base_dir / "actor_critic_runs" / TAG
+    if not is_full_run:
+        print(f"\n  REDUCED RUN - writing to {results_dir.relative_to(ROOT).as_posix()}/ "
+              f"so it cannot be mistaken for, or overwrite, a full run's artefacts.")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     repeats = [args.only_repeat] if args.only_repeat is not None else list(range(args.repeats))

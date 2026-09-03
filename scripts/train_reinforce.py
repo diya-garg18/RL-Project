@@ -241,7 +241,25 @@ def main() -> None:
     print(f"  training seeds from {seed_start} "
           f"(disjoint from train-diag {list(cfg.seeds.train)} and eval {list(cfg.seeds.eval)})")
 
-    results_dir = ROOT / "results" / "reinforce_runs" / tag
+    # A reduced run must NEVER land where a full one's artefacts go (D-018,
+    # CONSTRAINTS #4). The tabular and DQN trainers have had this guard since a
+    # `--episodes 200` smoke test silently replaced a real 20000-episode
+    # Q-table; Phase 4 was built without it, and this session's own smoke runs
+    # had to be deleted by hand from the full run's directory (BUG_004).
+    #
+    # `--only-repeat` is exempt on purpose: it is one slice of a full parallel
+    # sweep (D-027), so it is a full run that happens to compute a single
+    # repeat. Judging it by `--repeats` would divert the real sweep into smoke/.
+    is_full_run = (
+        n_episodes == tcfg.common.n_episodes
+        and eval_every == tcfg.common.eval_every
+        and (args.repeats >= MIN_RUNS_TO_REPORT or args.only_repeat is not None)
+    )
+    base_dir = ROOT / "results" if is_full_run else ROOT / "results" / "smoke"
+    results_dir = base_dir / "reinforce_runs" / tag
+    if not is_full_run:
+        print(f"\n  REDUCED RUN - writing to {results_dir.relative_to(ROOT).as_posix()}/ "
+              f"so it cannot be mistaken for, or overwrite, a full run's artefacts.")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     repeats = [args.only_repeat] if args.only_repeat is not None else list(range(args.repeats))
