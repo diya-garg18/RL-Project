@@ -203,10 +203,44 @@ python scripts/train.py --agent actor_critic --seeds 5 --eval
 
 ## Phase 5 — RLHF
 
+### 5a data layer (added 2026-09-04, session 12 — FEATURE_011)
+
 ```bash
-python scripts/build_pairs.py
+.\.venv\Scripts\python.exe -m pytest tests/test_rlhf_summary.py tests/test_rlhf_store.py tests/test_rlhf_agreement.py tests/test_rlhf_pairs.py -q
 ```
-**Must show:** every pair matches two episodes on the **same seed** (identical alert stream). A pair on mismatched streams is invalid data — assert it.
+**Must show:** `71 passed`, in well under a second. The speed is the check as much
+as the count — these four modules import no agent, no env and no torch (D-037),
+so a suite that suddenly takes minutes means something pulled a dependency in.
+
+```bash
+.\.venv\Scripts\python.exe -m pytest tests/test_rlhf_config.py -q
+```
+**Must show:** `15 passed`. Includes the seed-block disjointness check and the
+capacity arithmetic (`target_pairs` ≤ pairings × `n_pair_seeds`).
+
+**The four checks that must never be weakened**, each named so a future session
+cannot quietly relax one:
+
+| test | what fails silently without it |
+|---|---|
+| `test_summary_never_shows_a_reward` | the labeller reads back our invented reward and the learned model re-derives `env_default.yaml` (D-039) |
+| `test_the_pairs_file_contains_no_policy_name_anywhere` | a name reaches the UI through a field nobody thought about — `run_id` is the one that nearly did (D-038) |
+| `test_two_builds_from_the_same_inputs_are_identical` | a rebuild renumbers `pair_id` and silently repoints every label already collected |
+| `test_one_labeller_cannot_label_the_same_pair_twice` | κ reports "inter-annotator agreement" measured on one person agreeing with themselves |
+
+```bash
+python scripts/report_kappa.py --csv-backup
+```
+**Must show:** κ over the double-labelled pairs *with n*, and the confusion matrix.
+Prints `undefined` — never a number — when κ is 0/0. On a fresh clone with no
+database it says so plainly instead of raising. `--csv-backup` writes `labels.csv`
+beside the database, which `.gitignore` tells you to keep because the database is
+gitignored and irreplaceable.
+
+```bash
+python scripts/generate_pairs.py     # NOT BUILT YET
+```
+**Must show, when it exists:** every pair matches two episodes on the **same seed** (identical alert stream), on the `rlhf.pair_seed_start` block and never the eval block. A pair on mismatched streams is invalid data — assert it. `build_pairs` already does.
 
 ```bash
 python scripts/train_reward_model.py
