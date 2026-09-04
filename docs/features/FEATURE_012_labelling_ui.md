@@ -301,7 +301,19 @@ Steps 2 and 3 are independent of the pending decision in §9.
 | File | New/Modified | What changed |
 |---|---|---|
 | `docs/features/FEATURE_012_labelling_ui.md` | New | this design |
-| | | *table filled in as the work lands* |
+| `src/soc_triage/labelling/__init__.py` | New | package marker; states the one-way dependency on `rlhf` |
+| `src/soc_triage/labelling/queue.py` | New | assignment, resume, progress, `load_pairs` + the key-file guard |
+| `src/soc_triage/labelling/render.py` | New | the two panes, the three answers, the timer script |
+| `src/soc_triage/labelling/app.py` | New | `GET /` and `POST /label` |
+| `scripts/label_ui.py` | New | the launcher |
+| `tests/test_labelling_queue.py` | New | 33 tests |
+| `tests/test_labelling_render.py` | New | 21 tests |
+| `tests/test_labelling_app.py` | New | 23 tests |
+| `tests/test_rlhf_config.py` | Modified | 15 tests → 26; the four new keys and their refusals |
+| `src/soc_triage/config/training.py` | Modified | `RLHFConfig` gains `labellers`, `max_seconds_per_pair`, `ui_host`, `ui_port` |
+| `src/soc_triage/config/training_validation.py` | Modified | seven new rules for those keys |
+| `config/training_default.yaml` | Modified | the four keys, with their reasoning in comments |
+| `requirements.txt` | Modified | `httpx2==2.12.0`, test-only (D-043) |
 
 ---
 
@@ -331,6 +343,84 @@ $ .\.venv\Scripts\python.exe -m pytest tests/ -q
 Worth recording for the next session: the same 286 tests on the same commit took
 **126.49 s** on Pranav's machine the day before. Nearly 4x, and it is the machine,
 not the code — the spread `HANDOVER.md` warns about is still live.
+
+**Each module, watched failing before it existed.** Every one of these three RED
+runs was the missing-module error rather than a typo, which is the point of
+looking:
+
+```
+$ pytest tests/test_labelling_queue.py -q
+E   ModuleNotFoundError: No module named 'soc_triage.labelling'
+$ pytest tests/test_labelling_render.py -q
+E   ModuleNotFoundError: No module named 'soc_triage.labelling.render'
+$ pytest tests/test_labelling_app.py -q
+E   ModuleNotFoundError: No module named 'soc_triage.labelling.app'
+```
+
+Then green, each immediately after its module was written:
+
+```
+$ pytest tests/test_labelling_queue.py -q
+33 passed in 0.20s
+$ pytest tests/test_labelling_render.py -q
+21 passed in 0.12s
+$ pytest tests/test_labelling_app.py -q
+23 passed in 1.05s
+$ pytest tests/test_rlhf_config.py -q          # 11 new, watched fail first
+26 passed in 0.91s
+```
+
+The queue and render suites run in a fifth of a second between them because
+neither imports torch, the environment, or SQLite — the property FEATURE_011 §13
+protects, extended one layer up.
+
+**The config change was the risky one and was treated as such.** Adding a field to
+a frozen config dataclass broke sixteen tests in session 9, so every construction
+site of `RLHFConfig` was found before editing:
+
+```
+$ grep -rn "RLHFConfig(" --include=*.py .
+src\soc_triage\config\training.py:322:    rlhf = RLHFConfig(
+```
+
+Exactly one, the loader itself. That is why no other file needed touching, and it
+is a fact worth having rather than assuming in either direction.
+
+**The launcher, which no test covers, verified by running it.** Both refusals:
+
+```
+$ python scripts/label_ui.py --labeller L9
+unknown labeller 'L9'; config/training_default.yaml lists L1, L2
+exit=2
+
+$ python scripts/label_ui.py --labeller L1
+cannot start: no pair file at C:\...\results\rlhf\pairs.json
+
+Nothing has generated the pair set yet. That is scripts/generate_pairs.py
+(Pranav's box, ROADMAP 5a) and it needs the nine trained policies present.
+exit=1
+```
+
+And a real serve against a fixture pair set — actual uvicorn, actual HTTP, actual
+row, with the two guards checked against the page the server really sent:
+
+```
+fixture: 12 pairs at ...\scratchpad\fixture\pairs.json
+GET / -> 3707 bytes of HTML
+policy names leaked into the page: none
+the word 'reward' present: False
+pair on screen: ['p0000']
+POST /label -> 200 {"ok":true}
+POST /label again (refresh) -> 200
+page advanced to the next pair: True
+rows in the database: 1
+  {'id': 1, 'pair_id': 'p0000', 'labeller_id': 'L1', 'choice': 'left',
+   'created_at': '2026-09-04T19:16:56Z', 'seconds_taken': 21.5}
+```
+
+The refresh is the line worth reading twice: the POST was replayed and the
+database still holds **one** row, with the first answer intact. `created_at` reads
+the 4th because it is UTC and the local date was the 5th — correct, not a bug.
 
 ---
 

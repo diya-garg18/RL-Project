@@ -974,3 +974,179 @@ Phase 0 module that wrote all 300 existing record files. The trade is not worth
 it: the outcome block already gives the count, the criticality breakdown and the
 buried count. If per-incident cards later prove necessary the upgrade is an
 additive key and old files stay readable.
+
+---
+
+## D-040 - The single-label pairs are split 125/125 by a fixed rule, not by whoever sits down first
+
+**Date:** 2026-09-05 (session 13) · **Taken by:** Diya · **Model:** Claude Opus 5
+**Applies to:** `labelling/queue.py`, `config/training_default.yaml` (`rlhf.labellers`)
+
+300 pairs, of which 50 are double-labelled so that Cohen's kappa exists at all.
+That leaves 250 needing one opinion each, and somebody has to decide whose.
+
+**Chosen: a deterministic assignment computed from `pairs.json` before anyone
+starts.** The double-labelled pairs go to every labeller; the singles are dealt
+round-robin in `pair_id` order. Two labellers therefore get 125 singles apiece and
+175 judgements each, 350 in total.
+
+**Rejected: a shared queue serving whichever pair nobody has answered yet.** It is
+simpler, it needs no assignment rule at all, and it self-balances if both people
+work at the same pace. It loses on three counts. The split becomes an artefact of
+who had a free evening rather than a decision anybody made; it cannot be
+reconstructed afterwards except by reading timestamps out of the database; and two
+people labelling simultaneously race each other for the same pair. A project whose
+central claim is that its numbers are reproducible should not have to explain in a
+viva that the division of its only human-generated data was decided by scheduling.
+
+**Why sorting by `pair_id` costs no randomness.** The worry with dealing alternate
+pairs is that one labeller could systematically receive one kind of comparison.
+That cannot happen here, because `pairs.build_pairs` already shuffles the draft
+before numbering it — deliberately, so that a labeller working through the file
+does not meet every alpha-vs-beta comparison in one block. File order is therefore
+already random with respect to which policies are being compared, and the queue
+gets a balanced spread without ever inspecting what a pair contains. Which it must
+not: the pairs are blinded (D-038).
+
+**What was given up.** If one labeller stops at 90, the other cannot silently
+cover the gap — the assignment is a recorded fact, not a suggestion. That is the
+intended trade, but it means an unfinished half needs a deliberate decision rather
+than momentum. Validation refuses a labeller list that does not divide the singles
+evenly, so the fairness assumption fails loudly at load.
+
+---
+
+## D-041 - The labeller id is bound at launch and the request cannot override it
+
+**Date:** 2026-09-05 (session 13) · **Taken by:** Diya · **Model:** Claude Opus 5
+**Applies to:** `scripts/label_ui.py`, `labelling/app.py`
+
+`store.add_label` needs a `labeller_id`, and CONSTRAINTS #23 requires it to be
+opaque — the schema has nowhere to record a name, an employer or a client.
+
+**Chosen:** `python scripts/label_ui.py --labeller L1`. The page never asks. The
+id is a closure variable inside the app, the `Answer` model has no field for it,
+and unknown keys in a request body are dropped, so a POST cannot claim to be
+somebody else. The launcher validates the id against `rlhf.labellers` before
+opening anything.
+
+**Rejected: a text box on the page.** Two failure modes, both landing on the one
+artefact in the project that cannot be regenerated. The visible one is that a text
+box invites a real name or an email address, and once that is in the SQLite the
+only remedies are editing the irreplaceable file or discarding labels. The
+dangerous one is silent: a stale value left over from the other person's turn
+records this person's judgements under that person's id. That does not merely
+mislabel data — it corrupts **kappa specifically**, because kappa's premise is that
+the two sets of judgements came from two independent people. A run where forty of
+L1's answers are filed as L2's would still produce a coefficient, and it would
+look like a result.
+
+**Alternative also rejected: infer the id from the OS user.** It would remove the
+flag, but the two students alternate machines continuously (CONSTRAINTS #24-26),
+so the OS user is a fact about the laptop and not about the labeller.
+
+---
+
+## D-042 - The answer timer is measured in the browser, capped, and stored as unknown past the cap
+
+**Date:** 2026-09-05 (session 13) · **Taken by:** Diya · **Model:** Claude Opus 5
+**Applies to:** `labelling/render.py`, `labelling/app.py`, `config/training_default.yaml`
+
+`store.add_label` takes `seconds_taken: float | None`, and Pranav's docstring
+already gives half the reasoning: a defaulted `0.0` "would read as an instant
+decision and would silently skew any later analysis of how long people spent
+thinking."
+
+**Chosen:** the page records when the pair was displayed and when the answer was
+clicked, using `performance.now()` so a clock correction mid-sitting cannot move
+it, and sends the elapsed seconds with the answer. Above
+`rlhf.max_seconds_per_pair` (300) the stored value is `None`. The server applies
+the same cap again, and also stores `None` for a negative elapsed time.
+
+**Why the cap.** Open a pair, walk away, come back twenty minutes later and click.
+Without a cap the row asserts 1200 seconds of deliberation. That is not a large
+number, it is a **false** one, and it would drag any mean computed from the column
+while looking entirely plausible. `None` asserts "we do not know how long this
+took", which is true. This is Pranav's `None`-over-`0.0` rule applied at the other
+end of the range, and the fact that it is the same rule twice is the argument for
+it rather than a coincidence.
+
+**Why the server re-checks what the browser already checked.** Not defence in
+depth for its own sake: a page can be edited or its POST replayed by hand, and
+this is the only column in the project whose corruption would be invisible.
+
+**Rejected: server-side timing** (serve to POST). It measures the same quantity
+slightly worse, adds network latency to the figure, and has the identical
+coffee-break flaw — so it buys nothing for the JavaScript it saves.
+
+**What is still not measured.** Time spent re-reading a pair after scrolling away
+and back is counted; time spent thinking about a pair before it is displayed
+cannot be. The column is evidence about attention, not a stopwatch on cognition,
+and the Phase 6 audit should read it that way.
+
+---
+
+## D-043 - `httpx2` added as the first test-only dependency
+
+**Date:** 2026-09-05 (session 13) · **Taken by:** Diya · **Model:** Claude Opus 5
+**Applies to:** `requirements.txt`, `tests/test_labelling_app.py`
+
+FastAPI's `TestClient` refuses to import without `httpx2`, so without it the
+labelling routes could not be tested at all — and those routes are what write the
+irreplaceable labels. Approved under CONSTRAINTS #8 and pinned at `2.12.0`. It is
+the first entry in `requirements.txt` that exists purely for tests, and installing
+it pulls `httpcore2 2.12.0` and `truststore 0.10.4` with it, which is worth
+knowing before the other machine runs `pip install`.
+
+**Rejected: no new dependency — start `uvicorn` in a subprocess and drive it with
+`urllib.request` from the standard library.** Genuinely attractive, because it
+would test the actual server the humans run rather than an in-process substitute,
+catching launcher bugs `TestClient` cannot see. It lost on cost and reliability: a
+second or two of startup per test file on a suite that already takes eight minutes
+on Diya's machine, plus port-binding flakiness that produces failures unrelated to
+the code under test. A test that fails for reasons of its own teaches nothing and
+eventually gets deleted for crying wolf.
+
+**What this leaves uncovered, stated rather than papered over.** Nothing in the
+suite exercises `scripts/label_ui.py` end to end. It was verified by running it
+instead — output in FEATURE_012 §13 — and it is deliberately thin so that
+everything worth testing sits behind `create_app`. The rejected approach is still
+the right one if the launcher ever grows logic of its own.
+
+---
+
+## D-044 - `_clean_seconds` rejects NaN explicitly rather than relying on SQLite to absorb it
+
+**Date:** 2026-09-05 (session 13) · **Taken by:** Diya · **Model:** Claude Sonnet 5
+**Applies to:** `labelling/app.py`
+
+Found by re-deriving the D-042 cap's failure modes rather than trusting an
+automated review notification whose body arrived corrupted — only its one-line
+summary named `training_validation.py` and "parser-differential" was legible, so
+the claim was verified from scratch instead of acted on blind (R5).
+
+**The bug.** `nan < 0` and `nan > max_seconds` are both `False` in IEEE 754, so the
+original range check let a `NaN` seconds value straight through untouched.
+Python's `json` module accepts the bare `NaN` token by default, which strict JSON
+(RFC 8259) forbids — a real parser-differential: what the wire format permits and
+what the validation logic assumes are two different things. Confirmed reachable
+end to end through the real FastAPI route with a hand-built request, not just at
+the language level.
+
+**Why it looked fine and was not.** `_clean_seconds(nan, 300)` returned `nan`
+itself, and that `nan` happened to come back as `None` after a round trip through
+SQLite — its C driver silently converts NaN to NULL on write to a REAL column.
+Undocumented, engine-specific behaviour, not a guarantee `sqlite3` or any
+successor makes. The function's own contract — reject the impossible, return
+`None` — was being met by luck rather than by the code, and a test that only
+checked the round trip through the database would never have caught the
+difference. The fix adds `if value != value: return None` (NaN is the one float
+unequal to itself) ahead of the range check, and a test calls `_clean_seconds`
+directly so the assertion is about the function's contract, not about what a
+particular database happens to do with a bad input.
+
+**Rejected: catch this in the `Answer` pydantic model instead** (`allow_inf_nan`).
+Would stop NaN earlier, but the model also has to admit ordinary out-of-range and
+negative values so `_clean_seconds` can turn them into the same `None` — moving
+one case to the boundary and leaving the rest where they are creates two places
+that decide what counts as "unknown" instead of one.
