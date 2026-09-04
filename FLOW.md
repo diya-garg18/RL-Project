@@ -333,7 +333,7 @@ rather than approximating the x-axis.
 
 ---
 
-## Flow D — RLHF (Phase 5) 🟡 *(stage 1 data layer built & tested 2026-09-04 — FEATURE_011, 71 tests in 0.30 s; stages 2 and 3 not started)*
+## Flow D — RLHF (Phase 5) 🟡 *(stages 1 and 2 built & tested — FEATURE_011 2026-09-04, FEATURE_012 2026-09-05; stage 3 not started)*
 
 Three separate stages. Don't fuse them; each produces an artefact the next consumes.
 
@@ -364,12 +364,34 @@ rlhf.pairs.load_records(results/rlhf/records/)
        ├──▶ results/rlhf/pairs.json      ← the UI reads this. NO policy names.
        └──▶ results/rlhf/pairs_key.json  ← names + `swapped`. Analysis only.
 
-STAGE 2 — collect labels (human in the loop)
-web/labeller  (or scripts/label_cli.py)
-  └─ GET  /pair/next        ← unlabelled pair for this labeller
-  └─ POST /pair/{id}/label  { choice: left|right|tie, labeller_id, seconds_taken }
-       └─ rlhf.store.record_label(...)
-  └─ 50 pairs are deliberately served to BOTH labellers ──▶ Cohen's κ
+STAGE 2 — collect labels (human in the loop)   ✅ BUILT — FEATURE_012, 2026-09-05
+
+**What changed here as built, against the sketch.** Not `web/labeller` — the page
+lives in `src/soc_triage/labelling/`, because `tests/conftest.py` only ever puts
+`src/` on the import path (D-... FEATURE_012 §5). The route is `POST /label`, not
+`POST /pair/{id}/label`: the pair id travels in the JSON body instead of the URL,
+which is what let the answer be sent with a single `fetch()` alongside the timer
+elapsed. And `labeller_id` is never a request field at all (D-041) — it is bound
+once at launch and the handler closes over it, so nothing in the body can name a
+different person.
+
+scripts/label_ui.py --labeller L1
+  └─ config.load_training_config(...).rlhf   ← labellers, max_seconds_per_pair, ui_host, ui_port
+  └─ labelling.queue.load_pairs(results/rlhf/pairs.json)   ← refuses pairs_key.json by name (D-038)
+  └─ labelling.app.create_app(pairs, labeller_id, labellers, db_path, max_seconds)
+       └─ uvicorn.run(app, host=rlhf.ui_host, port=rlhf.ui_port)
+
+GET  /
+  └─ labelling.queue.LabelQueue(pairs, labeller_id, labellers, answered=store.labels_by(labeller_id))
+       └─ .next_pair()  ──▶ the first pair this person has not answered, or None
+  └─ labelling.render.render_pair_page(pair, progress, max_seconds)   ← or render_done_page
+
+POST /label   { pair_id, choice: left|right|tie, seconds }
+  └─ queue.pair(pair_id)                      ← refuses a pair not assigned to this labeller
+  └─ _clean_seconds(seconds, max_seconds)     ← cap re-applied server-side; NaN, negative → None (D-042, D-044)
+  └─ rlhf.store.add_label(pair_id, labeller_id, choice, seconds_taken)
+       └─ DuplicateLabelError on a refresh replay ──▶ swallowed; the page just moves on
+  └─ 50 pairs are deliberately assigned to BOTH labellers ──▶ Cohen's κ (D-040)
        └─ store enforces UNIQUE(pair_id, labeller_id): one opinion per person
 scripts/report_kappa.py                   ✅ BUILT
   └─ rlhf.agreement.agreement_between(store, A, B)  ──▶ κ + confusion matrix

@@ -242,6 +242,42 @@ python scripts/generate_pairs.py     # NOT BUILT YET
 ```
 **Must show, when it exists:** every pair matches two episodes on the **same seed** (identical alert stream), on the `rlhf.pair_seed_start` block and never the eval block. A pair on mismatched streams is invalid data — assert it. `build_pairs` already does.
 
+### 5a labelling page (added 2026-09-05, session 13 — FEATURE_012, Diya's box)
+
+```bash
+.\.venv\Scripts\python.exe -m pytest tests/test_labelling_queue.py tests/test_labelling_render.py -q
+```
+**Must show:** `54 passed`, in a fraction of a second. Same reason as the 5a data
+layer above: neither module imports an agent, the environment, or torch, so a
+sudden slowdown means something pulled in a dependency it should not need.
+
+```bash
+.\.venv\Scripts\python.exe -m pytest tests/test_labelling_app.py -q
+```
+**Must show:** `25 passed`. This is the file that needs `httpx2` (D-043) — if it
+errors on collection with `ModuleNotFoundError: httpx2`, run
+`pip install -r requirements.txt` again; the package is pinned there, not optional.
+
+**The checks that must never be weakened**, each named so a future session cannot
+quietly relax one:
+
+| test | what fails silently without it |
+|---|---|
+| `test_no_policy_name_appears_in_the_rendered_page` | the blinding of D-038 is broken by the page rather than by the data layer |
+| `test_the_labeller_id_cannot_be_overridden_by_the_request` | one person's judgements land under the other's id and κ compares a person with themselves (D-041) |
+| `test_nan_is_rejected_by_clean_seconds_itself_not_by_sqlite_luck` | the timer cap silently depends on one storage engine's undocumented rounding instead of the code's own logic (D-044) |
+| `test_the_first_answer_wins_a_replayed_submission` | a browser refresh mid-sitting overwrites an already-recorded judgement |
+
+```bash
+.\.venv\Scripts\python.exe scripts/label_ui.py --labeller L1
+```
+**Must show:** `labelling as L1 — N pairs loaded, ...` followed by the URL to open,
+once `results/rlhf/pairs.json` exists (`scripts/generate_pairs.py`, not yet built).
+Before that file exists it exits 1 and names `generate_pairs.py` as the reason. An
+unknown `--labeller` exits 2 and lists the configured ids — no test covers this
+script directly (FEATURE_012 §9); it was verified by running it, output logged
+there.
+
 ```bash
 python scripts/train_reward_model.py
 ```

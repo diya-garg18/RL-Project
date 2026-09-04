@@ -964,10 +964,11 @@ report either way.
 ### What is not done
 
 Nobody has labelled anything yet, so there is no kappa and no reward model. The
-script that generates the fresh shifts to be labelled is not written, and the
-labelling page is Diya's to build. What exists is everything underneath: the
-rendering, the pairing, the storage, and the arithmetic — all tested, and all
-runnable on a laptop with no machine-learning libraries installed at all.
+script that generates the fresh shifts to be labelled is not written either
+(Pranav's, see Part 15). What exists is everything underneath: the rendering, the
+pairing, the storage, the arithmetic, and — as of the next session — the page
+itself, all tested, and all runnable on a laptop with no machine-learning
+libraries installed at all.
 
 ### One small thing that fell out of building it
 
@@ -980,3 +981,74 @@ to 2026-08-17. Our fingerprint of the config hashes the file, not the settings, 
 fixing a typo in a comment changes it. Written up as BUG_005, deliberately not
 fixed, because the error only ever points the safe way — it can say "these might
 differ, go and check", and it can never say "these are the same" when they are not.
+
+---
+
+## Part 15 - The page that actually asks the question (Phase 5a, 2026-09-05)
+
+Part 14 built everything needed to ask two people which of two shifts went
+better, and stopped one step short of asking. This part is that step: a small
+web page. Open it, and it shows you one pair — two shifts, side by side, laid out
+the way Part 14 described — with three buttons underneath: left was better,
+right was better, can't tell. Click one, and it shows you the next pair. Do that
+175 times and you are done.
+
+### Three questions that had to be answered before writing any of it, and why the obvious answer was wrong for each
+
+**Who labels which pair?** Three hundred pairs need answering, fifty of them by
+*both* Pranav and Diya so kappa can be measured, leaving two hundred and fifty
+that only need one opinion. The easy plan — whoever opens the page first gets the
+next unanswered pair — would work, but the split it produces would be an accident
+of who happened to have a free evening, and nobody could reconstruct it
+afterwards except by reading timestamps out of a database. Instead the page works
+out a fixed assignment from the pair file itself, before anyone starts: the fifty
+shared pairs go to everyone, the other two hundred and fifty are dealt out
+alternately, so each person ends up doing exactly a hundred and seventy-five.
+
+**Who does the page think you are?** It needs to know, because every answer has
+to be stamped with somebody's id. The easy plan is a text box — type your name,
+press go. That is exactly the wrong answer for this project, for two reasons.
+First, our rule is that this database never holds anything that could identify a
+real person, and a text box is an open invitation to type one in anyway. Second,
+and worse: if the box still says "Pranav" from his last turn and Diya starts
+labelling without changing it, her opinions get filed under his name, and the
+one number this whole exercise measures — do these two people actually agree —
+would be quietly measuring one person against a version of himself who never
+answered those pairs. So the id is given once, on the command line, when the
+page is started, and the page itself never asks.
+
+**How long did someone spend on each answer?** Worth recording, because a
+three-second answer and a forty-second answer are different kinds of judgement,
+and a slump around pair 250 would tell us something about fatigue. The page
+starts a stopwatch the moment a pair appears and stops it when a button is
+clicked. The wrinkle: someone opens a pair, gets up to make chai, comes back
+twenty minutes later and clicks. Without a cutoff, that would be recorded as
+twenty minutes of careful deliberation, which is a lie the data would then carry
+around forever. So past five minutes the page simply records "we don't know" —
+which is honest — rather than a number that sounds precise and is not.
+
+### The bug the cap didn't catch, and how it was found
+
+That five-minute cutoff works by comparing the elapsed time against 0 and against
+the limit. There is exactly one number for which both of those comparisons come
+back "no": NaN, the floating-point way of writing "not a number". By the rules of
+ordinary arithmetic, NaN is not less than zero and not more than five minutes —
+it fails both tests silently and would have sailed straight through the cap that
+was supposed to catch exactly this kind of nonsense value.
+
+It was never exploited and it was never guessed at — it was found by asking "what
+happens at the edges of this check" and then actually running a NaN through it
+and watching what came out. It came out as NaN, unrejected. The one thing that
+saved the data so far was pure luck: the database technology underneath happens
+to quietly turn NaN into "nothing recorded" on its own, for reasons that have
+nothing to do with our code. Relying on that luck was itself the problem — the
+fix makes the page reject NaN on its own terms, so the guarantee doesn't depend
+on an accident of somebody else's software.
+
+### What is still not done
+
+Nobody has been shown a real pair yet, because the script that turns nine
+trained agents into the actual shifts to compare — Pranav's box — has not been
+written. Everything downstream of that is finished and tested against pretend
+data built the same way the real data will look. When his script runs, the page
+meets the real file and the two hundred labelling sessions can begin.

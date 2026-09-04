@@ -70,7 +70,8 @@
 | `src/soc_triage/runner.py` | Run N episodes with a given agent + seed, emit `EpisodeRecord`s | Compute metrics |
 | `src/soc_triage/evaluation/` | Metrics, baseline comparison tables, plots, the reward-hacking audit | Train anything |
 | `src/soc_triage/rlhf/` | Phase 5a preference collection (FEATURE_011): `summary.py` renders an EpisodeRecord for a human to judge, `pairs.py` builds blinded same-seed pairs, `store.py` is the SQLite the labels land in, `agreement.py` is Cohen's kappa. `reward_model.py` (Bradley–Terry) is still to come in 5b. **Imports no agent, no env and no torch** — it reads EpisodeRecord dicts off disk, which is what keeps it runnable on a clone with no `results/` (D-037) | Show a labeller any reward number (D-039), or let a policy name reach `pairs.json` (D-038) |
-| `web/` | FastAPI backend + React dashboard + labelling UI | Contain any RL logic |
+| `src/soc_triage/labelling/` | The preference-labelling web page (FEATURE_012, Diya's box, brief §9): `queue.py` assigns and resumes, `render.py` draws the two panes as HTML, `app.py` is the two FastAPI routes. A **consumer** of `rlhf` only — imports `rlhf.store` and reads what `rlhf.pairs` writes; `rlhf` imports nothing back. Lives here rather than under `web/` because `tests/conftest.py` only ever puts `src/` on the path, and `web/` stays reserved for the Phase 6 React dashboard | Read `pairs_key.json` (D-038), let a request body set its own `labeller_id` (D-041), or trust a client-reported timer value past the cap without re-checking it server-side (D-042) |
+| `web/` | React dashboard (Phase 6, not built) | Contain any RL logic, or duplicate the labelling UI — that already exists under `labelling/` |
 
 **The rule this table encodes:** the environment never knows which agent is acting, and the agents never reach inside the environment. They communicate only through `(state, action, reward, next_state, done, info)`. Keep that boundary clean and every algorithm becomes swappable — which is the entire point, since we're implementing six of them.
 
@@ -131,16 +132,21 @@ RLPROJECT/                     ← D:\RLPROJECT on the current device
 │   │   ├─ compare.py
 │   │   ├─ plots.py
 │   │   └─ audit.py            ← the reward-hacking experiments
-│   └─ rlhf/                   ← Phase 5a, FEATURE_011
-│       ├─ summary.py          ← EpisodeRecord rendered for a human; no reward shown
-│       ├─ pairs.py            ← blinded same-seed pairs from EpisodeRecords
-│       ├─ store.py            ← SQLite label storage (gitignored, irreplaceable)
-│       ├─ agreement.py        ← Cohen's kappa, by hand
-│       └─ reward_model.py     ← Bradley–Terry MLP (5b, not built)
+│   ├─ rlhf/                    ← Phase 5a, FEATURE_011
+│   │   ├─ summary.py          ← EpisodeRecord rendered for a human; no reward shown
+│   │   ├─ pairs.py            ← blinded same-seed pairs from EpisodeRecords
+│   │   ├─ store.py            ← SQLite label storage (gitignored, irreplaceable)
+│   │   ├─ agreement.py        ← Cohen's kappa, by hand
+│   │   └─ reward_model.py     ← Bradley–Terry MLP (5b, not built)
+│   └─ labelling/               ← Phase 5a, FEATURE_012, Diya's box
+│       ├─ queue.py             ← assignment (D-040), resume, progress
+│       ├─ render.py            ← the two panes as HTML, both blinding guards
+│       └─ app.py               ← GET / and POST /label
 ├─ tests/
 ├─ scripts/                    ← thin CLI entry points, no logic
+│   └─ label_ui.py             ← serves labelling/app.py for one --labeller
 ├─ results/                    ← gitignored except .gitkeep
-└─ web/                        ← FastAPI + React (Phase 5+, optional)
+└─ web/                        ← React dashboard (Phase 6, not built)
 ```
 
 ---
@@ -254,7 +260,7 @@ trainers now record `episode_steps`; the agents consume samples at very differen
 | 2 | **all built ✅** — `tiny_mdp`, `agents/tabular`, `agents/q_learning`, `agents/sarsa`, `agents/monte_carlo`, `scripts/train.py`, `scripts/policy_table.py`, `scripts/compare_agents.py`, `scripts/ablations.py` |
 | 3 | **all built ✅, no training result yet** — `agents/dqn`, `agents/replay`, `scripts/train_dqn.py`, `scripts/run_dqn_sweep.py`, `scripts/aggregate_dqn.py`, `scripts/compare_dqn_tabular.py`, `scripts/dqn_ablations.py` |
 | 4 | 🟡 `agents/reinforce` **built + tested, unmeasured** (FEATURE_008, E-018), `scripts/train_reinforce.py`; still to come: `agents/actor_critic`, the sample-efficiency comparison, the variance demonstration |
-| 5 | 🟡 **5a data layer built + tested** (FEATURE_011) — `rlhf/summary`, `rlhf/pairs`, `rlhf/store`, `rlhf/agreement`, `scripts/report_kappa.py`, `config.RLHFConfig`; still to come: `scripts/generate_pairs.py`, the labelling UI (Diya, brief §9), `rlhf/reward_model` (5b), 5c re-training |
+| 5 | 🟡 **5a data layer + labelling UI built + tested** (FEATURE_011, FEATURE_012) — `rlhf/summary`, `rlhf/pairs`, `rlhf/store`, `rlhf/agreement`, `labelling/queue`, `labelling/render`, `labelling/app`, `scripts/report_kappa.py`, `scripts/label_ui.py`, `config.RLHFConfig`; still to come: `scripts/generate_pairs.py` (Pranav), the 350 real judgements, `rlhf/reward_model` (5b), 5c re-training |
 | 6 | `evaluation/audit`, `evaluation/plots` |
 
 Nothing from a later phase should be needed to run an earlier phase. If Phase 5 breaks, Phase 2's results must still reproduce.
