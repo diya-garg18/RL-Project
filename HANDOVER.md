@@ -7,7 +7,45 @@
 
 ---
 
-## PHASE 5a - DATA LAYER BUILT AND TESTED, NOTHING LABELLED YET (2026-09-04, session 12)
+## PHASE 5a - LABELLING UI BUILT AND TESTED, STILL NOTHING LABELLED (2026-09-05, session 13)
+
+> Diya's box (`PROJECT_BRIEF.md` §9, `ROADMAP.md` 5a box 5). Every claim below was
+> run this session and the output is quoted. It is a code deliverable, not a
+> result — the result is 350 human judgements and none exist yet.
+
+**Built, tested, committed, pushed — `src/soc_triage/labelling/` (FEATURE_012, D-040 to D-044):**
+
+| module | what it does | tests |
+|---|---|---|
+| `queue.py` | assignment (50 doubles to everyone, 250 singles round-robin — 175 judgements each), resume, progress, `load_pairs` + the `pairs_key.json` refusal | 33 |
+| `render.py` | the two panes as HTML, plain string building + `html.escape`, both blinding guards | 21 |
+| `app.py` | `GET /` and `POST /label`; labeller id closed over at launch, refresh-safe, timer cap re-applied server-side | 25 |
+| `scripts/label_ui.py` | the launcher — no test covers it (nothing else needs FastAPI end to end), verified by running it instead | — |
+| `RLHFConfig` +4 keys, validation | `labellers`, `max_seconds_per_pair`, `ui_host`, `ui_port` — 7 new rules | 11 (15→26) |
+
+**Measured this session:**
+
+- `.\.venv\Scripts\python.exe -m pytest tests/ -q` → **376 passed in 398.84s**
+  (was 286; +90 = 33+21+25+11). No regression in the 286 that existed.
+- The three labelling modules alone: `test_labelling_queue.py` + `test_labelling_render.py`
+  in **0.20s + 0.12s** — neither imports an agent, the env, or torch. `test_labelling_app.py`
+  in **1.53s**, the one file that needs `httpx2` (D-043).
+- End to end against a real `uvicorn` serve (fixture pairs, not `results/`): a real
+  GET returned no policy name and no reward, a real POST stored one row with
+  `seconds_taken 21.5`, and replaying the same POST left the row count at **1**,
+  not 2. Full output logged in `docs/features/FEATURE_012_labelling_ui.md` §13.
+- Found and fixed **D-044** while writing this up: `_clean_seconds`'s range check
+  let `NaN` through (`nan < 0` and `nan > cap` are both `False` in IEEE 754), and
+  it only read back as `None` by an undocumented SQLite quirk, not by the code's
+  own logic. Fixed with an explicit `value != value` check; test calls the
+  function directly so the fix doesn't depend on that quirk either.
+
+**Still true from Phase 5a's first half:** nothing has been labelled, so there is
+still no κ and no result. `scripts/generate_pairs.py` — Pranav's box, needs the
+nine trained policies present on his machine — is still not built and is the only
+thing standing between this and real labelling sessions.
+
+### What is left in 5a, and whose it is
 
 > Every claim below was run this session and the output is quoted. Nothing here
 > is a measured *result*, because Phase 5a's result is human labels and none
@@ -104,6 +142,30 @@ governs. Fourth consecutive phase, and the pattern is the finding.
 
 ---
 
+## Watch out for - this machine (added 2026-09-05)
+
+**BUG_001's stray files are still live, and this session's names show the pattern
+more clearly than before: `10`, `dict`, `200,+page`, `` ` `) ``.** Each one is a
+token or fragment lifted from written prose immediately after `->` or a similar
+shell-meaningful sequence. Zero-byte, harmless, but they will be committed by
+`git add -A`. This session ran `git status --porcelain` before every stage and
+`rm -f` on whatever showed up - five caught, zero committed. Keep doing that
+rather than trusting the pattern to stop.
+
+**`pip install httpx2` on this machine pulled two packages with it**,
+`httpcore2==2.12.0` and `truststore==0.10.4`, neither pinned explicitly in
+`requirements.txt`. If the other machine's install behaves differently, pin them
+too rather than debugging a version mismatch blind.
+
+**A background "security review" notification fired on the `training_validation.py`
+commit and its body arrived corrupted** - only the one-line summary ("parser-differential")
+survived; the actual finding text never rendered. Re-deriving the claim from
+scratch rather than trusting it found a real bug of that general class, but in
+`labelling/app.py`, not the named file: `_clean_seconds`'s range check let `NaN`
+through the D-042 timer cap (fixed as D-044). If this notification type fires
+again with a corrupted body, don't dismiss it and don't blindly act on the
+one-line summary either - verify the specific claim yourself first.
+
 ## Watch out for - this machine (added 2026-09-04)
 
 **Zero-byte junk files keep appearing in the repo root during a session.** Four appeared on 2026-09-04 (`JSON-serialisable`, `cheaper`, `blinded`, `4`, `100000`, `{width`) - the BUG_001 pattern, still live. Each name is the token immediately after a `->` or a `>` in text that passed through the session, so prose containing an arrow appears to be reaching a shell. They are always empty and always harmless, **but they will be committed if you use `git add -A`.** Run `git status --short` after every commit and `rm -f` what shows up. Staging explicit paths, never `-A`, is what kept them out of the tree this session.
@@ -136,45 +198,37 @@ with `powercfg /change standby-timeout-ac 60`.
 
 | | |
 |---|---|
-| **Last session** | 2026-09-04 (session 12, on Pranav's PC) |
-| **Model** | Claude Opus 5 |
+| **Last session** | 2026-09-05 (session 13, on Diya's PC) |
+| **Model** | Claude Sonnet 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022, confirmed final by **D-033**). |
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020, confirmed final by **D-033**). Nothing outstanding - the 'unfinished item' was an unticked parent checkbox, corrected 2026-09-01. |
 | **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
 | **Phase 4** | **CLOSED as built-but-not-passed** (E-022, E-023, 2026-09-04). Both learners measured at full budget, box 3 run, verdict recorded in ROADMAP. Only the optional PPO box is unbuilt. |
-| **Phase 5** | **5a data layer BUILT + TESTED** (FEATURE_011, D-037 to D-039). Nothing labelled yet, so no 5a *result* exists. Next code: `scripts/generate_pairs.py` (Pranav); next after that: the labelling UI (**Diya**, brief §9). |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. **Everything is PUSHED.** `origin/master` is `37f4131`, identical to local HEAD, verified with `git ls-remote`. The 24 commits that had been stuck (14 from session 11 + 10 from session 12) went up at the very end of session 12 when the network returned. Nothing is outstanding. |
-| **Tests passing** | **286/286** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`), measured 2026-09-04 at **126.49s**. Up from 200 - the 86 new tests are the Phase 5a files. Wall time still varies with machine load (56s to 8m49s observed on the old 200); budget for the worst case. |
-| **Blockers** | **Nothing.** One decision is owed before `generate_pairs.py` is written: which training repeat each multi-run learner shows in the pair set (REINFORCE's five differ by 0.7763 +- 0.0833; three reproduce severity_sort exactly, so it is not a cosmetic choice). That is a decision, not a blocker - nothing stops building. |
+| **Phase 5** | **5a data layer + labelling UI BUILT + TESTED** (FEATURE_011, FEATURE_012, D-037 to D-044). Nothing labelled yet, so no 5a *result* exists. Next code: `scripts/generate_pairs.py` (**Pranav** — needs the nine trained policies present on his machine, and the training-repeat decision from session 12). After that: the 350 real labelling sessions, both of you. |
+| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. **Everything is PUSHED.** `origin/master` is `708e0fb`, identical to local HEAD. All 9 commits from this session went up cleanly at the end. |
+| **Tests passing** | **376/376** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`), measured 2026-09-05 at **398.84s (6m 38s)** on this machine. Up from 286 - the 90 new tests are the labelling UI. An earlier run of the pre-existing 286 on this same machine took **486.73s (8m 6s)**, against 126.49s on Pranav's - the machine-to-machine spread is still very real; budget for the worst case regardless of whose laptop it is. |
+| **Blockers** | **Nothing.** The training-repeat decision noted in session 12 (which of REINFORCE's five runs to show, since three reproduce severity_sort exactly and two do not) is still owed before `generate_pairs.py` is written, but nothing stops other work. |
 
 ---
 
 ## 🔑 STARTING THE NEXT SESSION - do these first, in order
 
-> **Rewritten 2026-09-04 at the end of session 12. Read this, not the paragraph that
-> used to be here.** The claim it used to make - that everything was pushed and
-> Diya was ahead - was false for most of session 12 and is now true again for
-> the first half only: **everything IS pushed** (`origin/master` = `37f4131`),
-> but the balance has flipped - `scripts/commit_balance.py` on 2026-09-04 reports **IMBALANCED,
-> Pranav 5 ahead, Diya should take the next block**. That is convenient rather
-> than awkward: the next unbuilt 5a box is the labelling UI, which
-> `PROJECT_BRIEF.md` §9 already assigns to Diya.
+> **Rewritten 2026-09-05 at the end of session 13.** Everything is pushed and the
+> balance is **exactly BALANCED, 55/55** - `scripts/commit_balance.py` says
+> either person may take the next block. The next unbuilt 5a box,
+> `scripts/generate_pairs.py`, needs the nine trained policies that exist only
+> on **Pranav's** machine, so it is naturally his even though the balance does
+> not force it.
 
-**1. Get the work.** **24 commits were pushed at the end of session 12** (14 that had been stranded since session 11, plus session 12's 10). `origin/master` is
-`37f4131`.
-
-```powershell
-git checkout master          # the default branch is master, NOT main
-git pull
-git log --oneline -1         # newest should be: docs: TEST_CHECKLIST gains the Phase 5a ...
-```
+**1. Get the work.** **9 commits were pushed at the end of session 13.**
+`origin/master` is `708e0fb`.
 
 ```powershell
 cd <your RL-Project folder>
 git checkout master          # the default branch is master, NOT main
 git pull
-git log --oneline -15       # newest should be: phase4: clear the stray files ...
+git log --oneline -1         # newest should be: phase5: field guide docs for the labelling UI...
 ```
 
 **2. Set up the environment** (first time only, or if `pytest` fails to import):
@@ -191,8 +245,8 @@ approval (CONSTRAINTS #8).
 **3. Prove the repo is healthy before writing anything:**
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 200 passed
-python scripts/commit_balance.py                  # expect: IMBALANCED, Diya ahead
+.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 376 passed
+python scripts/commit_balance.py                  # expect: BALANCED, 55/55
 ```
 
 **Suite timing is NOT stable, and the old "~8 min" figure was misleading.** The same
