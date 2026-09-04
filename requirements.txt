@@ -14,6 +14,12 @@ torch==2.13.0
 fastapi==0.141.1
 uvicorn==0.52.2
 
+# Test-only, approved by Diya 2026-09-05 (D-043, CONSTRAINTS #8). FastAPI's
+# TestClient refuses to import without it, so the labelling routes would
+# otherwise be unverifiable. Pulls httpcore2 and truststore with it — this is
+# not a single-package install on a fresh machine.
+httpx2==2.12.0
+
 # Phase 6 — Cohen's kappa, statistical checks
 scikit-learn==1.9.0
 
