@@ -83,7 +83,7 @@ with `powercfg /change standby-timeout-ac 60`.
 | **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
 | **Phase 4** | **CLOSED as built-but-not-passed** (E-022, E-023, 2026-09-04). Both learners measured at full budget, box 3 run, verdict recorded in ROADMAP. Only the optional PPO box is unbuilt. |
 | **Phase 5** | Not started. **This is the next block.** Nothing in it depends on Phase 4 (CONSTRAINTS #11). |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. 13 commits in session 11, **all pushed**. |
+| **Repo state** | `D:\RLPROJECT`, branch `master`. 14 commits in session 11, **NOT PUSHED - push failed 2026-09-04**: DNS was down on this machine (`Could not resolve host: github.com`, `nslookup` timed out). The commits are safe in local git. **Run `git push origin master` as soon as the network is back** - nothing else is outstanding. |
 | **Tests passing** | **200/200** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
 | **Blockers** | Nothing blocks building. **Both decisions are TAKEN: D-033** (gates stay as written) **and D-036** (Phase 4 reports the sampled policy for policy gradient, greedy for value-based). D-036 obliges a sampled-eval path in both Phase 4 trainers **before** any full run. |
 
