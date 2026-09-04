@@ -34,6 +34,7 @@ def validate_training_config(
     dqn,
     reinforce,
     actor_critic,
+    rlhf,
 ) -> None:
     """Raise ConfigError on any setting that would fail as a bad RESULT rather
     than as an error.
@@ -256,4 +257,90 @@ def validate_training_config(
         raise ConfigError(
             "'dp.estimation_seed_start' must be >= 10000 to stay clear of the "
             "train (1-10), eval (101-130), and calibration (1000-3099) seed blocks"
+        )
+
+
+    # ------------------------------------------------------------------
+    # Phase 5a checks (FEATURE_011). Each one fails as a bad RESULT rather
+    # than as an error, which is the criterion for belonging in this file.
+    # ------------------------------------------------------------------
+
+    # The pair block is a seed block like any other, and the one whose collision
+    # would be least visible: pairs built on a learner's own training seeds
+    # would show labellers the exact shifts that learner was fitted to.
+    if rlhf.pair_seed_start < 100_000:
+        raise ConfigError(
+            "'rlhf.pair_seed_start' must be >= 100000 to stay clear of the "
+            "train, eval, calibration and DP estimation seed blocks"
+        )
+    other_blocks = set(seed_starts.values()) | {
+        dqn.ablation_seed_start,
+        reinforce.ablation_seed_start,
+        reinforce.clip_experiment_seed_start,
+        actor_critic.entropy_experiment_seed_start,
+    }
+    if rlhf.pair_seed_start in other_blocks:
+        raise ConfigError(
+            f"'rlhf.pair_seed_start' ({rlhf.pair_seed_start}) must differ from "
+            f"every other seed block: {sorted(other_blocks)}"
+        )
+
+    if rlhf.target_pairs < 1:
+        raise ConfigError("'rlhf.target_pairs' must be at least 1")
+    if rlhf.n_pair_seeds < 2:
+        raise ConfigError(
+            "'rlhf.n_pair_seeds' must be at least 2 — one alert stream would "
+            "make every pair a comparison on the same shift"
+        )
+    if not 0 <= rlhf.double_labelled_pairs <= rlhf.target_pairs:
+        raise ConfigError(
+            f"'rlhf.double_labelled_pairs' ({rlhf.double_labelled_pairs}) must be "
+            f"between 0 and 'target_pairs' ({rlhf.target_pairs})"
+        )
+    if rlhf.double_labelled_pairs < 2:
+        # Cohen's kappa over fewer than two shared pairs is undefined
+        # (rlhf/agreement.py), and a config that guarantees an undefined kappa
+        # is a config that guarantees the ROADMAP 5a box cannot be ticked.
+        raise ConfigError(
+            "'rlhf.double_labelled_pairs' must be at least 2 or Cohen's kappa "
+            "is undefined by construction"
+        )
+
+    if not rlhf.pair_must_share_seed:
+        # Same shape of guard as 'dqn.loss must be huber': flipping this key
+        # would not raise anywhere, it would silently produce pairs whose two
+        # sides ran different alert streams, and every preference collected
+        # afterwards would be a judgement about luck.
+        raise ConfigError(
+            "'rlhf.pair_must_share_seed' must be true — a pair whose sides ran "
+            "different alert streams compares luck, not policies"
+        )
+
+    if len(rlhf.policies) < 2:
+        raise ConfigError("'rlhf.policies' needs at least 2 policies to pair")
+    if len(set(rlhf.policies)) != len(rlhf.policies):
+        raise ConfigError(f"'rlhf.policies' contains duplicates: {rlhf.policies}")
+    if "oracle_greedy" in rlhf.policies:
+        # The oracle reads is_true_incident by design (baselines.py, the
+        # sanctioned CONSTRAINTS #1 exception). It would win nearly every pair,
+        # and a pair whose answer is a foregone conclusion costs a labeller
+        # twenty seconds while teaching the Bradley-Terry model almost nothing:
+        # the logistic loss has vanishing gradient exactly where the prediction
+        # is already confident and correct.
+        raise ConfigError(
+            "'rlhf.policies' must not include 'oracle_greedy' — it sees ground "
+            "truth, so its pairs are foregone conclusions and carry almost no "
+            "preference signal"
+        )
+
+    # The arithmetic, done here rather than discovered after generating the
+    # episodes: n policies give n*(n-1)/2 unordered pairings, each of which can
+    # appear once per seed.
+    n_pairings = len(rlhf.policies) * (len(rlhf.policies) - 1) // 2
+    capacity = n_pairings * rlhf.n_pair_seeds
+    if rlhf.target_pairs > capacity:
+        raise ConfigError(
+            f"'rlhf.target_pairs' ({rlhf.target_pairs}) exceeds the {capacity} "
+            f"distinct pairs available: {n_pairings} policy pairings x "
+            f"{rlhf.n_pair_seeds} seeds. Raise 'n_pair_seeds' or lower the target."
         )

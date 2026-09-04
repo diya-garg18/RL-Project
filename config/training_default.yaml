@@ -203,3 +203,23 @@ rlhf:
   target_pairs: 300
   double_labelled_pairs: 50    # labelled by BOTH annotators, for Cohen's kappa
   pair_must_share_seed: true   # invalid data otherwise — assert it, don't trust it
+  # Phase 5a additions (FEATURE_011, session 12).
+  pair_seed_start: 3000000     # own block (D-016 convention). NOT the eval block:
+                               # the reward model is fitted to human judgements of
+                               # these episodes and Phase 5c re-trains on it, so
+                               # labelling eval episodes would launder eval-seed
+                               # information into the reward a policy maximises.
+  n_pair_seeds: 12             # 12 seeds x 36 policy pairings = 432 candidates,
+                               # comfortably above target_pairs. Twelve rather
+                               # than the 10 train seeds so no labeller sees the
+                               # same shift thirty times across 300 pairs.
+  pair_sampling_seed: 20260904 # RNG for allocation, side-swap and double-label
+                               # choice. Fixed so a rebuild is byte-identical --
+                               # labels reference pair_id, so renumbering would
+                               # silently repoint every label already collected.
+  policies:                    # 9 policies, 36 unordered pairings. oracle_greedy
+                               # is excluded on purpose: it reads ground truth, so
+                               # its pairs are foregone conclusions and the
+                               # Bradley-Terry gradient there is ~0.
+    [random, severity_sort, dp, q_learning, sarsa, monte_carlo, dqn, reinforce,
+     actor_critic]

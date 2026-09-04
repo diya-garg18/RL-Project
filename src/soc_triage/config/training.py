@@ -160,6 +160,32 @@ class ActorCriticConfig:
 
 
 @dataclass(frozen=True)
+class RLHFConfig:
+    """Phase 5a preference collection (FEATURE_011).
+
+    `pair_seed_start` is a block of its own, following the D-016 convention,
+    and it must not be the eval block. The reward model is fitted to human
+    judgements of these episodes and Phase 5c re-trains policies on that reward
+    model; if the labelled episodes were eval episodes, human judgement of
+    eval-seed outcomes would end up inside the reward the policy maximises.
+    That is CONSTRAINTS #2 violated through a person rather than through code,
+    and no test downstream would catch it.
+
+    `pair_must_share_seed` is a key rather than a constant so the intent is
+    visible in the YAML, but it is validated to True — a pair whose two sides
+    ran different alert streams compares luck, not policies.
+    """
+
+    target_pairs: int
+    double_labelled_pairs: int
+    pair_must_share_seed: bool
+    pair_seed_start: int
+    n_pair_seeds: int
+    pair_sampling_seed: int
+    policies: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class TrainingConfig:
     common: CommonTrainingConfig
     dp: DPConfig
@@ -171,6 +197,7 @@ class TrainingConfig:
     dqn: DQNConfig
     reinforce: ReinforceConfig
     actor_critic: ActorCriticConfig
+    rlhf: RLHFConfig
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
@@ -286,6 +313,22 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         ),
     )
 
+    # Phase 5a section (FEATURE_011). Read now because Phase 5 is the current
+    # block; nothing earlier reads it, so an older phase still loads if this
+    # section is absent from a hand-edited config -- except that _require makes
+    # it mandatory, which is the right trade: a missing rlhf block means someone
+    # is running Phase 5 against a stale config.
+    rlhf_raw = _require(raw, "rlhf", "training")
+    rlhf = RLHFConfig(
+        target_pairs=int(_require(rlhf_raw, "target_pairs", "rlhf")),
+        double_labelled_pairs=int(_require(rlhf_raw, "double_labelled_pairs", "rlhf")),
+        pair_must_share_seed=bool(_require(rlhf_raw, "pair_must_share_seed", "rlhf")),
+        pair_seed_start=int(_require(rlhf_raw, "pair_seed_start", "rlhf")),
+        n_pair_seeds=int(_require(rlhf_raw, "n_pair_seeds", "rlhf")),
+        pair_sampling_seed=int(_require(rlhf_raw, "pair_sampling_seed", "rlhf")),
+        policies=tuple(str(p) for p in _require(rlhf_raw, "policies", "rlhf")),
+    )
+
     validate_training_config(
         common=common,
         dp=dp,
@@ -297,6 +340,7 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         dqn=dqn,
         reinforce=reinforce,
         actor_critic=actor_critic,
+        rlhf=rlhf,
     )
 
     return TrainingConfig(
@@ -310,4 +354,5 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         dqn=dqn,
         reinforce=reinforce,
         actor_critic=actor_critic,
+        rlhf=rlhf,
     )
