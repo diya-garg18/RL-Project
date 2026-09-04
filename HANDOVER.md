@@ -108,7 +108,7 @@ governs. Fourth consecutive phase, and the pattern is the finding.
 
 **Zero-byte junk files keep appearing in the repo root during a session.** Four appeared on 2026-09-04 (`JSON-serialisable`, `cheaper`, `blinded`, `4`, `100000`, `{width`) - the BUG_001 pattern, still live. Each name is the token immediately after a `->` or a `>` in text that passed through the session, so prose containing an arrow appears to be reaching a shell. They are always empty and always harmless, **but they will be committed if you use `git add -A`.** Run `git status --short` after every commit and `rm -f` what shows up. Staging explicit paths, never `-A`, is what kept them out of the tree this session.
 
-**There was no network at all on this machine on 2026-09-04.** Not a GitHub problem and not a git problem: `nslookup github.com` timed out against the router (192.168.0.1) and `ping 8.8.8.8` lost 100% of packets. Every MCP server in the session also failed with `ENOTFOUND`. One `git ls-remote` did succeed early on and then never again, so **a single successful network call is not evidence the network is up** - retry the actual push before believing it.
+**The network on this machine went down for most of 2026-09-04 and came back at the end of the session** (the push succeeded on the final attempt). While it was down: Not a GitHub problem and not a git problem: `nslookup github.com` timed out against the router (192.168.0.1) and `ping 8.8.8.8` lost 100% of packets. Every MCP server in the session also failed with `ENOTFOUND`. One `git ls-remote` did succeed early on and then never again, so **a single successful network call is not evidence the network is up** - retry the actual push before believing it.
 
 **Mem Reduct will wreck a long run if "Working set" is ticked.** D-030 already
 recorded a DQN sweep going 27 min -> 195 min (7x) from this. In Mem Reduct's
@@ -144,31 +144,31 @@ with `powercfg /change standby-timeout-ac 60`.
 | **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
 | **Phase 4** | **CLOSED as built-but-not-passed** (E-022, E-023, 2026-09-04). Both learners measured at full budget, box 3 run, verdict recorded in ROADMAP. Only the optional PPO box is unbuilt. |
 | **Phase 5** | **5a data layer BUILT + TESTED** (FEATURE_011, D-037 to D-039). Nothing labelled yet, so no 5a *result* exists. Next code: `scripts/generate_pairs.py` (Pranav); next after that: the labelling UI (**Diya**, brief §9). |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. **22 commits unpushed** (14 from session 11 + 8 from session 12). **The push still fails and it is not git:** this machine had no network at all on 2026-09-04 - `nslookup github.com` timed out against the router at 192.168.0.1 and `ping 8.8.8.8` lost 100% of packets. The commits are safe in local git. **Run `git push origin master` as soon as the network is back** - nothing else is outstanding. |
+| **Repo state** | `D:\RLPROJECT`, branch `master`. **Everything is PUSHED.** `origin/master` is `37f4131`, identical to local HEAD, verified with `git ls-remote`. The 24 commits that had been stuck (14 from session 11 + 10 from session 12) went up at the very end of session 12 when the network returned. Nothing is outstanding. |
 | **Tests passing** | **286/286** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`), measured 2026-09-04 at **126.49s**. Up from 200 - the 86 new tests are the Phase 5a files. Wall time still varies with machine load (56s to 8m49s observed on the old 200); budget for the worst case. |
-| **Blockers** | **Nothing blocks building.** One decision is owed before `generate_pairs.py`: which training repeat each multi-run learner shows in the pair set (REINFORCE's five differ by 0.7763 +- 0.0833; three reproduce severity_sort exactly, so it is not a cosmetic choice). One thing blocks *handover*: the push. |
+| **Blockers** | **Nothing.** One decision is owed before `generate_pairs.py` is written: which training repeat each multi-run learner shows in the pair set (REINFORCE's five differ by 0.7763 +- 0.0833; three reproduce severity_sort exactly, so it is not a cosmetic choice). That is a decision, not a blocker - nothing stops building. |
 
 ---
 
 ## 🔑 STARTING THE NEXT SESSION - do these first, in order
 
 > **Rewritten 2026-09-04 at the end of session 12. Read this, not the paragraph that
-> used to be here.** Two things it used to say are now false: the work is **NOT**
-> pushed (22 commits sit in local git, see "Repo state"), and the balance has
-> flipped - `scripts/commit_balance.py` on 2026-09-04 reports **IMBALANCED,
+> used to be here.** The claim it used to make - that everything was pushed and
+> Diya was ahead - was false for most of session 12 and is now true again for
+> the first half only: **everything IS pushed** (`origin/master` = `37f4131`),
+> but the balance has flipped - `scripts/commit_balance.py` on 2026-09-04 reports **IMBALANCED,
 > Pranav 5 ahead, Diya should take the next block**. That is convenient rather
 > than awkward: the next unbuilt 5a box is the labelling UI, which
 > `PROJECT_BRIEF.md` §9 already assigns to Diya.
 
-**1. Get the work.** **Nothing has been pushed since 2026-08-25.** If you are on
-Diya's machine, `git pull` will bring nothing new until somebody with a working
-network runs `git push origin master` from Pranav's. Check first:
+**1. Get the work.** **24 commits were pushed at the end of session 12** (14 that had been stranded since session 11, plus session 12's 10). `origin/master` is
+`37f4131`.
 
 ```powershell
-git log --oneline -3   # newest on origin should be: phase5: scripts/report_kappa.py ...
+git checkout master          # the default branch is master, NOT main
+git pull
+git log --oneline -1         # newest should be: docs: TEST_CHECKLIST gains the Phase 5a ...
 ```
-
-If it is not, the push has not happened yet and there is no work to collect.
 
 ```powershell
 cd <your RL-Project folder>
