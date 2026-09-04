@@ -714,3 +714,102 @@ The pattern in plain English: **if you never check a setting's size against the 
 numbers it has to compete with, it is not a choice you made - it is an assumption you never
 tested.** Two of the three were only caught because a result looked wrong, which is a terrible way
 to find bugs. Phase 6's audit should check this directly.
+
+---
+
+## Part 13 - "Which policy are we even measuring?", and REINFORCE's answer (2026-09-04)
+
+Three things happened this session and they are all really the same question:
+**when we write down a number for an agent, what exactly is the thing that produced it?**
+
+### 13.1 A stochastic policy and its argmax are two different players
+
+Q-learning learns a table of values and then plays *the best action in every state*.
+The randomness during training (epsilon) is scaffolding; you throw it away at the end
+and what remains is the policy you meant to learn.
+
+REINFORCE and the actor-critic are not like that. They learn a **probability
+distribution over actions**. Rolling the dice *is* the policy. So you can read them two
+ways:
+
+- **Sampled** - let the agent roll its dice, like it does while training.
+- **Greedy (argmax)** - always take whichever action has the highest probability.
+
+These are genuinely different players. If the policy says "40% pull the worst alert,
+35% bulk-close, 25% something else", its argmax is a *pure* pull-the-worst-alert
+strategy - and the agent that earned the reward was playing the mixture, not the pure
+strategy.
+
+Our code was reporting the **argmax**, and E-019 found that in nine training runs out
+of nine the sampled policy earned positive reward while its own argmax scored around
+-515. That is not a small discrepancy; it flips the sign of the result.
+
+**The decision we took (D-036): report each algorithm as the policy its own maths
+optimises.** Value-based agents (Q-learning, SARSA, Monte Carlo, DQN) keep being
+reported greedy, because greedy is what their objective describes. Policy-gradient
+agents get reported **sampled**, because their objective is literally "the expected
+reward of the stochastic policy" - the argmax appears nowhere in it. The greedy reading
+is kept alongside as a diagnostic, never as the headline.
+
+We took that decision **before running anything**, which is the only honest moment to
+take it. Deciding after you have seen which reading scores better is choosing your
+result.
+
+### 13.2 The bug: we were reporting one run and calling it five
+
+Both Phase 4 trainers trained five agents and then evaluated **only the last one**. The
+other four were saved to disk and never looked at.
+
+Why that matters is subtle and it is the whole point of CONSTRAINTS #3. The number still
+came with a "± something", so it *looked* fine - but that spread described **how much
+the 30 evaluation shifts differ from each other**, not **how much one training run
+differs from another**. Those are different quantities, and only the second tells you
+whether the result would survive being redone.
+
+On a small test run the old code would have reported recall **0.8443** and reward
+**+47.5** - the best of three runs, picked by nothing but which one the loop happened to
+finish last - where the honest answer across all three was **0.3337 ± 0.3667** and
+**-379 ± 308**. The number it printed sat outside one standard deviation of the truth.
+Written up in `docs/bugs/BUG_004`.
+
+This is the same lesson as E-014, in a new costume: **a standard deviation you did not
+think about is not a safeguard.**
+
+### 13.3 What REINFORCE actually did: it reinvented the thing we were trying to beat
+
+The first full training run of any Phase 4 agent (E-022, 5 runs x 20,000 shifts, 25
+minutes).
+
+**Three of the five runs became `severity_sort` - our simplest hand-written baseline -
+to four decimal places.** severity_sort scores recall 0.8442676767..., and three runs
+scored 0.8443. Two of them matched its total reward as well, and both of those finished
+with a policy gradient of exactly **0.00**: the policy had hardened into one fixed
+strategy and stopped learning entirely.
+
+The other two runs did something different - and worse in the way that matters. They
+earned *more reward* (132 and 97, against severity_sort's 40) by **catching fewer
+incidents** (68% and 67%, against 84%). That is the reward-hacking story of this whole
+project appearing inside a single agent's own repeats: chase the number, drop the job.
+
+**Did it beat the baseline? No, and the reason is worth understanding.** On recall it is
+plainly worse (0.78 vs 0.84). On reward its average is higher - 70.5 vs 40.4 - but the
+gap of 30 is **smaller than the ±37.6 spread between its own runs**. An effect smaller
+than its own noise is not an effect. Phase 4 looks set to close *built-but-not-passed*
+like Phases 1, 2 and 3, and "a policy gradient method rediscovers the human heuristic
+and then stops" is a genuinely interesting thing to be able to say in a viva.
+
+### 13.4 The honest footnote that cost us a nice story
+
+The dramatic sampled-vs-argmax gap in 13.1 **disappears** once training is long enough.
+At 20,000 shifts the two readings agree closely (recall 0.7763 vs 0.7589). Looking back
+at the training log, the argmax is degenerate between roughly episode 1,000 and 2,000
+and healthy afterwards - and E-019, which found the dramatic gap, measured at **exactly
+1,500**.
+
+So the effect is real but it is a feature of an **undertrained** policy, not of
+policy-gradient evaluation in general. We are keeping D-036 - it is the right rule and
+it was decided at the right time - but we are not allowed to tell the exciting version
+of the story, because we checked and the exciting version is not true. Whether the
+actor-critic behaves the same way is still open: it has an entropy bonus specifically
+designed to keep its policy spread out, so it has a reason to differ that REINFORCE
+does not.
