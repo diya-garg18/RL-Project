@@ -24,11 +24,18 @@ the same moment earned strongly negative reward. E-020 found the same argmax
 degeneracy in the actor-critic at every entropy coefficient tested. **A
 stochastic policy's argmax is not that policy.**
 
-Which of the two Phase 4 should report is a decision the humans owe (HANDOVER,
-"Still owed"), and it must be taken before the numbers are looked at, not after.
-So this script plots both, labels both, and says in its own output that the
-choice is unresolved. Silently picking one would be taking the decision by
-default, in a script, which is precisely how it should not be taken.
+**That decision was taken on 2026-09-01 as D-036**, before any full Phase 4 run
+existed: each algorithm is reported as the policy its own objective optimised -
+SAMPLED for the policy-gradient agents, greedy for value-based ones. This script
+still plots and labels both, because the gap between them is itself a Phase 4
+finding, but the sampled curve is the reported one and the greedy curve is a
+diagnostic.
+
+Note the two agents differ sharply here (E-022, E-023). REINFORCE's argmax
+recovers by ~episode 2000 and the two readings then agree. The actor-critic's
+never does: at the full budget its greedy read is still recall 0.0022 against
+the sampled policy's 0.6316. Reported greedy, that agent looks totally
+collapsed; it is not.
 
 What it reports, and the honest denominator
 -------------------------------------------
@@ -87,6 +94,11 @@ def load_runs(subdir: str) -> list[dict]:
 
     runs: list[dict] = []
     for path in sorted(directory.glob("*.json")):
+        if path.name.endswith("_aggregate.json"):
+            # aggregate_phase4.py's output, not a run. It holds eval summaries
+            # rather than curves and has no episode_steps by design, so the
+            # "re-run the trainer" message below would be actively misleading.
+            continue
         payload = json.loads(path.read_text(encoding="utf-8"))
         if "episode_steps" not in payload:
             # An artefact from before episode_steps was recorded. Refused rather
@@ -193,11 +205,12 @@ def main() -> None:
         reached = f"{reach:,}" if reach is not None else "**NEVER REACHED**"
         print(f"| {label} | {total_steps:,} | {mean_final:.1f} | {reached} |")
 
-    print("\nBoth readings are plotted and NEITHER is endorsed. The sampled curve is")
-    print("what the agent collected from its own stochastic policy; the greedy points")
-    print("are argmax(pi) on the train-diagnostic seeds. E-019 found these disagree")
-    print("violently (positive sampled vs strongly negative greedy, 9 runs of 9), and")
-    print("which one Phase 4 reports is a decision the humans owe - see HANDOVER.")
+    print("\nBoth readings are plotted. The SAMPLED curve is the reported one")
+    print("(D-036): what the agent collected from its own stochastic policy. The")
+    print("greedy points are argmax(pi) on the train-diagnostic seeds, kept as a")
+    print("diagnostic. They disagree violently for the actor-critic even at the full")
+    print("budget - greedy recall 0.0022 against sampled 0.6316 (E-023) - so the")
+    print("greedy curve must never be quoted as that agent's result.")
 
     top.axhline(args.target, linestyle="--", linewidth=0.9, color="grey",
                 label=f"severity_sort = {args.target}")

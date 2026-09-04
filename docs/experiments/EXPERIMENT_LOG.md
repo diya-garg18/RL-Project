@@ -1396,3 +1396,119 @@ Full budget, 5 repeats, evaluated once on the 30-seed block after every training
 was made (CONSTRAINTS #2). These are reportable. The severity_sort figures they are
 compared against come from E-014's 30-seed block and were recomputed here at full
 precision rather than quoted from a rounded table.
+
+---
+
+## E-023 - the actor-critic's full run, box 3, and Phase 4's verdict - 2026-09-04
+
+**Model:** Claude Opus 5 · **Phase:** 4 · **Machine:** Pranav's PC · **Decisions applied:** D-036 (sampled is the headline, greedy is a diagnostic), D-033 (the criterion is not restated)
+
+Completes Phase 4's measurement. E-022 did REINFORCE; this does the actor-critic, the
+DQN re-run box 3 needed, and the sample-efficiency comparison itself.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\train_actor_critic.py --only-repeat <0..4> --no-plot   # x5, parallel
+.\.venv\Scripts\python.exe scripts\aggregate_phase4.py --agent actor_critic
+.\.venv\Scripts\python.exe scripts\compare_sample_efficiency.py
+```
+
+5 repeats x 20000 episodes, run as five parallel processes. Four finished in ~1.6 h; the
+fifth took until 14:59 (~4.5 h) because the machine was under memory pressure for part of
+the run. **Wall-clock only** - the runs are seeded and deterministic, so the slow repeat's
+numbers are unaffected.
+
+### 1. The actor-critic, across 5 runs
+
+| metric | SAMPLED (reported, D-036) | greedy (diagnostic) |
+|---|---|---|
+| recall_at_deadline | **0.6316 +- 0.0405** | **0.0022 +- 0.0027** |
+| total_reward | **-74.0169 +- 38.4720** | **-510.7322 +- 12.3752** |
+| mttd_min | 71.7669 +- 13.8813 | 0.4411 (defined on only 2 of 5 runs) |
+| wasted_minutes | 278.00 +- 27.83 | 0.1667 +- 0.3333 |
+| critical_misses | 0.1733 +- 0.0442 | 0.6867 +- 0.0163 |
+
+**This is the single strongest piece of evidence D-036 has produced, and it arrived after
+the decision rather than before it.** The greedy reading says the agent catches **0.2% of
+incidents** and scores -510.7 - indistinguishable from the Phase 3 BULK_CLOSE collapse.
+The sampled reading of *the same five agents at the same moment* says it catches
+**63.2%**. Had Phase 4 been reported through the `_GreedyView` the code shipped with, the
+actor-critic would have been written up as a total training failure. It is not one.
+
+### 2. And it settles the question E-022 left open, in the opposite direction
+
+E-022 found REINFORCE's sampled/greedy gap was a **transient**: its argmax is degenerate
+between roughly episodes 1000 and 2000 and healthy afterwards, so at the full budget the
+two readings agree (recall 0.7763 vs 0.7589). It explicitly flagged that the actor-critic
+might differ because its entropy bonus keeps the policy deliberately spread.
+
+**It differs, permanently.** The greedy diagnostic sat at -515.4 at every progress print
+from episode 500 to 20000 on all five repeats, and the final eval confirms it: greedy
+recall 0.0022. The mechanism is the entropy bonus doing exactly its job - a policy paid to
+stay spread never sharpens, so its argmax never stops being an arbitrary tie-break among
+near-equal probabilities.
+
+**The honest generalisation, which is narrower than either experiment alone suggests:**
+the sampled/greedy divergence is transient for a policy-gradient method left to sharpen on
+its own, and **permanent for one held open by an entropy bonus**. Neither E-019 (1500
+episodes) nor E-020 (80 episodes) could have distinguished those two cases.
+
+### 3. Box 3 - sample efficiency, reward against ENVIRONMENT STEPS
+
+| agent | env steps (mean/run) | final sampled reward | steps to reach 40.4 |
+|---|---|---|---|
+| DQN (Phase 3) | 2,781,629 | 30.8 | 294,545 |
+| **REINFORCE** | 1,846,450 | **61.4** | **9,273** |
+| actor-critic | 2,160,939 | -38.8 | 1,567,392 |
+
+Target line 40.4 = severity_sort's 30-seed mean (E-014).
+
+**REINFORCE reaches the baseline in 9,273 environment steps - 32x fewer than the DQN and
+169x fewer than the actor-critic.** That is the clear ordering the exit criterion asks
+for, and it is explainable: REINFORCE gets one large, unbiased, whole-trajectory update
+per shift and needs no value function to be correct first. The DQN must fill a replay
+buffer and bootstrap through a moving target. The actor-critic must learn a *critic* that
+is accurate before its advantage signal points anywhere useful, and it is simultaneously
+paying an entropy tax that keeps it from committing.
+
+The x-axis matters and this run proves it: the DQN averages **136-141 steps per shift**
+against REINFORCE's ~47. Plotted per episode, the DQN would have received a ~3x free
+advantage in apparent efficiency.
+
+### 4. Phase 4's verdict against the criterion, unchanged (D-033)
+
+> *"all three learners train to a policy beating severity-sort, and the sample-efficiency
+> plot shows a clear ordering you can explain."*
+
+**Clause 2: MET.** The ordering is clear, large, and explainable (section 3).
+
+**Clause 1: NOT MET, on all three counts.**
+
+| learner | reported reward | vs severity_sort 40.4 |
+|---|---|---|
+| REINFORCE | 70.52 +- 37.62 | higher, but the 30.1 gap is **inside its own spread** (E-022) |
+| actor-critic | **-74.02 +- 38.47** | clearly worse |
+| DQN | 30.8 final sampled | below the line |
+
+On recall none of them reaches severity_sort's 0.8443 either: 0.7763, 0.6316, and the
+DQN's 0.48 from E-017.
+
+**PHASE 4 CLOSES BUILT-BUT-NOT-PASSED.** That is the fourth consecutive phase to do so,
+and D-033 governs: the criterion is not restated, and the pattern of four unmet criteria
+is itself the reportable finding about how the criteria were written.
+
+**What Phase 4 actually established, which is worth more than a pass:**
+
+1. Policy gradient **rediscovers the human heuristic exactly** and stops (E-022: three
+   runs of five reproduce severity_sort to four decimals, two with a zero gradient).
+2. The textbook baseline variance reduction **did not replicate** (E-021, 1.00x);
+   bootstrapping's did (4.78x).
+3. **How you read a stochastic policy can invert its result** - and whether it can is
+   decided by the exploration mechanism, not by the algorithm family (sections 1-2).
+4. A clean, explainable sample-efficiency ordering with a 169x spread (section 3).
+
+### Status of these numbers
+
+Full budget, 5 repeats each, evaluated once on the 30-seed block after every training
+decision was already made (CONSTRAINTS #2). Reportable. The DQN runs are the regenerated
+ones carrying `episode_steps`; E-017's originals are preserved untouched at
+`results/dqn_runs/dqn_E017_preserved_no_episode_steps/` (CONSTRAINTS #4).

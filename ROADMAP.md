@@ -2,9 +2,9 @@
 
 Work top to bottom. Tick boxes as things are genuinely done (i.e. tested, not just written). Each phase ends with an **exit criterion** — a concrete, checkable statement. Do not start the next phase until the current one's exit criterion is met and `TEST_CHECKLIST.md` passes.
 
-**Current status (2026-08-25):**
+**Current status (2026-09-04):**
 - **THE GATE DECISION IS TAKEN (D-033, Diya, 2026-08-25).** The exit criteria for Phases 1, 2, 3 and 4 stay **exactly as written**, and a phase that fails its criterion closes *built-but-not-passed*. Four honest failures become the report's spine. This resolves the "still owed" item that had been blocking the write-up since Phase 1, and it covers Phase 4 in advance so the criterion cannot be adjusted after the numbers arrive.
-- **Phase 4** — **HALF BUILT.** REINFORCE (FEATURE_008) and actor-critic (FEATURE_009) are built and tested; boxes 3 and 4 are not written and **no full training run exists**. The shipped `entropy_coef` breaks the actor-critic until E-020 runs.
+- **Phase 4** — **CLOSED as built-but-not-passed** (E-022, E-023, 2026-09-04). All boxes done except the optional PPO. Both learners measured at full budget: REINFORCE reproduces severity_sort exactly in 3 runs of 5; the actor-critic scores recall 0.6316 sampled against 0.0022 greedy (D-036). Sample-efficiency ordering is clear — 9,273 / 294,545 / 1,567,392 steps to reach 40.4. Gate not met, not restated.
 - **Phase 0** — closed, gate **passes** on the 30-seed block (oracle strictly best on total reward, 168.0 vs 40.4). One piece of its amendment *rationale* is weakened by E-014, but the criterion itself holds.
 - **Phase 1** — **CLOSED as built-but-not-passed** (D-022). Criterion 2 falsified by E-014 (DP −201.2 on 30 seeds, not +305.9 on 5). Gate deliberately not amended a second time. E-015 then refuted the stated *cause* as well: DP never leaves its estimated core.
 - **Phase 2** — **CLOSED as built-but-not-passed.** All 8 boxes complete; exit criterion not met and deliberately not restated (D-020).
@@ -169,11 +169,31 @@ Final assessment on the **30-seed** eval block (D-019, E-014):
 
 - [x] `agents/reinforce.py` — Monte Carlo policy gradient, with a baseline for variance reduction *(FEATURE_008, E-018. Built and tested; **no full training run yet**.)*
 - [x] `agents/actor_critic.py` — separate actor and critic heads *(FEATURE_009, D-034, 18 tests. Bootstrapping is the criterion, not the head count. `entropy_coef` set to 1.0 from E-020.)*
-- [~] Sample-efficiency comparison: DQN vs REINFORCE vs actor–critic (reward vs environment steps) *(`scripts/compare_sample_efficiency.py` **built and smoke-verified**; the three trainers now record `episode_steps` so the x-axis is real rather than estimated — actor-critic takes ~88 steps/shift against REINFORCE's ~47, so per-episode plotting would have been wrong. **NOT YET RUN**: needs the full training runs, which are Pranav's machine.)*
+- [x] Sample-efficiency comparison: DQN vs REINFORCE vs actor–critic (reward vs environment steps) *(`scripts/compare_sample_efficiency.py` **built and smoke-verified**; the three trainers now record `episode_steps` so the x-axis is real rather than estimated — actor-critic takes ~88 steps/shift against REINFORCE's ~47, so per-episode plotting would have been wrong. **NOT YET RUN**: needs the full training runs, which are Pranav's machine.)* **RUN 2026-09-04 (E-023): REINFORCE reaches severity_sort's 40.4 in 9,273 environment steps, the DQN in 294,545, the actor-critic in 1,567,392.**
 - [x] Show REINFORCE's variance explicitly *(`scripts/variance_demo.py`, **E-021**. Measured: the coefficient std is 146.94 unbaselined, 147.68 baselined, 30.89 for the actor-critic. **The textbook baseline reduction did NOT replicate (1.00x)** — the value head is not accurate enough at this budget for it to pay off — while bootstrapping's 4.78x is structural. A negative result on the half everyone quotes, and the better interview answer for it.)*
 - [ ] *Optional, cut first if time is short:* PPO with clipped objective
 
 **Exit criterion:** all three learners train to a policy beating severity-sort, and the sample-efficiency plot shows a clear ordering you can explain.
+
+**PHASE 4 CLOSES BUILT-BUT-NOT-PASSED - 2026-09-04 (E-022, E-023).** The criterion is
+**not restated**; D-033 governs, as it did for Phases 1, 2 and 3. Fourth consecutive phase
+to close this way, and that pattern is itself the reportable finding.
+
+*Clause 2 (MET):* the sample-efficiency ordering is clear and explainable - REINFORCE
+reaches severity_sort's 40.4 in **9,273** environment steps, the DQN in **294,545**, the
+actor-critic in **1,567,392**.
+
+*Clause 1 (NOT MET, all three):* REINFORCE 70.52 +- 37.62 - above severity_sort's 40.44 but
+by less than its own spread; actor-critic **-74.02 +- 38.47**; DQN 30.8. None reaches
+severity_sort's recall of 0.8443 either (0.7763, 0.6316, 0.48).
+
+*What it established instead:* policy gradient **rediscovers severity_sort exactly** and
+stops (E-022 - three runs of five match it to four decimals, two with a vanished
+gradient); the textbook baseline variance reduction **did not replicate** while
+bootstrapping's did (E-021); and **how you read a stochastic policy can invert its result**
+- the actor-critic scores recall 0.6316 sampled against 0.0022 greedy, and whether that gap
+is transient or permanent depends on the exploration mechanism, not the algorithm family
+(E-023, D-036).
 
 ---
 
