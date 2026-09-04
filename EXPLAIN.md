@@ -813,3 +813,37 @@ of the story, because we checked and the exciting version is not true. Whether t
 actor-critic behaves the same way is still open: it has an entropy bonus specifically
 designed to keep its policy spread out, so it has a reason to differ that REINFORCE
 does not.
+
+### 13.5 The answer, and it is better than the question (2026-09-04)
+
+13.4 asked whether the actor-critic would behave like REINFORCE. It does not, and the
+contrast is the most useful thing Phase 4 produced.
+
+Run to the full 20,000 shifts, the actor-critic's two readings do not converge - they stay
+about as far apart as two readings can be:
+
+| | sampled (reported) | greedy (argmax) |
+|---|---|---|
+| incidents caught | **63.2%** | **0.2%** |
+| total reward | -74.0 | -510.7 |
+
+Read through its argmax, this agent looks like a total training failure - the same score a
+completely broken agent produced back in Phase 3. Read as the policy it actually is, it
+catches nearly two thirds of incidents. **Same five agents, same instant, same evaluation
+seeds.**
+
+**Why the two agents differ, which is the part to remember.** REINFORCE is left to sharpen
+on its own, so its probabilities eventually pile onto one action per state and the argmax
+becomes the policy. The actor-critic is paid a bonus for *staying* spread out (that is what
+the entropy term does, and it is there because without it the agent collapsed entirely). A
+policy that is paid to keep its options open never sharpens - so its argmax is forever just
+"whichever action happens to be a hair ahead", which is not a strategy anybody chose.
+
+So the honest lesson is narrower than "policy-gradient methods are tricky to evaluate":
+
+> Whether an agent's most-likely action is a fair summary of its policy depends on **how it
+> was made to explore**, not on which algorithm family it belongs to.
+
+And the practical one: we decided how to read these agents (D-036) **before** we had any of
+these numbers. Had we decided afterwards, with both columns visible, no reader could tell
+whether we picked the honest convention or the flattering one.

@@ -7,57 +7,67 @@
 
 ---
 
-## PHASE 4 - WHAT IS LEFT, and the one command that does it
+## PHASE 4 IS DONE - closed built-but-not-passed, 2026-09-04
 
-> Written 2026-09-04, session 11. Everything below is measured, not estimated,
-> unless it says otherwise.
+> Session 11. Every number below is measured. Nothing in Phase 4 is outstanding
+> except the optional PPO box, which ROADMAP marks "cut first if time is short".
 
-**Done this session:** D-036 (the greedy-vs-sampled decision), its sampled-eval
-path in both trainers, BUG_004 (both trainers were reporting a SINGLE training
-run), the `results/smoke/` guard Phase 4 never had, `aggregate_phase4.py`, and
-**E-022 - REINFORCE's first full run**.
+**Both learners measured at full budget (5 repeats x 20000 episodes each):**
 
-**Left to run:**
+| | REINFORCE (E-022) | actor-critic (E-023) | severity_sort |
+|---|---|---|---|
+| recall, SAMPLED | 0.7763 +- 0.0833 | 0.6316 +- 0.0405 | **0.8443** |
+| reward, SAMPLED | 70.52 +- 37.62 | -74.02 +- 38.47 | 40.44 |
+| recall, greedy | 0.7589 +- 0.1060 | **0.0022 +- 0.0027** | - |
+
+**Box 3 (E-023), steps to reach severity_sort's 40.4:** REINFORCE **9,273**, DQN
+**294,545**, actor-critic **1,567,392**.
+
+**Verdict: built-but-not-passed.** Clause 2 (clear ordering) met; clause 1 (beat
+severity_sort) not met by any of the three. Criterion NOT restated - D-033
+governs. Fourth consecutive phase, and the pattern is the finding.
+
+### The two things Phase 4 is worth reporting for
+
+1. **REINFORCE reproduces severity_sort exactly** - 3 runs of 5 match its recall
+   to four decimals (0.8443 vs 0.8442676767...), 2 also match its reward, and
+   both of those ended with a policy gradient of **0.00**.
+2. **How you read a stochastic policy can invert its result** - the actor-critic
+   is recall 0.6316 sampled vs 0.0022 greedy. And whether that gap is transient
+   or permanent depends on the **exploration mechanism, not the algorithm
+   family**: REINFORCE's closes by episode 2000, the actor-critic's never does,
+   because an entropy bonus pays the policy to stay spread.
+
+### What is actually left
 
 | item | state |
 |---|---|
-| DQN control re-run | **3 of 5 repeats complete** (`results/dqn_runs/dqn/repeat{0,1,2}.json`). Repeats 3-4 outstanding. The sweep skips completed repeats, so just re-run it. |
-| actor-critic full run | **not started.** ~3.3 h per repeat x 5 sequential. |
-| ROADMAP box 3 | `compare_sample_efficiency.py` - needs the two above |
-| Phase 4 verdict + close-out docs | needs box 3 |
+| PPO (box 5) | **optional**, ROADMAP says cut first. Not started, not needed. |
+| Phase 5 (RLHF) | the next block. Nothing in it depends on Phase 4 (CONSTRAINTS #11). |
 
-**Run this in a NORMAL PowerShell window, not inside Claude Code.** Background
-tasks launched from the Claude session were killed twice on 2026-09-04 (cause
-not established; a REINFORCE run and an hour-long DQN sweep survived earlier the
-same session, so it is not a blanket policy). A plain terminal is not subject to
-whatever that was.
+---
 
-```powershell
-cd D:\RLPROJECT
-$env:PYTHONIOENCODING = "utf-8"
-.\.venv\Scripts\python.exe -u scripts\run_dqn_sweep.py --control-runs 5 --ablation-runs 0 `
-    --max-parallel 1 --process-gb 0.35 --max-used-fraction 0.97
-.\.venv\Scripts\python.exe -u scripts\train_actor_critic.py --no-plot
-.\.venv\Scripts\python.exe -u scripts\compare_sample_efficiency.py
-```
+## Watch out for - this machine (added 2026-09-04)
 
-**Why `--max-parallel 1` and the lowered thresholds.** This machine ran out of
-memory during the sweep: available fell from 1,958 MB to **260 MB** with
-committed charge at **29.1 GB against a 43.7 GB limit**, i.e. paging. The
-sweep's default guard assumes 0.95 GB per process and 8-way parallelism (what
-E-017 used); measured usage here is **~310 MB per process**, so the thresholds
-above are matched to measurement rather than relaxed arbitrarily. **Do not raise
-`--max-parallel` unless `Get-Counter '\Memory\Available MBytes'` shows well
-over 2 GB free.** Five-way parallel would cut the actor-critic from ~16.7 h to
-~3.3 h and is worth doing if the machine is quiet.
+**Mem Reduct will wreck a long run if "Working set" is ticked.** D-030 already
+recorded a DQN sweep going 27 min -> 195 min (7x) from this. In Mem Reduct's
+Settings -> Memory cleaning, **untick "Working set"** and leave the rest as they
+are: System file cache, Standby list (without priority), Modified file cache and
+Registry cache are all reclaimable cache and are safe to clear. Leave the two
+asterisked entries (Modified page list, Standby list) unticked. With Working set
+off, a "Clean when above 90%" trigger is harmless. Verified 2026-09-04: five
+parallel training processes held a steady ~295 MB each with a CPU-to-wall ratio
+of ~1.04, i.e. no paging.
 
-**E-017's original DQN runs are preserved** at
-`results/dqn_runs/dqn_E017_preserved_no_episode_steps/` (90 files). They were
-moved, never deleted (CONSTRAINTS #4). They cannot feed box 3 because they
-predate `episode_steps`; that is the whole reason for the re-run.
+**Claude Code kills its own background tasks when the system is low on memory.**
+Confirmed by the kill notice: *"stopped because the system is running low on
+memory"*. This happened three times on 2026-09-04. **The training processes
+survive it - only the launching driver dies**, so check for output files before
+assuming a run was lost. For anything multi-hour, launch it from a normal
+PowerShell window rather than through Claude Code.
 
-**Sleep was disabled on AC power** to let long runs finish. Restore it with
-`powercfg /change standby-timeout-ac 60`.
+**Sleep was disabled on AC power** for the long runs (it was 60 min). Restore
+with `powercfg /change standby-timeout-ac 60`.
 
 ---
 
@@ -71,9 +81,9 @@ predate `episode_steps`; that is the whole reason for the re-run.
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022, confirmed final by **D-033**). |
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020, confirmed final by **D-033**). Nothing outstanding - the 'unfinished item' was an unticked parent checkbox, corrected 2026-09-01. |
 | **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
-| **Phase 4** | **REINFORCE MEASURED (E-022), actor-critic NOT.** REINFORCE's first full run is done and its criterion is **not met** - it reproduces severity_sort in 3 runs of 5. Actor-critic full run still owed; DQN re-run 3/5 done. See 'PHASE 4 - WHAT IS LEFT' below. |
-| **Phase 5** | Not started. Still Pranav's, but Phase 4 is being finished first (his call, 2026-09-04). |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. **9 commits this session, NOT PUSHED** - push before any handover. |
+| **Phase 4** | **CLOSED as built-but-not-passed** (E-022, E-023, 2026-09-04). Both learners measured at full budget, box 3 run, verdict recorded in ROADMAP. Only the optional PPO box is unbuilt. |
+| **Phase 5** | Not started. **This is the next block.** Nothing in it depends on Phase 4 (CONSTRAINTS #11). |
+| **Repo state** | `D:\RLPROJECT`, branch `master`. 13 commits in session 11, **all pushed**. |
 | **Tests passing** | **200/200** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
 | **Blockers** | Nothing blocks building. **Both decisions are TAKEN: D-033** (gates stay as written) **and D-036** (Phase 4 reports the sampled policy for policy gradient, greedy for value-based). D-036 obliges a sampled-eval path in both Phase 4 trainers **before** any full run. |
 
@@ -84,7 +94,7 @@ predate `episode_steps`; that is the whole reason for the re-run.
 > Rewritten 2026-08-25 at the end of session 10. Everything is pushed. The commit
 > balance is **IMBALANCED, Diya ahead** - see "Whose turn is it". **Phase 5 is Pranav's.**
 
-**1. Get the work.** 15 commits were pushed on 2026-08-25.
+**1. Get the work.** 13 commits were pushed on 2026-09-04 (session 11, Phase 4 finished).
 
 ```powershell
 cd <your RL-Project folder>
