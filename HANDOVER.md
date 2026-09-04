@@ -4,22 +4,77 @@
 >
 > This is **not** a changelog — it's a snapshot of the present. Overwrite stale entries rather than appending. (The permanent record lives in `DECISIONS.md` and `docs/experiments/EXPERIMENT_LOG.md`.)
 
+
+---
+
+## PHASE 4 - WHAT IS LEFT, and the one command that does it
+
+> Written 2026-09-04, session 11. Everything below is measured, not estimated,
+> unless it says otherwise.
+
+**Done this session:** D-036 (the greedy-vs-sampled decision), its sampled-eval
+path in both trainers, BUG_004 (both trainers were reporting a SINGLE training
+run), the `results/smoke/` guard Phase 4 never had, `aggregate_phase4.py`, and
+**E-022 - REINFORCE's first full run**.
+
+**Left to run:**
+
+| item | state |
+|---|---|
+| DQN control re-run | **3 of 5 repeats complete** (`results/dqn_runs/dqn/repeat{0,1,2}.json`). Repeats 3-4 outstanding. The sweep skips completed repeats, so just re-run it. |
+| actor-critic full run | **not started.** ~3.3 h per repeat x 5 sequential. |
+| ROADMAP box 3 | `compare_sample_efficiency.py` - needs the two above |
+| Phase 4 verdict + close-out docs | needs box 3 |
+
+**Run this in a NORMAL PowerShell window, not inside Claude Code.** Background
+tasks launched from the Claude session were killed twice on 2026-09-04 (cause
+not established; a REINFORCE run and an hour-long DQN sweep survived earlier the
+same session, so it is not a blanket policy). A plain terminal is not subject to
+whatever that was.
+
+```powershell
+cd D:\RLPROJECT
+$env:PYTHONIOENCODING = "utf-8"
+.\.venv\Scripts\python.exe -u scripts\run_dqn_sweep.py --control-runs 5 --ablation-runs 0 `
+    --max-parallel 1 --process-gb 0.35 --max-used-fraction 0.97
+.\.venv\Scripts\python.exe -u scripts\train_actor_critic.py --no-plot
+.\.venv\Scripts\python.exe -u scripts\compare_sample_efficiency.py
+```
+
+**Why `--max-parallel 1` and the lowered thresholds.** This machine ran out of
+memory during the sweep: available fell from 1,958 MB to **260 MB** with
+committed charge at **29.1 GB against a 43.7 GB limit**, i.e. paging. The
+sweep's default guard assumes 0.95 GB per process and 8-way parallelism (what
+E-017 used); measured usage here is **~310 MB per process**, so the thresholds
+above are matched to measurement rather than relaxed arbitrarily. **Do not raise
+`--max-parallel` unless `Get-Counter '\Memory\Available MBytes'` shows well
+over 2 GB free.** Five-way parallel would cut the actor-critic from ~16.7 h to
+~3.3 h and is worth doing if the machine is quiet.
+
+**E-017's original DQN runs are preserved** at
+`results/dqn_runs/dqn_E017_preserved_no_episode_steps/` (90 files). They were
+moved, never deleted (CONSTRAINTS #4). They cannot feed box 3 because they
+predate `episode_steps`; that is the whole reason for the re-run.
+
+**Sleep was disabled on AC power** to let long runs finish. Restore it with
+`powercfg /change standby-timeout-ac 60`.
+
 ---
 
 ## Snapshot
 
 | | |
 |---|---|
-| **Last session** | 2026-08-25 (session 10, on Diya's PC) |
+| **Last session** | 2026-09-04 (session 11, on Pranav's PC) |
 | **Model** | Claude Opus 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022, confirmed final by **D-033**). |
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020, confirmed final by **D-033**). Nothing outstanding - the 'unfinished item' was an unticked parent checkbox, corrected 2026-09-01. |
 | **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
-| **Phase 4** | **HALF BUILT.** REINFORCE (FEATURE_008) and actor-critic (FEATURE_009) both built and tested. Boxes 3 and 4 not written. **No full training run of either exists.** The shipped `entropy_coef` breaks the actor-critic. |
-| **Phase 5** | Not started. This is the next block, and it is Pranav's. |
-| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. 15 commits this session, **all pushed**. |
-| **Tests passing** | **195/195** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
+| **Phase 4** | **REINFORCE MEASURED (E-022), actor-critic NOT.** REINFORCE's first full run is done and its criterion is **not met** - it reproduces severity_sort in 3 runs of 5. Actor-critic full run still owed; DQN re-run 3/5 done. See 'PHASE 4 - WHAT IS LEFT' below. |
+| **Phase 5** | Not started. Still Pranav's, but Phase 4 is being finished first (his call, 2026-09-04). |
+| **Repo state** | `D:\RLPROJECT`, branch `master`. **9 commits this session, NOT PUSHED** - push before any handover. |
+| **Tests passing** | **200/200** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
 | **Blockers** | Nothing blocks building. **Both decisions are TAKEN: D-033** (gates stay as written) **and D-036** (Phase 4 reports the sampled policy for policy gradient, greedy for value-based). D-036 obliges a sampled-eval path in both Phase 4 trainers **before** any full run. |
 
 ---
@@ -52,7 +107,7 @@ approval (CONSTRAINTS #8).
 **3. Prove the repo is healthy before writing anything:**
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 195 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 200 passed
 python scripts/commit_balance.py                  # expect: IMBALANCED, Diya ahead
 ```
 
@@ -379,7 +434,7 @@ Plus: `HANDOVER.md` (this file) actually describes the current state, and no str
 ```powershell
 cd D:\RLPROJECT
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 195 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 200 passed
 
 python scripts/run_baselines.py                                   # fast
 python scripts/run_dp.py                                          # ~2.5 min
