@@ -225,6 +225,15 @@ worth keeping straight: the harnesses *choose a setting*, these *report a result
 |---|---|---|---|
 | `scripts/variance_demo.py` | 4 | drives the agents directly, short budget | **done** (E-021) |
 | `scripts/compare_sample_efficiency.py` | 3 | the trainers' JSON artefacts | built, needs the full runs |
+| `scripts/aggregate_phase4.py` | - | the trainers' per-repeat JSON artefacts | **new 2026-09-04** |
+
+`aggregate_phase4.py` is the Phase 4 counterpart to `aggregate_dqn.py`, needed because a
+`--only-repeat` process writes one run per file and correctly refuses to call a single run a
+result (CONSTRAINTS #3). It **re-evaluates nothing** - it applies `across_runs_summary` to
+summaries the trainers already computed against the eval seeds - and it deliberately has no code
+path that touches the environment, so it cannot drift into being a second, differently-configured
+evaluation of the same policies. Files predating D-036 carry only the old single `eval_summary`
+key and are refused rather than guessed at.
 
 `variance_demo.py` samples the coefficient multiplying `grad ln pi` under three conditions and is
 the only place the bias-variance trade is *measured* rather than described.
