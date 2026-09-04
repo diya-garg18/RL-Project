@@ -344,3 +344,62 @@ def validate_training_config(
             f"distinct pairs available: {n_pairings} policy pairings x "
             f"{rlhf.n_pair_seeds} seeds. Raise 'n_pair_seeds' or lower the target."
         )
+
+    # --- the labelling page (FEATURE_012, D-040 to D-042) -------------------
+
+    if len(rlhf.labellers) < 2:
+        # Same reason as double_labelled_pairs above: Cohen's kappa measures
+        # agreement BETWEEN annotators, so one annotator cannot produce it. Fail
+        # here rather than after 300 labels have been collected.
+        raise ConfigError(
+            f"'rlhf.labellers' needs at least two ids to measure agreement, "
+            f"got {list(rlhf.labellers)}"
+        )
+
+    if len(set(rlhf.labellers)) != len(rlhf.labellers):
+        raise ConfigError(
+            f"'rlhf.labellers' contains duplicates: {list(rlhf.labellers)}. Two "
+            "entries for one person would make kappa compare them with themselves"
+        )
+
+    if any(not name.strip() for name in rlhf.labellers):
+        raise ConfigError(
+            f"'rlhf.labellers' ids must be non-empty, got {list(rlhf.labellers)}"
+        )
+
+    # The round-robin in `labelling/queue.py` copes with a remainder, so this is
+    # a fairness check rather than a correctness one. It is here because an
+    # uneven split is the kind of thing nobody notices until the report has to
+    # say one person judged 84 pairs and the other 83.
+    single_label_pairs = rlhf.target_pairs - rlhf.double_labelled_pairs
+    if single_label_pairs % len(rlhf.labellers) != 0:
+        raise ConfigError(
+            f"the {single_label_pairs} single-label pairs "
+            f"({rlhf.target_pairs} target - {rlhf.double_labelled_pairs} "
+            f"double-labelled) do not divide evenly among "
+            f"{len(rlhf.labellers)} labellers"
+        )
+
+    if rlhf.max_seconds_per_pair < 1:
+        # At zero every answer would store seconds_taken as None and the column
+        # would silently stop carrying information at all.
+        raise ConfigError(
+            f"'rlhf.max_seconds_per_pair' must be at least 1 second, got "
+            f"{rlhf.max_seconds_per_pair}"
+        )
+
+    if not 1024 <= rlhf.ui_port <= 65535:
+        raise ConfigError(
+            f"'rlhf.ui_port' ({rlhf.ui_port}) must be between 1024 and 65535; "
+            "a local labelling page has no need of a privileged port"
+        )
+
+    if rlhf.ui_host in ("0.0.0.0", "::"):
+        # The page serves unlabelled shift data and writes to the one artefact
+        # in the project that cannot be regenerated. Any specific host is
+        # allowed; the wildcard is not.
+        raise ConfigError(
+            f"'rlhf.ui_host' must not be the wildcard {rlhf.ui_host!r} — the "
+            "labelling page would be reachable from the whole local network. "
+            "Use 127.0.0.1, or a specific address if that is genuinely intended"
+        )

@@ -174,6 +174,14 @@ class RLHFConfig:
     `pair_must_share_seed` is a key rather than a constant so the intent is
     visible in the YAML, but it is validated to True — a pair whose two sides
     ran different alert streams compares luck, not policies.
+
+    `labellers` is ordered, and the order is load-bearing: it fixes which
+    labeller gets which of the single-label pairs (D-040). Reordering it after
+    labelling has begun would hand every unanswered pair to the other person.
+
+    `ui_host` defaults to loopback and the wildcard is rejected in validation —
+    the page serves unlabelled shift data and writes to a database of
+    irreplaceable labels, neither of which belongs on a network.
     """
 
     target_pairs: int
@@ -183,6 +191,10 @@ class RLHFConfig:
     n_pair_seeds: int
     pair_sampling_seed: int
     policies: tuple[str, ...]
+    labellers: tuple[str, ...]
+    max_seconds_per_pair: int
+    ui_host: str
+    ui_port: int
 
 
 @dataclass(frozen=True)
@@ -327,6 +339,12 @@ def load_training_config(path: str | Path) -> TrainingConfig:
         n_pair_seeds=int(_require(rlhf_raw, "n_pair_seeds", "rlhf")),
         pair_sampling_seed=int(_require(rlhf_raw, "pair_sampling_seed", "rlhf")),
         policies=tuple(str(p) for p in _require(rlhf_raw, "policies", "rlhf")),
+        labellers=tuple(str(l) for l in _require(rlhf_raw, "labellers", "rlhf")),
+        max_seconds_per_pair=int(
+            _require(rlhf_raw, "max_seconds_per_pair", "rlhf")
+        ),
+        ui_host=str(_require(rlhf_raw, "ui_host", "rlhf")),
+        ui_port=int(_require(rlhf_raw, "ui_port", "rlhf")),
     )
 
     validate_training_config(

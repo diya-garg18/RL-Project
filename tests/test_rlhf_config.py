@@ -175,3 +175,79 @@ def test_a_config_with_no_rlhf_section_is_refused(tmp_path):
     del raw["rlhf"]
     with pytest.raises(ConfigError, match="rlhf"):
         load_training_config(_write(tmp_path, raw))
+
+
+# --------------------------------------------------------------------------
+# The labelling page (FEATURE_012, D-040 to D-042)
+# --------------------------------------------------------------------------
+
+def test_the_shipped_labeller_ids_are_opaque_and_there_are_two():
+    """Two, because kappa needs two. Opaque, because CONSTRAINTS #23 says so."""
+    labellers = load_training_config(CONFIG_PATH).rlhf.labellers
+    assert labellers == ("L1", "L2")
+
+
+def test_the_shipped_timer_cap_and_bind_address_load():
+    rlhf = load_training_config(CONFIG_PATH).rlhf
+    assert rlhf.max_seconds_per_pair == 300
+    assert rlhf.ui_host == "127.0.0.1"
+    assert rlhf.ui_port == 8000
+
+
+def test_a_single_labeller_is_refused(tmp_path):
+    """One annotator cannot produce an agreement statistic at all."""
+    with pytest.raises(ConfigError, match="at least two"):
+        _load_with(tmp_path, labellers=["L1"])
+
+
+def test_duplicate_labeller_ids_are_refused(tmp_path):
+    """Two entries for one person would make kappa compare them with themselves."""
+    with pytest.raises(ConfigError, match="duplicate"):
+        _load_with(tmp_path, labellers=["L1", "L1"])
+
+
+def test_an_empty_labeller_id_is_refused(tmp_path):
+    with pytest.raises(ConfigError, match="labellers"):
+        _load_with(tmp_path, labellers=["L1", ""])
+
+
+def test_the_labellers_must_divide_the_single_label_pairs_evenly(tmp_path):
+    """250 singles over 2 labellers is 125 each. Three would not divide.
+
+    Not a hard requirement of the code — the round-robin handles a remainder —
+    but an uneven split is worth being told about at load rather than
+    discovering in the report that one person did 84 and another 83.
+    """
+    with pytest.raises(ConfigError, match="evenly"):
+        _load_with(tmp_path, labellers=["L1", "L2", "L3"])
+
+
+def test_a_zero_timer_cap_is_refused(tmp_path):
+    """A cap of zero would store None for every answer, losing the column."""
+    with pytest.raises(ConfigError, match="max_seconds_per_pair"):
+        _load_with(tmp_path, max_seconds_per_pair=0)
+
+
+def test_a_negative_timer_cap_is_refused(tmp_path):
+    with pytest.raises(ConfigError, match="max_seconds_per_pair"):
+        _load_with(tmp_path, max_seconds_per_pair=-5)
+
+
+def test_a_port_outside_the_usable_range_is_refused(tmp_path):
+    with pytest.raises(ConfigError, match="ui_port"):
+        _load_with(tmp_path, ui_port=70000)
+
+
+def test_a_privileged_port_is_refused(tmp_path):
+    """Nothing about a local labelling page needs a port below 1024."""
+    with pytest.raises(ConfigError, match="ui_port"):
+        _load_with(tmp_path, ui_port=80)
+
+
+def test_binding_the_wildcard_address_is_refused(tmp_path):
+    """0.0.0.0 would put unlabelled shift data and a writable database of
+    irreplaceable labels on the local network, for no benefit at all. Any
+    specific host is allowed; the wildcard is not.
+    """
+    with pytest.raises(ConfigError, match="ui_host"):
+        _load_with(tmp_path, ui_host="0.0.0.0")

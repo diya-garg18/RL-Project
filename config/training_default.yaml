@@ -223,3 +223,19 @@ rlhf:
                                # Bradley-Terry gradient there is ~0.
     [random, severity_sort, dp, q_learning, sarsa, monte_carlo, dqn, reinforce,
      actor_critic]
+  # Phase 5a additions for the labelling page (FEATURE_012, D-040 to D-042).
+  labellers: [L1, L2]          # opaque ids per CONSTRAINTS #23 -- the schema in
+                               # store.py has nowhere to put a name, and this is
+                               # the other half of that rule. The ORDER matters:
+                               # it fixes the 125/125 split, so do not reorder it
+                               # once labelling has started or every unanswered
+                               # pair changes hands.
+  max_seconds_per_pair: 300    # over this, seconds_taken is stored as None. A
+                               # page left open over lunch would otherwise claim
+                               # 1200 seconds of deliberation, which is a
+                               # fabricated number rather than a large one.
+  ui_host: "127.0.0.1"         # localhost deliberately. 0.0.0.0 is refused by
+                               # validation: it would put unlabelled shift data
+                               # and a writable database of irreplaceable labels
+                               # on the local network for no benefit.
+  ui_port: 8000
