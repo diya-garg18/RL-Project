@@ -850,3 +850,127 @@ preceded it.
 never after the result is known. E-019's own next-session list put this decision at item 2, ahead
 of "only then consider full runs". Both are honoured: this was taken while no full Phase 4 run
 existed, so it cannot have been chosen to favour a number.
+
+---
+
+## D-037 - The RLHF data layer reads EpisodeRecord files, never live agents
+
+**Date:** 2026-09-04 (session 12) · **Taken by:** Pranav · **Model:** Claude Opus 5
+**Applies to:** `src/soc_triage/rlhf/`, FEATURE_011
+
+`rlhf/pairs.py` imports no agent, no environment and no torch. It reads
+EpisodeRecord JSON off disk and pairs the records. The alternative - having the
+pair builder instantiate policies and run them - was rejected for three reasons,
+in order of weight.
+
+**1. It keeps the dependency arrow pointing the right way.** CONSTRAINTS #11 says
+nothing from a later phase may be required to run an earlier one. The inverse
+discipline is worth just as much: the RLHF layer must not drag Phase 3/4
+machinery behind it. As built, the whole of `rlhf/` runs on a clone with no
+`torch` and no `results/`, which is also why its 71 tests execute in under a
+second while the Phase 4 suites take minutes.
+
+**2. Seven of the nine policies need trained parameters, and those are
+gitignored.** `dp`, `q_learning`, `sarsa` and `monte_carlo` need `*_Q.npy`;
+`dqn`, `reinforce` and `actor_critic` need `*.pt`. Coupling pair construction to
+agent loading would make the pair set unbuildable on a fresh clone. Coupling it
+to records instead means the thing to regenerate is a set of records, and
+`runner.save_records` already writes them.
+
+**3. The contract was designed in Phase 0 and this is the first thing to use it.**
+`runner.py`'s docstring already promised "the interchange format that evaluation,
+**the RLHF pair builder**, and the dashboard all consume". Honouring that rather
+than inventing a second path is the cheaper decision and the more honest one.
+
+**The cost, stated.** There is now a seam: `scripts/generate_pairs.py` must run
+the policies and write records before `pairs.py` can do anything. That script is
+the only piece of Phase 5a that a missing artefact can block, and it is
+deliberately the last piece in the build order.
+
+---
+
+## D-038 - Labelled episodes get their own seed block, and the pair set is blinded in two files
+
+**Date:** 2026-09-04 (session 12) · **Taken by:** Pranav · **Model:** Claude Opus 5
+**Applies to:** `config/training_default.yaml` (`rlhf:`), `rlhf/pairs.py`
+
+Three sub-decisions, taken together because they all concern what a labeller is
+allowed to see.
+
+**Seeds: `rlhf.pair_seed_start: 3000000`, a block of its own (D-016 convention).**
+The labelled episodes may not come from the eval block `[101..130]`, and the
+reason is CONSTRAINTS #2 applied one level up. The reward model is *fitted* to
+human judgements of these episodes; Phase 5c re-trains policies on that reward
+model; Phases 5 and 6 then evaluate those policies on the eval seeds. Labelling
+eval-seed episodes would put human judgement of eval-seed outcomes inside the
+reward the policy maximises - evaluation information entering training, laundered
+through a person, with no test anywhere that could catch it. The train block
+`[1..10]` is permitted but rejected on a weaker ground: ten alert streams across
+300 pairs means a labeller sees the same shift about thirty times, and boredom
+and memory become confounds. Twelve dedicated seeds fix that.
+
+**Pool: nine policies, `oracle_greedy` excluded.** The oracle reads
+`is_true_incident` by design - the sanctioned CONSTRAINTS #1 exception - so it
+would win nearly every pair it appeared in. A pair whose answer is a foregone
+conclusion costs a labeller twenty seconds and teaches the Bradley-Terry model
+almost nothing, because the logistic loss has vanishing gradient exactly where
+the prediction is already confident and correct. Wide rather than narrow is
+deliberate: brief section 7 asks for state-visitation overlap between the RLHF
+policy and the policies that generated the labels, and that question is only
+answerable if the pair policies covered a wide behavioural range.
+
+**Blinding: two files, not one.** `pairs.json` is what the labelling UI reads and
+contains no policy name anywhere - which required stripping `run_id`, since it
+reads `sarsa-seed3000004` and names the policy in passing. `pairs_key.json` holds
+the names and the side assignment and is read only by analysis code. Two distinct
+biases are being defended against: **name bias**, where a labeller who can see
+"random" against "dqn" stops judging outcomes, and **position bias**, where people
+pick the left option more often than chance. The second is handled by a seeded
+side-swap recorded as `swapped`, so the analysis can undo it exactly or measure
+the bias rather than assuming it cancelled. The test checks the *written file* by
+substring search rather than inspecting the object, because that is the only form
+that catches a name arriving through a field nobody thought about.
+
+**What was given up.** The blinding costs a second artefact that must travel with
+the first, and a rule that the UI reads only one of them. That rule is not
+enforced by anything except the fact that `pairs.json` genuinely does not contain
+the names - which is the strongest form available without a service boundary, and
+stronger than a promise in a README.
+
+---
+
+## D-039 - The labeller never sees the hand-written reward
+
+**Date:** 2026-09-04 (session 12) · **Taken by:** Pranav · **Model:** Claude Opus 5
+**Applies to:** `rlhf/summary.py`
+
+`summarise_episode` drops every reward field: the per-step `reward`, the
+`reward_breakdown`, and `outcome["total_reward"]`. Two tests fail if any of them
+reappears - one walking the nested structure by key name and by value, one over
+the text rendering, because those are two separate surfaces a number could
+escape through.
+
+The reasoning is the premise of the whole phase. PROJECT_BRIEF section 3.5 says
+the reward numbers are invented, and section 6.1 says that is precisely why we ask
+humans for comparisons instead. A labeller who can see the hand reward is partly
+reading it back, and a Bradley-Terry model fitted to preferences contaminated
+that way would be an expensive re-derivation of `config/env_default.yaml` -
+arriving at a learned reward that agrees with the hand reward, and looking like a
+successful result while establishing nothing.
+
+**Ground truth is shown, and that is not the same thing.** PROJECT_BRIEF section
+6.2: "Ground truth *is* shown to the labeller - they are judging outcomes, not
+guessing." So the summary shows which investigations turned out to be real
+incidents, how long each took to catch, how many were missed and how many were on
+crown-jewel assets. CONSTRAINTS #1 forbids ground truth in an **agent
+observation**; a summary is environment-side output for a person, the same
+category as `env.episode_outcome()` itself.
+
+**Known limitation, recorded rather than hidden.** Missed incidents are reported
+as counts, not per-incident cards, because the EpisodeRecord does not carry the
+alerts left unhandled in the queue at the end of a shift - only investigated and
+bulk-closed alerts appear in `steps[]`. Fixing that means changing `runner.py`, a
+Phase 0 module that wrote all 300 existing record files. The trade is not worth
+it: the outcome block already gives the count, the criticality breakdown and the
+buried count. If per-incident cards later prove necessary the upgrade is an
+additive key and old files stay readable.

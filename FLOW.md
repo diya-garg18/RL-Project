@@ -333,18 +333,36 @@ rather than approximating the x-axis.
 
 ---
 
-## Flow D — RLHF (Phase 5) ⬜
+## Flow D — RLHF (Phase 5) 🟡 *(stage 1 data layer built & tested 2026-09-04 — FEATURE_011, 71 tests in 0.30 s; stages 2 and 3 not started)*
 
 Three separate stages. Don't fuse them; each produces an artefact the next consumes.
 
+**What changed in stage 1 as built, against the sketch below.** The entry point is
+`scripts/generate_pairs.py`, not `build_pairs.py`, and it splits in two: generating
+the EpisodeRecords needs agents and torch, while building pairs from them needs
+neither (D-037). Pairs are written as **JSON files, not into SQLite** — the database
+holds labels only, which keeps the irreplaceable data in one small file that is easy
+to back up (CONSTRAINTS #19). And the pair set is written as **two** files, because
+`pairs.json` must contain no policy name at all (D-038).
+
 ```
-STAGE 1 — build pairs
-scripts/build_pairs.py
-  └─ load EpisodeRecords from results/runs/
-  └─ rlhf.pairs.build(records)
-       └─ match episodes sharing the same seed (identical alert stream), different agents
-       └─ render each side: action timeline + outcome cards
-  └─ rlhf.store.insert_pairs(...)        ──▶ rlhf.db (SQLite)
+STAGE 1a — generate the episodes  (needs agents + torch; NOT BUILT YET)
+scripts/generate_pairs.py
+  └─ load each of the 9 policies in config rlhf.policies
+  └─ runner.run_episodes(seeds = pair_seed_start .. +n_pair_seeds)   ← seed block 3000000
+  └─ runner.save_records(...)            ──▶ results/rlhf/records/*.json
+
+STAGE 1b — build the pairs  (pure data; no agent, no env, no torch)   ✅ BUILT
+rlhf.pairs.load_records(results/rlhf/records/)
+  └─ rlhf.pairs.build_pairs(records, policies=..., sampling_seed=...)
+       └─ index by (agent_name, seed); refuse a mixed config_hash  (BUG_005)
+       └─ eligible seeds = those on which EVERY policy ran
+       └─ allocate target_pairs evenly over the 36 policy pairings
+       └─ shuffle, number p0000.., seeded side-swap, round-robin double-labelling
+       └─ rlhf.summary.summarise_episode(record) per side   ← reward stripped (D-039)
+  └─ rlhf.pairs.write_pairs(...)
+       ├──▶ results/rlhf/pairs.json      ← the UI reads this. NO policy names.
+       └──▶ results/rlhf/pairs_key.json  ← names + `swapped`. Analysis only.
 
 STAGE 2 — collect labels (human in the loop)
 web/labeller  (or scripts/label_cli.py)
@@ -352,6 +370,10 @@ web/labeller  (or scripts/label_cli.py)
   └─ POST /pair/{id}/label  { choice: left|right|tie, labeller_id, seconds_taken }
        └─ rlhf.store.record_label(...)
   └─ 50 pairs are deliberately served to BOTH labellers ──▶ Cohen's κ
+       └─ store enforces UNIQUE(pair_id, labeller_id): one opinion per person
+scripts/report_kappa.py                   ✅ BUILT
+  └─ rlhf.agreement.agreement_between(store, A, B)  ──▶ κ + confusion matrix
+       └─ prints "undefined", never a substituted number, when κ is 0/0
 
 STAGE 3 — train the reward model
 scripts/train_reward_model.py

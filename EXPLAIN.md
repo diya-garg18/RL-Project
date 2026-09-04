@@ -847,3 +847,136 @@ So the honest lesson is narrower than "policy-gradient methods are tricky to eva
 And the practical one: we decided how to read these agents (D-036) **before** we had any of
 these numbers. Had we decided afterwards, with both columns visible, no reader could tell
 whether we picked the honest convention or the flattering one.
+
+---
+
+## Part 14 - Asking humans instead of inventing numbers (Phase 5a, 2026-09-04)
+
+### The problem this phase exists to solve
+
+Everything the agents have learned so far, they learned from a reward we made up.
+Catching a real incident is worth some points, wasting an analyst's time costs
+some points, missing something on an important machine costs a lot of points. We
+wrote those numbers into a config file and every agent has been maximising them
+since Phase 1.
+
+The trouble is that nobody knows what the numbers should be. How many wasted
+analyst-minutes equal one three-hour delay in spotting a breach? There is no
+correct answer. We invented one, and Phase 1 immediately found the crack in it:
+the exactly-optimal planner discovered it could score well by bulk-closing almost
+everything and abandoning more than half the real incidents. The reward said that
+was excellent. Any security analyst would say it was a disaster.
+
+So Phase 5 stops asking people for numbers and starts asking them for
+**comparisons**. People are bad at saying "a missed incident is worth -347".
+People are good at looking at two shifts side by side and saying "the left one
+went better". Collect enough of those comparisons and you can *learn* the reward
+instead of inventing it. That is RLHF, and this session built the plumbing for
+the asking part.
+
+### What was built
+
+Four small pieces, none of which knows anything about neural networks.
+
+**The summary** takes one recorded shift and turns it into something a person can
+read in twenty seconds: a timeline of what the agent did minute by minute, and
+then cards saying what actually happened — which real incidents got caught and
+how long they sat waiting, how many were missed, how many of those were on
+important machines, and how many analyst-minutes went on false alarms.
+
+**The pair builder** puts two shifts side by side. The crucial detail is that both
+sides are *the same shift* — the same alerts arriving at the same times, worked by
+two different agents. Without that, a labeller comparing a quiet Tuesday against a
+chaotic Friday would be judging the luck of the draw rather than the agents.
+
+**The store** is a small database that the answers go into: which pair, which
+labeller, left or right or "can't tell", when, and how long they took.
+
+**The agreement measure** checks whether two people who labelled the same pairs
+actually agreed with each other.
+
+### Three decisions worth understanding
+
+**We do not show the labeller our reward.** Not the total, not the per-step
+numbers, nothing. This sounds like an odd thing to go to trouble over — we wrote
+two separate tests to enforce it — until you see what happens otherwise. The whole
+point is to find out what humans think good triage looks like, *independently* of
+the numbers we made up. If the screen shows our reward, the labeller reads it and
+partly agrees with it, and we end up training a model that rediscovers our own
+config file at great expense. It would look like a success and would prove
+nothing.
+
+We *do* show ground truth — which alerts were real, which were false alarms. That
+is not a contradiction. Everywhere else in this project, letting anything see
+`is_true_incident` would be cheating, because the agent is supposed to be guessing.
+Here the human is not guessing; they are judging how a shift turned out, and you
+cannot judge an outcome you are not allowed to see.
+
+**We do not tell the labeller which agent is which.** The two summaries are
+written to one file with no agent names in it anywhere, and the names go into a
+separate file that only the analysis code reads. If a labeller could see "random"
+on the left and "DQN" on the right, they would stop reading the shifts. We also
+flip which side each agent lands on, using a fixed random seed, and write down
+which way each pair was flipped — because people click the left option more often
+than chance, and recording the flips means we can undo that exactly, or even
+measure how big the effect was.
+
+**We use a fresh set of alert streams, not the ones we test on.** This one is
+subtle and it is the sort of mistake that would never show up as a failing test.
+The evaluation seeds are held back so that no agent has ever been tuned on them.
+If we asked humans to judge *those* shifts, their opinions would go into the
+learned reward, the new policy would be trained to maximise that reward, and then
+we would evaluate it on the very shifts whose outcomes shaped it. Information
+would have leaked from the test set into training, carried across by a person
+rather than by code. So the labelled shifts get a seed block of their own.
+
+### Cohen's kappa, and why raw agreement is not enough
+
+Fifty of the three hundred pairs go to both Pranav and Diya, so we can measure
+whether we agree with each other. The obvious way to measure that is to count how
+often we picked the same side. The obvious way is misleading.
+
+Suppose we both pick "left" 90% of the time out of habit. We will agree about 82%
+of the time while sharing no judgement whatsoever. Cohen's kappa fixes this by
+subtracting the agreement you would expect from two people with those habits
+answering at random, and dividing by the room that was left to do better:
+
+    kappa = (how often we agreed  -  how often we would agree by chance)
+            -------------------------------------------------------------
+                     (1  -  how often we would agree by chance)
+
+Kappa is 1 when two people agree perfectly, 0 when they agree exactly as much as
+chance predicts, and negative when they disagree more than chance — which usually
+means somebody misread the interface rather than that they hold opposite views.
+
+There is a case where kappa does not exist at all: if both labellers only ever
+pressed one button, both the observed and the expected agreement are 100%, and the
+formula asks for 0 divided by 0. Our code returns "undefined" with a reason rather
+than a number. Returning 1.0 would be the most flattering possible misreading of a
+situation that actually contains no evidence.
+
+**And a low kappa would not be a failure.** If two people who built this simulator
+cannot agree on what good triage looks like, that is direct evidence for the claim
+this whole phase rests on: that "good triage" is genuinely hard to pin down, which
+is exactly why writing a reward by hand was the wrong tool. That goes in the
+report either way.
+
+### What is not done
+
+Nobody has labelled anything yet, so there is no kappa and no reward model. The
+script that generates the fresh shifts to be labelled is not written, and the
+labelling page is Diya's to build. What exists is everything underneath: the
+rendering, the pairing, the storage, and the arithmetic — all tested, and all
+runnable on a laptop with no machine-learning libraries installed at all.
+
+### One small thing that fell out of building it
+
+Pointing the pair builder at our 300 existing recorded shifts made it refuse to
+work, complaining that they came from two different configurations. That looked
+alarming — it would have meant the Phase 2 comparison table compared agents
+measured on two different environments. It did not. The two "configurations"
+differ by a single character inside a *comment*: a date corrected from 2026-08-16
+to 2026-08-17. Our fingerprint of the config hashes the file, not the settings, so
+fixing a typo in a comment changes it. Written up as BUG_005, deliberately not
+fixed, because the error only ever points the safe way — it can say "these might
+differ, go and check", and it can never say "these are the same" when they are not.

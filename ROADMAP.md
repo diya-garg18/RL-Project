@@ -200,12 +200,18 @@ is transient or permanent depends on the exploration mechanism, not the algorith
 ## Phase 5 — RLHF (Weeks 4–5) — CO4. **This phase is the project. Do not cut it.**
 
 ### 5a — Collect preferences
-- [ ] `rlhf/pairs.py` — sample pairs of `EpisodeRecord`s **run on the same alert stream** under different policies
-- [ ] Episode summary renderer: action timeline + outcome cards (caught & when, missed, minutes wasted). Ground truth *is* shown to the labeller — they are judging outcomes, not guessing.
-- [ ] `rlhf/store.py` — SQLite: pair id, labeller id, choice (left/right/tie), timestamp, time-taken
-- [ ] Labelling UI (simplest thing that works — a local FastAPI page, or even a CLI with rendered text)
+
+> **Data layer built and tested 2026-09-04, session 12** (FEATURE_011, D-037 to D-039).
+> 71 tests in 0.30 s, plus 15 config tests. Full suite 286 passed. Nothing is measured
+> yet because nothing has been labelled yet — that is human time, not compute.
+
+- [x] `rlhf/pairs.py` — sample pairs of `EpisodeRecord`s **run on the same alert stream** under different policies *(FEATURE_011, D-037/D-038 — 25 tests. Deterministic: two builds are byte-identical, because labels reference `pair_id`. Balanced over all 36 policy pairings, seeded side-swap against position bias, round-robin double-labelling. Exercised end to end on the 270 real eval-seed records that share a config: 300 pairs, 28 pairings split 10/11, 50 double labels across all 28.)*
+- [x] Episode summary renderer: action timeline + outcome cards (caught & when, missed, minutes wasted). Ground truth *is* shown to the labeller — they are judging outcomes, not guessing. *(`rlhf/summary.py`, FEATURE_011, D-039 — 15 tests. Every reward field is stripped and two tests enforce it. Ran over all 300 real EpisodeRecords with zero failures. **Known limitation:** missed incidents are counts, not per-incident cards — the record does not carry the end-of-shift queue.)*
+- [x] `rlhf/store.py` — SQLite: pair id, labeller id, choice (left/right/tie), timestamp, time-taken *(FEATURE_011 — 18 tests. CHECK and UNIQUE live in the schema, not only in Python, because Diya's UI writes to the same file. CONSTRAINTS #23 is enforced by there being no column to put a name in.)*
+- [ ] **`scripts/generate_pairs.py`** — run the 9 policies on the pair seed block and write the records stage 1b consumes. *(NOT BUILT. The only piece a missing artefact can block; all nine artefacts do exist on Pranav's machine. Needs a decision on which training repeat to show — REINFORCE's five differ by 0.7763 ± 0.0833 and three reproduce severity_sort exactly, so the choice is not cosmetic.)*
+- [ ] Labelling UI (simplest thing that works — a local FastAPI page, or even a CLI with rendered text) *(**Diya's box** — `PROJECT_BRIEF.md` §9. It reads `results/rlhf/pairs.json` and writes through `rlhf/store.py`. It must never read `pairs_key.json`.)*
 - [ ] **Collect 300 labelled pairs.** Include 50 pairs labelled by *both* Pranav and Diya.
-- [ ] Compute and record **Cohen's κ** on those 50 overlapping pairs
+- [x] Compute and record **Cohen's κ** on those 50 overlapping pairs *(`rlhf/agreement.py` + `scripts/report_kappa.py`, FEATURE_011 — 13 tests, written by hand against a paper-worked 10-pair example giving exactly 6/11. **The code is built and verified; the κ itself is unmeasured** because no pairs have been labelled. Undefined cases return None with a reason rather than a flattering 1.0.)*
 
 ### 5b — Train the reward model
 - [ ] `rlhf/reward_model.py` — small MLP `r̂(state, action)`; Bradley–Terry loss over trajectory returns:

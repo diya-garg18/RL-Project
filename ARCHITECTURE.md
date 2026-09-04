@@ -69,7 +69,7 @@
 | `src/soc_triage/agents/reinforce.py` | `ReinforceAgent` — Monte Carlo policy gradient over the same 17-dim state, with an optional learned value baseline (FEATURE_008, S&B 13.3/13.4). The first agent that learns a policy directly: no argmax in `act()` | Contain an epsilon schedule — it explores by sampling its own policy — or bootstrap the baseline, which would make it an actor-critic |
 | `src/soc_triage/runner.py` | Run N episodes with a given agent + seed, emit `EpisodeRecord`s | Compute metrics |
 | `src/soc_triage/evaluation/` | Metrics, baseline comparison tables, plots, the reward-hacking audit | Train anything |
-| `src/soc_triage/rlhf/` | Build comparison pairs, store labels, train the Bradley–Terry reward model | Know about specific agents |
+| `src/soc_triage/rlhf/` | Phase 5a preference collection (FEATURE_011): `summary.py` renders an EpisodeRecord for a human to judge, `pairs.py` builds blinded same-seed pairs, `store.py` is the SQLite the labels land in, `agreement.py` is Cohen's kappa. `reward_model.py` (Bradley–Terry) is still to come in 5b. **Imports no agent, no env and no torch** — it reads EpisodeRecord dicts off disk, which is what keeps it runnable on a clone with no `results/` (D-037) | Show a labeller any reward number (D-039), or let a policy name reach `pairs.json` (D-038) |
 | `web/` | FastAPI backend + React dashboard + labelling UI | Contain any RL logic |
 
 **The rule this table encodes:** the environment never knows which agent is acting, and the agents never reach inside the environment. They communicate only through `(state, action, reward, next_state, done, info)`. Keep that boundary clean and every algorithm becomes swappable — which is the entire point, since we're implementing six of them.
@@ -131,10 +131,12 @@ RLPROJECT/                     ← D:\RLPROJECT on the current device
 │   │   ├─ compare.py
 │   │   ├─ plots.py
 │   │   └─ audit.py            ← the reward-hacking experiments
-│   └─ rlhf/
-│       ├─ pairs.py            ← build comparison pairs from EpisodeRecords
-│       ├─ store.py            ← SQLite label storage
-│       └─ reward_model.py     ← Bradley–Terry MLP
+│   └─ rlhf/                   ← Phase 5a, FEATURE_011
+│       ├─ summary.py          ← EpisodeRecord rendered for a human; no reward shown
+│       ├─ pairs.py            ← blinded same-seed pairs from EpisodeRecords
+│       ├─ store.py            ← SQLite label storage (gitignored, irreplaceable)
+│       ├─ agreement.py        ← Cohen's kappa, by hand
+│       └─ reward_model.py     ← Bradley–Terry MLP (5b, not built)
 ├─ tests/
 ├─ scripts/                    ← thin CLI entry points, no logic
 ├─ results/                    ← gitignored except .gitkeep
@@ -252,7 +254,7 @@ trainers now record `episode_steps`; the agents consume samples at very differen
 | 2 | **all built ✅** — `tiny_mdp`, `agents/tabular`, `agents/q_learning`, `agents/sarsa`, `agents/monte_carlo`, `scripts/train.py`, `scripts/policy_table.py`, `scripts/compare_agents.py`, `scripts/ablations.py` |
 | 3 | **all built ✅, no training result yet** — `agents/dqn`, `agents/replay`, `scripts/train_dqn.py`, `scripts/run_dqn_sweep.py`, `scripts/aggregate_dqn.py`, `scripts/compare_dqn_tabular.py`, `scripts/dqn_ablations.py` |
 | 4 | 🟡 `agents/reinforce` **built + tested, unmeasured** (FEATURE_008, E-018), `scripts/train_reinforce.py`; still to come: `agents/actor_critic`, the sample-efficiency comparison, the variance demonstration |
-| 5 | `rlhf/*`, `web/*` |
+| 5 | 🟡 **5a data layer built + tested** (FEATURE_011) — `rlhf/summary`, `rlhf/pairs`, `rlhf/store`, `rlhf/agreement`, `scripts/report_kappa.py`, `config.RLHFConfig`; still to come: `scripts/generate_pairs.py`, the labelling UI (Diya, brief §9), `rlhf/reward_model` (5b), 5c re-training |
 | 6 | `evaluation/audit`, `evaluation/plots` |
 
 Nothing from a later phase should be needed to run an earlier phase. If Phase 5 breaks, Phase 2's results must still reproduce.

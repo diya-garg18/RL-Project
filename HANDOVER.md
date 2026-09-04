@@ -7,6 +7,63 @@
 
 ---
 
+## PHASE 5a - DATA LAYER BUILT AND TESTED, NOTHING LABELLED YET (2026-09-04, session 12)
+
+> Every claim below was run this session and the output is quoted. Nothing here
+> is a measured *result*, because Phase 5a's result is human labels and none
+> exist yet.
+
+**Built, tested, committed - `src/soc_triage/rlhf/` (FEATURE_011, D-037 to D-039):**
+
+| module | what it does | tests |
+|---|---|---|
+| `summary.py` | EpisodeRecord rendered for a human: timeline + outcome cards. **Every reward field stripped** | 15 |
+| `pairs.py` | blinded, balanced, deterministic same-seed pairs; writes `pairs.json` + `pairs_key.json` | 25 |
+| `store.py` | SQLite for labels; CHECK + UNIQUE in the schema, not just in Python | 18 |
+| `agreement.py` | Cohen's kappa by hand, undefined cases returned as `None` with a reason | 13 |
+| `scripts/report_kappa.py` | the kappa report, with the confusion matrix | (exercised, not unit-tested) |
+| `config.RLHFConfig` + validation | `pair_seed_start` 3000000 and 6 more checks | 15 |
+
+**Measured this session:**
+
+- `.\.venv\Scripts\python.exe -m pytest tests/ -q` -> **286 passed in 126.49s**
+  (was 200; +86 = 15+18+13+25+15). No regression in the 200 that existed.
+- The four `rlhf/` suites alone: **71 passed in 0.30s** - they import no agent,
+  no env and no torch, which is the point of D-037.
+- `summary.summarise_episode` run over **all 300 real EpisodeRecords** in
+  `results/runs`: zero failures, and the caught-card count equalled
+  `outcome.incidents_caught` on every one.
+- `pairs.build_pairs` run end to end on the 270 real records that share a config:
+  **300 pairs, 28 pairings split 10/11, 50 double labels spread over all 28**,
+  every pair sharing its seed, zero policy names in the payload. That was a dry
+  run to exercise the code on real data - **it is not the real pair set** (those
+  must come from the pair seed block) and nothing was written.
+- `report_kappa.py` on a 110-label synthetic database: kappa **0.660** over 50
+  shared pairs, raw agreement 78.0%, chance 35.4%. Hand-checked: agreements
+  12+19+8 = 39/50 = 0.780; p_e = .34*.28 + .46*.44 + .20*.28 = 0.3536;
+  0.4264/0.6464 = 0.660.
+
+### What is left in 5a, and whose it is
+
+| item | state | owner |
+|---|---|---|
+| `scripts/generate_pairs.py` | **NOT BUILT.** Runs the 9 policies on seeds 3000000..3000011 and writes the records `pairs.py` consumes. All nine artefacts exist on Pranav's machine (`dp_Q.npy`, `q_learning_Q.npy`, `sarsa_Q.npy`, `monte_carlo_Q.npy`, and 5 `.pt` each for dqn / reinforce / actor_critic). **Needs a decision first:** which training repeat to show. REINFORCE's five differ by 0.7763 +- 0.0833 and three reproduce severity_sort exactly, so repeat 0 vs repeat 3 are materially different policies. | Pranav |
+| Labelling UI | **NOT BUILT.** Reads `results/rlhf/pairs.json`, writes through `rlhf/store.py`. **It must never read `pairs_key.json`** - that file holds the policy names and reading it destroys the blinding (D-038). | **Diya** (PROJECT_BRIEF §9) |
+| 300 labels, 50 double-labelled | not started - human time, not compute (~100 min) | both |
+| Cohen's kappa **number** | code built and verified; the number is unmeasured until labels exist | Pranav |
+
+### The one surprise, already written up
+
+Pointing `pairs.py` at `results/runs` raised `MixedConfigError` across all 300
+records, which looked for a minute like Phase 2 having compared agents measured
+on two different environments. It had not: the two config hashes differ by **one
+character inside a comment** (a date corrected 2026-08-16 -> 2026-08-17, commit
+`ccdbd66`), both files 4991 bytes, no environment parameter changed. E-014 and
+E-017 are unaffected. **BUG_005** records it and the procedure for the next
+occurrence; deliberately not fixed.
+
+---
+
 ## PHASE 4 IS DONE - closed built-but-not-passed, 2026-09-04
 
 > Session 11. Every number below is measured. Nothing in Phase 4 is outstanding
@@ -49,6 +106,10 @@ governs. Fourth consecutive phase, and the pattern is the finding.
 
 ## Watch out for - this machine (added 2026-09-04)
 
+**Zero-byte junk files keep appearing in the repo root during a session.** Four appeared on 2026-09-04 (`JSON-serialisable`, `cheaper`, `blinded`, `4`, `100000`, `{width`) - the BUG_001 pattern, still live. Each name is the token immediately after a `->` or a `>` in text that passed through the session, so prose containing an arrow appears to be reaching a shell. They are always empty and always harmless, **but they will be committed if you use `git add -A`.** Run `git status --short` after every commit and `rm -f` what shows up. Staging explicit paths, never `-A`, is what kept them out of the tree this session.
+
+**There was no network at all on this machine on 2026-09-04.** Not a GitHub problem and not a git problem: `nslookup github.com` timed out against the router (192.168.0.1) and `ping 8.8.8.8` lost 100% of packets. Every MCP server in the session also failed with `ENOTFOUND`. One `git ls-remote` did succeed early on and then never again, so **a single successful network call is not evidence the network is up** - retry the actual push before believing it.
+
 **Mem Reduct will wreck a long run if "Working set" is ticked.** D-030 already
 recorded a DQN sweep going 27 min -> 195 min (7x) from this. In Mem Reduct's
 Settings -> Memory cleaning, **untick "Working set"** and leave the rest as they
@@ -75,26 +136,39 @@ with `powercfg /change standby-timeout-ac 60`.
 
 | | |
 |---|---|
-| **Last session** | 2026-09-04 (session 11, on Pranav's PC) |
+| **Last session** | 2026-09-04 (session 12, on Pranav's PC) |
 | **Model** | Claude Opus 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022, confirmed final by **D-033**). |
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020, confirmed final by **D-033**). Nothing outstanding - the 'unfinished item' was an unticked parent checkbox, corrected 2026-09-01. |
 | **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
 | **Phase 4** | **CLOSED as built-but-not-passed** (E-022, E-023, 2026-09-04). Both learners measured at full budget, box 3 run, verdict recorded in ROADMAP. Only the optional PPO box is unbuilt. |
-| **Phase 5** | Not started. **This is the next block.** Nothing in it depends on Phase 4 (CONSTRAINTS #11). |
-| **Repo state** | `D:\RLPROJECT`, branch `master`. 14 commits in session 11, **NOT PUSHED - push failed 2026-09-04**: DNS was down on this machine (`Could not resolve host: github.com`, `nslookup` timed out). The commits are safe in local git. **Run `git push origin master` as soon as the network is back** - nothing else is outstanding. |
-| **Tests passing** | **200/200** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`). Wall time varies with machine load: **56 s to 8 min 49 s** observed the same session on the same code. Budget for the worst case. |
-| **Blockers** | Nothing blocks building. **Both decisions are TAKEN: D-033** (gates stay as written) **and D-036** (Phase 4 reports the sampled policy for policy gradient, greedy for value-based). D-036 obliges a sampled-eval path in both Phase 4 trainers **before** any full run. |
+| **Phase 5** | **5a data layer BUILT + TESTED** (FEATURE_011, D-037 to D-039). Nothing labelled yet, so no 5a *result* exists. Next code: `scripts/generate_pairs.py` (Pranav); next after that: the labelling UI (**Diya**, brief §9). |
+| **Repo state** | `D:\RLPROJECT`, branch `master`. **22 commits unpushed** (14 from session 11 + 8 from session 12). **The push still fails and it is not git:** this machine had no network at all on 2026-09-04 - `nslookup github.com` timed out against the router at 192.168.0.1 and `ping 8.8.8.8` lost 100% of packets. The commits are safe in local git. **Run `git push origin master` as soon as the network is back** - nothing else is outstanding. |
+| **Tests passing** | **286/286** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`), measured 2026-09-04 at **126.49s**. Up from 200 - the 86 new tests are the Phase 5a files. Wall time still varies with machine load (56s to 8m49s observed on the old 200); budget for the worst case. |
+| **Blockers** | **Nothing blocks building.** One decision is owed before `generate_pairs.py`: which training repeat each multi-run learner shows in the pair set (REINFORCE's five differ by 0.7763 +- 0.0833; three reproduce severity_sort exactly, so it is not a cosmetic choice). One thing blocks *handover*: the push. |
 
 ---
 
 ## 🔑 STARTING THE NEXT SESSION - do these first, in order
 
-> Rewritten 2026-08-25 at the end of session 10. Everything is pushed. The commit
-> balance is **IMBALANCED, Diya ahead** - see "Whose turn is it". **Phase 5 is Pranav's.**
+> **Rewritten 2026-09-04 at the end of session 12. Read this, not the paragraph that
+> used to be here.** Two things it used to say are now false: the work is **NOT**
+> pushed (22 commits sit in local git, see "Repo state"), and the balance has
+> flipped - `scripts/commit_balance.py` on 2026-09-04 reports **IMBALANCED,
+> Pranav 5 ahead, Diya should take the next block**. That is convenient rather
+> than awkward: the next unbuilt 5a box is the labelling UI, which
+> `PROJECT_BRIEF.md` §9 already assigns to Diya.
 
-**1. Get the work.** 13 commits were pushed on 2026-09-04 (session 11, Phase 4 finished).
+**1. Get the work.** **Nothing has been pushed since 2026-08-25.** If you are on
+Diya's machine, `git pull` will bring nothing new until somebody with a working
+network runs `git push origin master` from Pranav's. Check first:
+
+```powershell
+git log --oneline -3   # newest on origin should be: phase5: scripts/report_kappa.py ...
+```
+
+If it is not, the push has not happened yet and there is no work to collect.
 
 ```powershell
 cd <your RL-Project folder>
