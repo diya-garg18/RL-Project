@@ -64,8 +64,18 @@ def _clean_seconds(value: float | None, max_seconds: int) -> float | None:
     elapsed time is impossible rather than merely large, so it is treated as not
     measured — storing it would corrupt any mean computed later just as surely as
     a fabricated 1200 would.
+
+    `NaN` is checked explicitly rather than left to the range comparison below.
+    `nan < 0` and `nan > max_seconds` are both False in IEEE 754, so a plain range
+    check lets it straight through — and Python's `json` module accepts the
+    non-spec `NaN` token that strict JSON forbids, so a client can send one. It
+    happens to read back as `None` today only because SQLite's C driver silently
+    converts NaN to NULL on storage; that is an accident of one storage engine,
+    not something this function should depend on to keep its own contract.
     """
     if value is None:
+        return None
+    if value != value:  # NaN is the only float that is not equal to itself.
         return None
     if value < 0 or value > max_seconds:
         return None

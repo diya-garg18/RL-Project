@@ -180,6 +180,34 @@ def test_a_negative_elapsed_time_is_stored_as_unknown(client, pairs, db_path):
     assert _rows(db_path)[0]["seconds_taken"] is None
 
 
+def test_nan_is_rejected_by_clean_seconds_itself_not_by_sqlite_luck(pairs, db_path):
+    """`nan < 0` and `nan > cap` are both False, so a naive range check lets NaN
+    straight through. Python's json module accepts the non-spec `NaN` token
+    (strict JSON forbids it), so a client can send one. It happens to read back
+    as None today only because SQLite's C driver silently converts NaN to NULL
+    on storage — undocumented, driver-specific, and not something this code
+    should rely on. `_clean_seconds` must refuse it itself.
+    """
+    from soc_triage.labelling.app import _clean_seconds
+
+    assert _clean_seconds(float("nan"), max_seconds=300) is None
+
+
+def test_a_nan_elapsed_time_is_stored_as_unknown_through_the_real_route(
+    client, pairs, db_path
+):
+    import json
+
+    pair_id = _mine(pairs)[0]
+    response = client.post(
+        "/label",
+        content=json.dumps({"pair_id": pair_id, "choice": "left", "seconds": float("nan")}),
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 200
+    assert _rows(db_path)[0]["seconds_taken"] is None
+
+
 def test_a_missing_seconds_field_is_accepted_as_unknown(client, pairs, db_path):
     pair_id = _mine(pairs)[0]
     response = client.post("/label", json={"pair_id": pair_id, "choice": "left"})
