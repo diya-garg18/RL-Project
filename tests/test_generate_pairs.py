@@ -26,7 +26,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from generate_pairs import (  # noqa: E402
     action_trace,
+    collapsed_pairs,
     identical_groups,
+    policy_name,
     seeds_matching,
     variant_traces,
 )
@@ -125,3 +127,73 @@ def test_identical_groups_orders_deterministically():
         "zeta": {3000000: (1,)},
     })
     assert forward == backward == [("alpha", "zeta"), ("beta",)]
+
+
+# --- write mode: the guard that stops a self-pair reaching a labeller --------
+#
+# The survey reports collapses; it cannot enforce anything, because a human
+# reads its table and then chooses. These tests cover the check that runs
+# unconditionally in write mode, so a bad choice -- made now, or made in six
+# months by someone who never read the survey -- cannot silently produce a pair
+# set in which severity_sort argues with itself.
+
+
+def test_policy_name_strips_the_repeat_suffix():
+    # Records must carry the bare policy name: `rlhf.policies` in the config
+    # lists `dqn`, and `build_pairs` matches records on `agent_name`. A record
+    # written as "dqn@0" would be invisible to it and the build would refuse
+    # with "no EpisodeRecords for ['dqn']".
+    assert policy_name("dqn@0") == "dqn"
+    assert policy_name("actor_critic@4") == "actor_critic"
+
+
+def test_policy_name_leaves_single_artefact_policies_alone():
+    assert policy_name("severity_sort") == "severity_sort"
+    assert policy_name("monte_carlo") == "monte_carlo"
+
+
+def test_collapsed_pairs_is_empty_when_every_chosen_variant_differs():
+    traces = {
+        "severity_sort": {3000000: (1, 1)},
+        "reinforce@0": {3000000: (0, 3)},
+        "dqn@0": {3000000: (2, 2)},
+    }
+    assert collapsed_pairs(traces, ["severity_sort", "reinforce@0", "dqn@0"]) == []
+
+
+def test_collapsed_pairs_names_two_chosen_variants_that_are_identical():
+    traces = {
+        "severity_sort": {3000000: (1, 1), 3000001: (2, 2)},
+        "reinforce@2": {3000000: (1, 1), 3000001: (2, 2)},
+        "dqn@0": {3000000: (0, 0), 3000001: (0, 0)},
+    }
+    assert collapsed_pairs(traces, ["severity_sort", "reinforce@2", "dqn@0"]) == [
+        ("reinforce@2", "severity_sort")
+    ]
+
+
+def test_collapsed_pairs_ignores_a_collapse_among_variants_not_chosen():
+    # reinforce@2 and reinforce@4 are identical, but neither is going into the
+    # pair set. An unchosen collapse is a fact about training, not a defect in
+    # the pair set, and the guard must not refuse a build over it.
+    traces = {
+        "severity_sort": {3000000: (1, 1)},
+        "reinforce@0": {3000000: (0, 3)},
+        "reinforce@2": {3000000: (1, 1)},
+        "reinforce@4": {3000000: (1, 1)},
+    }
+    assert collapsed_pairs(traces, ["severity_sort", "reinforce@0"]) == []
+
+
+def test_collapsed_pairs_reports_every_collision_in_a_fixed_order():
+    # Reported in full rather than failing on the first: the operator should see
+    # all of them in one run instead of rediscovering them one build at a time.
+    traces = {
+        "a": {3000000: (1,)},
+        "b": {3000000: (1,)},
+        "c": {3000000: (1,)},
+        "d": {3000000: (9,)},
+    }
+    assert collapsed_pairs(traces, ["d", "c", "b", "a"]) == [
+        ("a", "b"), ("a", "c"), ("b", "c")
+    ]

@@ -25,6 +25,7 @@ not identity on another. Evaluating an already-trained policy is inference, so
 running all fifteen repeats costs seconds, not a training run.
 """
 
+import itertools
 from typing import Sequence
 
 # --- the comparison arithmetic ------------------------------------------------
@@ -89,6 +90,43 @@ def identical_groups(
     return ordered
 
 
+def policy_name(label: str) -> str:
+    """Variant label -> the policy name a record is written under.
+
+    `dqn@0` is a variant of the policy `dqn`. The distinction matters exactly
+    once, here: `rlhf.policies` in the config names `dqn`, and `build_pairs`
+    matches records on `agent_name`, so a record written as "dqn@0" would be
+    invisible to it and the build would refuse with "no EpisodeRecords for
+    ['dqn']" while the file sat in the directory.
+    """
+    return label.split("@")[0]
+
+
+def collapsed_pairs(
+    traces: dict[str, dict[int, tuple[int, ...]]], chosen: Sequence[str]
+) -> list[tuple[str, str]]:
+    """Chosen variants that are behaviourally identical to each other.
+
+    The survey reports collapses; it cannot prevent one, because a human reads
+    its table and then decides. This is the check that runs unconditionally in
+    write mode, so a bad choice — made today, or made in six months by someone
+    who never saw the survey — cannot quietly produce a pair set in which a
+    policy is asked to argue with itself.
+
+    Every collision is reported rather than the first, so the operator sees the
+    whole problem in one run instead of rediscovering it one build at a time.
+    Collapses among variants that were *not* chosen are ignored: those are facts
+    about training, not defects in the pair set.
+    """
+    selected = sorted(set(chosen))
+    return [
+        (a, b)
+        for a, b in itertools.combinations(selected, 2)
+        if traces[a] == traces[b]
+    ]
+
+
+
 # --- the driver ---------------------------------------------------------------
 #
 # Everything below needs torch and the gitignored `results/` tree. It is kept
@@ -111,7 +149,8 @@ from soc_triage.agents.dp import DPAgent  # noqa: E402
 from soc_triage.config import load_env_config, load_training_config  # noqa: E402
 from soc_triage.env import SOCTriageEnv  # noqa: E402
 from soc_triage.evaluation.metrics import summarise  # noqa: E402
-from soc_triage.runner import config_hash, run_episodes  # noqa: E402
+from soc_triage.rlhf.pairs import build_pairs, load_records, write_pairs  # noqa: E402
+from soc_triage.runner import config_hash, run_episodes, save_records  # noqa: E402
 
 from run_baselines import RANDOM_AGENT_ACTION_SEED  # noqa: E402
 from train import build_agent as build_tabular  # noqa: E402
@@ -259,26 +298,127 @@ def survey(cfg, tcfg, cfg_hash: str) -> None:
     print("table above; the write mode then builds the records and the pair set.")
 
 
+def write(cfg, tcfg, cfg_hash: str, repeats: dict, force: bool) -> None:
+    """Run the nine chosen policies on the pair seeds and build the pair set.
+
+    Uses the same `build_variants` the survey does, deliberately. If write mode
+    constructed its agents by a second route, the survey's evidence would be
+    about policies that never reached the pair set, and the collapse it exists
+    to catch could walk straight past it.
+
+    Records are written, then read back off disk through `rlhf.pairs.load_records`
+    rather than passed in memory. That is the seam FEATURE_011 section 3 defines,
+    and going through it here means the files are proven readable by the thing
+    that will read them, instead of assumed to be.
+    """
+    seeds = tuple(
+        tcfg.rlhf.pair_seed_start + offset for offset in range(tcfg.rlhf.n_pair_seeds)
+    )
+    records_dir = RESULTS / "rlhf" / "records"
+    pairs_dir = RESULTS / "rlhf"
+
+    # Refuse to renumber a pair set that may already have labels against it.
+    # `pairs.py`'s own docstring names the failure: collected labels reference
+    # `pair_id`, so a rebuild silently repoints every label already gathered and
+    # nothing raises. Cheap guard, unrecoverable mistake.
+    existing = pairs_dir / "pairs.json"
+    if existing.exists() and not force:
+        raise SystemExit(
+            f"{existing.relative_to(ROOT)} already exists. Rebuilding renumbers every "
+            "pair_id, which silently repoints any labels already collected against "
+            "them (see rlhf/pairs.py). Pass --force only if nothing has been labelled."
+        )
+
+    variants = build_variants(cfg, tcfg)
+    chosen = [
+        "random", "severity_sort", "dp", "q_learning", "sarsa", "monte_carlo",
+        *(f"{learner}@{repeat}" for learner, repeat in sorted(repeats.items())),
+    ]
+    unknown = [label for label in chosen if label not in variants]
+    if unknown:
+        raise SystemExit(f"no such variant: {unknown}; run --survey to see the labels")
+
+    print(f"pair seeds {seeds[0]}..{seeds[-1]} ({len(seeds)})   config {cfg_hash}")
+    print(f"policies: {', '.join(chosen)}\n")
+
+    env = SOCTriageEnv(cfg)
+    traces: dict = {}
+    all_records: list = []
+    for label in chosen:
+        agent = variants[label]
+        # The record must carry the bare policy name, because `rlhf.policies`
+        # names `dqn` and build_pairs matches records on `agent_name`. Set on the
+        # instance; the class attribute is shared and must not be touched.
+        agent.name = policy_name(label)
+        records = run_episodes(env, agent, seeds, cfg, cfg_hash, learn=False)
+        traces[label] = variant_traces(records)
+        all_records.extend(records)
+        print(f"  {label:18s} -> {len(records)} records as '{agent.name}'")
+
+    collisions = collapsed_pairs(traces, chosen)
+    if collisions:
+        lines = "\n".join(f"    {a}  ==  {b}" for a, b in collisions)
+        raise SystemExit(
+            "refusing to build: these chosen policies take identical actions on "
+            f"all {len(seeds)} pair seeds, so a pair drawn from them would ask a "
+            f"labeller to prefer a policy over itself:\n{lines}\n"
+            "Run --survey and choose a different repeat."
+        )
+
+    save_records(all_records, records_dir)
+    print(f"\n{len(all_records)} records -> {records_dir.relative_to(ROOT)}")
+
+    pairs, key = build_pairs(
+        load_records(records_dir),
+        policies=list(tcfg.rlhf.policies),
+        target_pairs=tcfg.rlhf.target_pairs,
+        double_labelled_pairs=tcfg.rlhf.double_labelled_pairs,
+        sampling_seed=tcfg.rlhf.pair_sampling_seed,
+    )
+    pairs_path, key_path = write_pairs(pairs, key, pairs_dir)
+
+    double = sum(1 for pair in pairs if pair["double_labelled"])
+    print(f"{len(pairs)} pairs ({double} double-labelled) -> {pairs_path.relative_to(ROOT)}")
+    print(f"key (policy names, analysis only)          -> {key_path.relative_to(ROOT)}")
+    print("\nThe labelling UI reads pairs.json and must never read pairs_key.json (D-038).")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
         "--survey", action="store_true",
         help="run every repeat on the pair seeds and report which collapse; writes nothing",
     )
+    mode.add_argument(
+        "--write", action="store_true",
+        help="run the chosen policies on the pair seeds and build the pair set",
+    )
+    for learner in sorted(MULTI_RUN):
+        parser.add_argument(
+            f"--{learner.replace('_', '-')}-repeat", type=int, default=0,
+            metavar="N",
+            help=f"which {learner} training repeat enters the pair set (default 0)",
+        )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="overwrite an existing pairs.json, renumbering every pair_id",
+    )
     args = parser.parse_args()
 
-    if not args.survey:
-        raise SystemExit(
-            "only --survey is built. The write mode needs the repeat decision that "
-            "--survey exists to inform - run `python scripts/generate_pairs.py --survey`."
-        )
-
     cfg_path = ROOT / "config" / "env_default.yaml"
-    survey(
-        load_env_config(cfg_path),
-        load_training_config(ROOT / "config" / "training_default.yaml"),
-        config_hash(cfg_path),
-    )
+    cfg = load_env_config(cfg_path)
+    tcfg = load_training_config(ROOT / "config" / "training_default.yaml")
+    cfg_hash = config_hash(cfg_path)
+
+    if args.survey:
+        survey(cfg, tcfg, cfg_hash)
+        return
+
+    repeats = {
+        learner: getattr(args, f"{learner}_repeat") for learner in MULTI_RUN
+    }
+    write(cfg, tcfg, cfg_hash, repeats, args.force)
 
 
 if __name__ == "__main__":
