@@ -1150,3 +1150,100 @@ Would stop NaN earlier, but the model also has to admit ordinary out-of-range an
 negative values so `_clean_seconds` can turn them into the same `None` — moving
 one case to the boundary and leaving the rest where they are creates two places
 that decide what counts as "unknown" instead of one.
+
+---
+
+## D-045 - Which training repeat enters the pair set was measured on the pair seeds, not chosen by a rule
+
+**Date:** 2026-09-05 (session 14) · **Taken by:** Pranav · **Model:** Claude Opus 5
+**Applies to:** `scripts/generate_pairs.py`, `results/rlhf/`
+
+Three of the nine pair-set policies were trained five times (`dqn`, `reinforce`,
+`actor_critic`), so building the pair set needed a rule for which repeat each one
+contributes. Session 12 flagged this as owed and not cosmetic: REINFORCE's five
+repeats differ by 0.7763 ± 0.0833 recall on the eval seeds, and three of them sat
+at exactly 0.8443 — `severity_sort`'s eval recall — which would put a
+hand-written baseline on both sides of a blinded pair under two different names.
+
+Two rules were on the table before any measurement, "median repeat" and "repeat
+0". Both were rejected in favour of measuring first, for a reason that is not
+about caution: **the eval block could not be the evidence for this decision even
+in principle.** FEATURE_011 §4 forbids labelling eval episodes at all, so the
+pair set runs on a dedicated seed block (3000000..3000011) with different alert
+streams. Identity on one block is not identity on another, and a decision taken
+from eval-seed numbers would be about policies that never appear in the pair set.
+Evaluating an already-trained policy is inference, so measuring the 21 variants
+on the 12 pair seeds cost seconds, not a training run.
+
+**What the survey found** (`--survey`, 252 episodes, config `679eaa992c7f`):
+
+- `reinforce@2 == reinforce@4 == severity_sort` — identical actions on all 12
+  pair seeds, hence identical recall (0.8530) and reward (162.80).
+- Every other variant is distinguishable, including all five `dqn` and all five
+  `actor_critic` repeats.
+- `reinforce@1` is **not** a clone, and has the highest recall in the entire pool
+  — 0.8947, above `severity_sort`'s 0.8530. The eval-seed table had it tied with
+  the two repeats that are clones, so it was on the discard list for the wrong
+  reason.
+
+**The choice: repeat 0 for all three learners** — `dqn@0`, `reinforce@0`,
+`actor_critic@0`. None of the three collapses onto anything.
+
+**Rejected: repeat 1 for all three.** It is a uniform index, which sounds
+principled, but on this data it is each learner's highest-recall repeat — so
+choosing it is selection on the outcome the survey had just measured, wearing a
+rule as a disguise. The pair set is an *input* to a reward model, not a result:
+what it needs is behavioural spread, not strong policies. `reinforce@0` at 0.5715
+recall is REINFORCE's weakest non-clone and is the better input for exactly the
+reason `oracle_greedy` is excluded in FEATURE_011 §5 — a comparison whose answer
+is a foregone conclusion has a vanishing logistic gradient and teaches the
+Bradley-Terry model almost nothing.
+
+**Rejected: median repeat by recall.** The rule that looked most defensible in
+advance is the one that fails hardest here. REINFORCE's median pair-seed recall
+is 0.8530, which is repeat 2 or repeat 4 — both clones of `severity_sort`. A
+rule chosen before the measurement would have shipped the precise failure the
+measurement exists to prevent.
+
+**Rejected: a seeded draw from the non-collapsed repeats.** Reproducible and
+outcome-independent, and a fair alternative. It lost only on being more machinery
+than a fixed index for a choice that has to be explained in an interview.
+
+---
+
+## D-046 - Write mode refuses a pair set it can prove is degenerate, and refuses to renumber one
+
+**Date:** 2026-09-05 (session 14) · **Taken by:** Pranav · **Model:** Claude Opus 5
+**Applies to:** `scripts/generate_pairs.py`
+
+`--survey` reports; it cannot enforce, because a human reads its table and then
+decides. So two refusals live in `--write`, and both run before anything is
+written.
+
+**The collapse guard.** After running the chosen policies on the pair seeds and
+before saving a single record, `collapsed_pairs` compares their action traces and
+refuses by name if any two are identical. This is not defending against today's
+choice, which the survey already informed — it is defending against a choice made
+in six months by someone who never ran the survey, or after a retrain that moves
+a repeat onto `severity_sort`. Verified by asking for the known-bad repeat:
+`--write --reinforce-repeat 2 --force` exits 1 with `reinforce@2 == severity_sort`
+and leaves the existing pair set untouched.
+
+The cost is that 108 episodes run before the refusal, since the traces *are* the
+evidence and there is no way to have them without running them. Accepted: it is
+under a minute of inference against a pair set that fifty hours of human
+labelling would be spent on.
+
+**The overwrite guard.** `--write` refuses if `results/rlhf/pairs.json` already
+exists, unless `--force`. `rlhf/pairs.py`'s own docstring names the failure it
+prevents: collected labels reference `pair_id`, so a rebuild renumbers every pair
+and silently repoints every label already gathered, and nothing raises. The
+guard is three lines against a mistake with no recovery short of relabelling.
+
+**Rejected: make the pair ids content-addressed** (hash of policies + seed) so a
+rebuild is idempotent and the guard is unnecessary. It is the better design and
+it is not available: `pairs.json` is already the contract Diya's labelling UI
+reads and was tested against in session 13, and `p0000` ids are baked into its
+fixtures and into `rlhf/store.py`'s schema. Changing the id scheme now to avoid a
+guard would be building backwards (CONSTRAINTS #18) across a module boundary that
+is currently working.
