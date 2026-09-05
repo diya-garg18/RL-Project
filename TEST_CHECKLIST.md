@@ -238,9 +238,39 @@ beside the database, which `.gitignore` tells you to keep because the database i
 gitignored and irreplaceable.
 
 ```bash
-python scripts/generate_pairs.py     # NOT BUILT YET
+.\.venv\Scripts\python.exe -m pytest tests/test_generate_pairs.py -q
 ```
-**Must show, when it exists:** every pair matches two episodes on the **same seed** (identical alert stream), on the `rlhf.pair_seed_start` block and never the eval block. A pair on mismatched streams is invalid data — assert it. `build_pairs` already does.
+**Must show:** `15 passed`, in a few seconds. The comparison arithmetic imports no
+agent and no torch, so these run on a bare clone; only the driver beneath them
+needs `results/`.
+
+```bash
+.\.venv\Scripts\python.exe scripts/generate_pairs.py --survey
+```
+**Must show:** `21 variants x 12 seeds = 252 episodes`, a per-variant table, and
+under "Behaviourally indistinguishable groups" exactly one line —
+`COLLAPSED: reinforce@2 == reinforce@4 == severity_sort`. Writes nothing. If that
+line ever names a *chosen* repeat, stop and re-read D-045 before building
+anything. Takes about two minutes; it is inference, so a run that takes far
+longer means something is training that should not be.
+
+```bash
+.\.venv\Scripts\python.exe scripts/generate_pairs.py --write
+```
+**Must show:** 12 records for each of the nine policies, written under the **bare**
+policy name (`dqn@0 -> 12 records as 'dqn'`, not `'dqn@0'` — `build_pairs` matches
+records on `agent_name` and would otherwise refuse), then `300 pairs (50
+double-labelled)`. Every pair matches two episodes on the **same seed** — identical
+alert stream — on the `rlhf.pair_seed_start` block and never the eval block. A pair
+on mismatched streams is invalid data; `build_pairs` asserts it per pair rather
+than trusting the indexing.
+
+**The two refusals that must never be weakened** (D-046):
+
+| check | what fails silently without it |
+|---|---|
+| the collapse guard | a labeller is asked to prefer `severity_sort` over `severity_sort` under two blinded names, and every κ and every reward-model gradient built on those pairs is noise. Verify with `--write --reinforce-repeat 2 --force`: it must exit 1 naming `reinforce@2 == severity_sort` and leave the existing `pairs.json` untouched. |
+| the overwrite guard | a rebuild renumbers every `pair_id`, silently repointing labels already collected against them (`rlhf/pairs.py`). Verify by running `--write` twice: the second must refuse without `--force`. |
 
 ### 5a labelling page (added 2026-09-05, session 13 — FEATURE_012, Diya's box)
 
@@ -272,7 +302,9 @@ quietly relax one:
 .\.venv\Scripts\python.exe scripts/label_ui.py --labeller L1
 ```
 **Must show:** `labelling as L1 — N pairs loaded, ...` followed by the URL to open,
-once `results/rlhf/pairs.json` exists (`scripts/generate_pairs.py`, not yet built).
+once `results/rlhf/pairs.json` exists (`scripts/generate_pairs.py --write`, which
+session 14 ran: 300 pairs are on Pranav's machine, and `results/` is gitignored, so
+the other machine regenerates them with that same command).
 Before that file exists it exits 1 and names `generate_pairs.py` as the reason. An
 unknown `--labeller` exits 2 and lists the configured ids — no test covers this
 script directly (FEATURE_012 §9); it was verified by running it, output logged

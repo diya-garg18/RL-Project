@@ -7,6 +7,69 @@
 
 ---
 
+## PHASE 5a - CODE COMPLETE. THE 300 PAIRS EXIST. NOTHING IS LABELLED YET (2026-09-05, session 14)
+
+> Pranav's box, on Pranav's machine (`D:\RLPROJECT`). Every claim here was run
+> this session and the output is quoted. **This is a code deliverable and a data
+> artefact, not a result** - the result is 350 human judgements and none exist.
+
+**`scripts/generate_pairs.py` is built** (FEATURE_011 box 6, D-045/D-046, 15 tests).
+It has two modes, and the split is the whole point:
+
+| mode | what it does | writes |
+|---|---|---|
+| `--survey` | runs all **21 variants** - the 6 single-artefact policies plus `dqn@0..4`, `reinforce@0..4`, `actor_critic@0..4` - on seeds 3000000..3000011 and reports which take *identical actions* | nothing |
+| `--write` | runs the 9 chosen policies, refuses if any two collapse, writes the records and the pair set | `results/rlhf/` |
+
+**The repeat decision is taken (D-045): repeat 0 for all three learners.**
+
+**What the survey found, and why measuring mattered.** Session 12 flagged that
+three REINFORCE repeats sat at `severity_sort`'s *eval* recall (0.8443) and looked
+like clones. On the **pair** seeds:
+
+```
+COLLAPSED:  reinforce@2  ==  reinforce@4  ==  severity_sort
+```
+
+identical actions on all 12 seeds - so identical recall (0.8530) and reward
+(162.80). Everything else is distinguishable, including all five `dqn` and all
+five `actor_critic` repeats. **`reinforce@1` is NOT a clone**: 0.8947 recall, the
+highest in the entire pool, above `severity_sort`. The eval-seed table had it tied
+with the two that are, so a rule chosen in advance would have discarded the best
+policy in the pool - and a "median repeat" rule would have shipped a clone. Full
+reasoning and the rejected alternatives are in **D-045**.
+
+**The pair set now on this machine** (`results/`, gitignored, regenerable):
+
+```
+results/rlhf/records/     108 EpisodeRecords (9 policies x 12 seeds)
+results/rlhf/pairs.json   300 pairs, 50 double-labelled   <- the UI reads this
+results/rlhf/pairs_key.json  policy names + side assignment  <- analysis ONLY (D-038)
+```
+
+Verified end to end through **Diya's** `labelling/queue.py`: 300 pairs load, L1 and
+L2 get 175 each (250 singles + 50 doubles = 350 judgements). `pairs.json` contains
+no policy name and no `run_id`; `pairs_key.json` carries them, spread 28-40 per
+policy on the left side.
+
+**Two refusals you will meet if you rebuild (D-046), both firing before anything
+is written:**
+
+- `--write` on an existing `pairs.json` refuses without `--force`. A rebuild
+  renumbers every `pair_id`, silently repointing labels already collected.
+- `--write` refuses if two chosen policies are behaviourally identical. Verified:
+  `--write --reinforce-repeat 2 --force` exits 1 naming `reinforce@2 ==
+  severity_sort` and leaves the existing pair set untouched.
+
+**Watch out for.** The survey takes ~2 minutes and `--write` under 1 - both are
+inference, nothing trains. If either runs far longer, something is training that
+should not be. And `--write` writes records under the **bare** policy name
+(`dqn`, not `dqn@0`) because `build_pairs` matches on `agent_name`; a record named
+`dqn@0` is invisible to it and the build refuses with `no EpisodeRecords for
+['dqn']`.
+
+---
+
 ## PHASE 5a - LABELLING UI BUILT AND TESTED, STILL NOTHING LABELLED (2026-09-05, session 13)
 
 > Diya's box (`PROJECT_BRIEF.md` §9, `ROADMAP.md` 5a box 5). Every claim below was
@@ -41,9 +104,9 @@
   function directly so the fix doesn't depend on that quirk either.
 
 **Still true from Phase 5a's first half:** nothing has been labelled, so there is
-still no κ and no result. `scripts/generate_pairs.py` — Pranav's box, needs the
-nine trained policies present on his machine — is still not built and is the only
-thing standing between this and real labelling sessions.
+still no κ and no result. *(Updated session 14: `scripts/generate_pairs.py` is now
+built and the 300 pairs exist - see the section above. The only thing left in 5a is
+human time.)*
 
 ### What is left in 5a, and whose it is
 
@@ -85,8 +148,8 @@ thing standing between this and real labelling sessions.
 
 | item | state | owner |
 |---|---|---|
-| `scripts/generate_pairs.py` | **NOT BUILT.** Runs the 9 policies on seeds 3000000..3000011 and writes the records `pairs.py` consumes. All nine artefacts exist on Pranav's machine (`dp_Q.npy`, `q_learning_Q.npy`, `sarsa_Q.npy`, `monte_carlo_Q.npy`, and 5 `.pt` each for dqn / reinforce / actor_critic). **Needs a decision first:** which training repeat to show. REINFORCE's five differ by 0.7763 +- 0.0833 and three reproduce severity_sort exactly, so repeat 0 vs repeat 3 are materially different policies. | Pranav |
-| Labelling UI | **NOT BUILT.** Reads `results/rlhf/pairs.json`, writes through `rlhf/store.py`. **It must never read `pairs_key.json`** - that file holds the policy names and reading it destroys the blinding (D-038). | **Diya** (PROJECT_BRIEF §9) |
+| `scripts/generate_pairs.py` | **BUILT 2026-09-05, session 14** (D-045/D-046, 15 tests). Repeat decision taken: 0 for all three. 300 pairs written and verified through Diya's queue. | Pranav ✅ |
+| Labelling UI | **BUILT 2026-09-05, session 13** (FEATURE_012, 79 tests). Reads `results/rlhf/pairs.json`, writes through `rlhf/store.py`, refuses `pairs_key.json` by name (D-038). Now verified against the **real** pair file, not only fixtures. | **Diya** ✅ |
 | 300 labels, 50 double-labelled | not started - human time, not compute (~100 min) | both |
 | Cohen's kappa **number** | code built and verified; the number is unmeasured until labels exist | Pranav |
 
@@ -205,21 +268,27 @@ with `powercfg /change standby-timeout-ac 60`.
 | **Phase 2** | **CLOSED as built-but-not-passed** (D-020, confirmed final by **D-033**). Nothing outstanding - the 'unfinished item' was an unticked parent checkbox, corrected 2026-09-01. |
 | **Phase 3** | **CLOSED as built-but-not-passed** (E-017, confirmed final by **D-033**). |
 | **Phase 4** | **CLOSED as built-but-not-passed** (E-022, E-023, 2026-09-04). Both learners measured at full budget, box 3 run, verdict recorded in ROADMAP. Only the optional PPO box is unbuilt. |
-| **Phase 5** | **5a data layer + labelling UI BUILT + TESTED** (FEATURE_011, FEATURE_012, D-037 to D-044). Nothing labelled yet, so no 5a *result* exists. Next code: `scripts/generate_pairs.py` (**Pranav** — needs the nine trained policies present on his machine, and the training-repeat decision from session 12). After that: the 350 real labelling sessions, both of you. |
-| **Repo state** | `C:\Users\Diya\Desktop\RL Project`, branch `master`. **Everything is PUSHED.** `origin/master` is `708e0fb`, identical to local HEAD. All 9 commits from this session went up cleanly at the end. |
-| **Tests passing** | **376/376** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`), measured 2026-09-05 at **398.84s (6m 38s)** on this machine. Up from 286 - the 90 new tests are the labelling UI. An earlier run of the pre-existing 286 on this same machine took **486.73s (8m 6s)**, against 126.49s on Pranav's - the machine-to-machine spread is still very real; budget for the worst case regardless of whose laptop it is. |
-| **Blockers** | **Nothing.** The training-repeat decision noted in session 12 (which of REINFORCE's five runs to show, since three reproduce severity_sort exactly and two do not) is still owed before `generate_pairs.py` is written, but nothing stops other work. |
+| **Phase 5** | **5a is CODE COMPLETE** (FEATURE_011, FEATURE_012, D-037 to D-046). Data layer, labelling UI and `scripts/generate_pairs.py` all built and tested; the 300 pairs exist on Pranav's machine and load through Diya's UI. Nothing labelled yet, so no 5a *result* exists. **Next is not code - it is the 350 labelling sessions, both of you** (~100 min each). Then κ, then 5b. |
+| **Repo state** | `D:\RLPROJECT` (Pranav's machine), branch `master`. Session 14 added 3 commits: `adf64bb` the survey, `69489c0` write mode, plus these docs. **Push state is corrected in a follow-up commit** - if this line still says so, check `git status -sb` yourself. |
+| **Tests passing** | **391/391** as of session 14 (376 + 15 for `generate_pairs.py`), **140.91s** on Pranav's machine. Previously **376/376** (`.\.venv\Scripts\python.exe -m pytest tests/ -q`), measured 2026-09-05 at **398.84s (6m 38s)** on this machine. Up from 286 - the 90 new tests are the labelling UI. An earlier run of the pre-existing 286 on this same machine took **486.73s (8m 6s)**, against 126.49s on Pranav's - the machine-to-machine spread is still very real; budget for the worst case regardless of whose laptop it is. |
+| **Blockers** | **Nothing, and nothing is owed.** The training-repeat decision carried since session 12 was taken in session 14 on measured pair-seed evidence (D-045). 5a has no unbuilt code left. |
 
 ---
 
 ## 🔑 STARTING THE NEXT SESSION - do these first, in order
 
-> **Rewritten 2026-09-05 at the end of session 13.** Everything is pushed and the
-> balance is **exactly BALANCED, 55/55** - `scripts/commit_balance.py` says
-> either person may take the next block. The next unbuilt 5a box,
-> `scripts/generate_pairs.py`, needs the nine trained policies that exist only
-> on **Pranav's** machine, so it is naturally his even though the balance does
-> not force it.
+> **Rewritten 2026-09-05 at the end of session 14.** The balance is **BALANCED,
+> Pranav 57 / Diya 56, gap 1** - either person may take the next block.
+>
+> **There is no unbuilt code left in 5a.** The next thing is not a coding session:
+> it is the 300 labelling sessions, 50 of them done by *both* of you, which is
+> what produces the κ number this phase exists to report. `pairs.json` lives in
+> gitignored `results/`, so whoever labels either regenerates it with
+> `python scripts/generate_pairs.py --write` (under a minute, deterministic - the
+> same records give byte-identical pairs) or copies it across. **Do not rebuild it
+> once labelling has started:** `pair_id` is what the labels reference, and a
+> rebuild renumbers them. The script refuses without `--force` for exactly this
+> reason (D-046).
 
 **1. Get the work.** **9 commits were pushed at the end of session 13.**
 `origin/master` is `708e0fb`.
@@ -245,8 +314,8 @@ approval (CONSTRAINTS #8).
 **3. Prove the repo is healthy before writing anything:**
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 376 passed
-python scripts/commit_balance.py                  # expect: BALANCED, 55/55
+.\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 391 passed
+python scripts/commit_balance.py                  # expect: BALANCED, 57/56
 ```
 
 **Suite timing is NOT stable, and the old "~8 min" figure was misleading.** The same
@@ -572,7 +641,7 @@ Plus: `HANDOVER.md` (this file) actually describes the current state, and no str
 ```powershell
 cd D:\RLPROJECT
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 200 passed
+.\.venv\Scripts\python.exe -m pytest tests/ -q                    # expect 391 passed
 
 python scripts/run_baselines.py                                   # fast
 python scripts/run_dp.py                                          # ~2.5 min
@@ -580,6 +649,21 @@ python scripts/train.py --agent {q_learning,sarsa,monte_carlo}     # ~4 min each
 python scripts/policy_table.py --agent <name>                      # box 6
 python scripts/compare_agents.py                                   # box 5
 python scripts/ablations.py                                        # ~4 min
+```
+
+**Phase 5a - the pair set** (needs the 9 trained policies; all present on this device):
+
+```powershell
+# measure which training repeats are behaviourally identical. Writes nothing. ~2 min.
+.\.venv\Scripts\python.exe scripts/generate_pairs.py --survey
+
+# build the 300 pairs from repeat 0 of each multi-run learner (D-045). Under 1 min.
+# Refuses if pairs.json already exists -- see D-046 before passing --force.
+.\.venv\Scripts\python.exe scripts/generate_pairs.py --write
+
+# then label them
+.\.venv\Scripts\python.exe scripts/label_ui.py --labeller L1
+.\.venv\Scripts\python.exe scripts/report_kappa.py --csv-backup
 ```
 
 **Phase 3 (DQN) — expensive, read the notes first:**

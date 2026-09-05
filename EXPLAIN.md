@@ -1045,10 +1045,72 @@ nothing to do with our code. Relying on that luck was itself the problem — the
 fix makes the page reject NaN on its own terms, so the guarantee doesn't depend
 on an accident of somebody else's software.
 
+### The script that makes the real pairs, and the mistake it nearly made
+
+That script now exists. Writing it turned up a problem worth explaining, because
+it is exactly the kind of mistake that would have quietly ruined the one number
+this whole exercise is meant to produce.
+
+Nine different strategies go into the comparisons. Six of them exist once — there
+is one "always take the most serious alert first", and that is that. But three of
+them, the ones that learn by trial and error, were each trained five separate
+times from five different random starting points, because a single training run
+tells you nothing about whether a method works or whether it simply got lucky.
+That leaves a question nobody had answered: of those five, which one goes into
+the comparisons?
+
+It sounds like a detail. It is not. The five runs of one method came out wildly
+apart — the weakest caught about two-thirds of the incidents it should have, the
+strongest nearly nine in ten. And something worse was lurking. Judging by the
+figures we already had, some of those training runs had ended up doing precisely
+what the simple hand-written "most serious first" rule does. If one of those went
+into the pair set, a person would be shown two shifts side by side, told they came
+from two different strategies, and asked which they preferred — when both sides
+were in fact the same strategy wearing two names. Whatever they answered would be
+noise, and we would then have fitted a reward model to that noise.
+
+The tempting move was to settle it with a rule chosen in advance: always use the
+first training run, say, or the middle one. The middle one would have been the
+disaster. On the figures available, the middle run of that method *was* one of the
+duplicates. The most sensible-sounding rule, picked before looking, walked
+straight into the exact trap it was meant to avoid.
+
+So the script measures instead. It runs all twenty-one candidates — the six
+one-off strategies and all fifteen training runs — over the twelve shifts the
+labelling will actually use, and then compares not their scores but their *moves*:
+every decision each one made, in order. Two strategies that make identical moves
+on all twelve shifts are the same strategy, whatever they are called.
+
+Why measure on those twelve shifts rather than reuse the figures we already had?
+Because those came from a different set of shifts — the ones held back for final
+marking, which the labelling is forbidden to touch, for the reason explained
+earlier in this document. Behaving identically on one set of shifts does not mean
+behaving identically on another. That caution paid for itself immediately. The old
+figures suggested three of the five runs were duplicates. On the shifts that
+actually matter, only two are — and the third, the one the old evidence would have
+discarded, turns out to be the strongest strategy in the entire pool, better even
+than the hand-written rule it had been mistaken for.
+
+What was chosen in the end was the first training run of each of the three
+methods, none of which duplicates anything. Deliberately *not* the
+highest-scoring one: picking the winner after seeing the scores is a way of
+deciding that is very hard to defend afterwards, and in any case the pair set does
+not want the strongest strategies. It wants strategies that differ from each
+other, because a comparison whose answer is obvious teaches the reward model
+nothing at all.
+
+Finally, the script refuses. Before it writes anything, it checks whether any two
+of the strategies it is about to use make identical moves, and if they do it stops
+and names them. That check is not there for today's choice, which was made with
+the measurements in hand. It is there for the day somebody retrains a model, picks
+a run without reading any of this, and would otherwise produce a pair set that
+looks perfectly ordinary while quietly asking people to prefer a thing over
+itself.
+
 ### What is still not done
 
-Nobody has been shown a real pair yet, because the script that turns nine
-trained agents into the actual shifts to compare — Pranav's box — has not been
-written. Everything downstream of that is finished and tested against pretend
-data built the same way the real data will look. When his script runs, the page
-meets the real file and the two hundred labelling sessions can begin.
+The pairs exist now — three hundred of them, fifty deliberately handed to both
+people so their agreement can be measured. What has not happened is the part no
+code can do: somebody sitting down and answering them. Until that happens there is
+no agreement figure and no learned reward, only the machinery standing ready for
+both.

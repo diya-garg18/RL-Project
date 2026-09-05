@@ -333,7 +333,7 @@ rather than approximating the x-axis.
 
 ---
 
-## Flow D — RLHF (Phase 5) 🟡 *(stages 1 and 2 built & tested — FEATURE_011 2026-09-04, FEATURE_012 2026-09-05; stage 3 not started)*
+## Flow D — RLHF (Phase 5) 🟡 *(stages 1 and 2 built & tested — FEATURE_011 2026-09-04, stage 1a 2026-09-05, FEATURE_012 2026-09-05; stage 3 not started)*
 
 Three separate stages. Don't fuse them; each produces an artefact the next consumes.
 
@@ -345,11 +345,47 @@ holds labels only, which keeps the irreplaceable data in one small file that is 
 to back up (CONSTRAINTS #19). And the pair set is written as **two** files, because
 `pairs.json` must contain no policy name at all (D-038).
 
+**And stage 1a itself split in two (D-045).** Three of the nine policies were
+trained five times, and the five are not interchangeable — two REINFORCE repeats
+turned out to take *identical* actions to `severity_sort` on every pair seed. So
+the script measures before it writes: `--survey` runs all 21 variants and reports
+which are indistinguishable, a human picks the repeats, and `--write` builds the
+pair set. The refusals in `--write` are what stop that decision being got wrong
+later by someone who never ran the survey (D-046).
+
 ```
-STAGE 1a — generate the episodes  (needs agents + torch; NOT BUILT YET)
-scripts/generate_pairs.py
-  └─ load each of the 9 policies in config rlhf.policies
+STAGE 1a — generate the episodes  (needs agents + torch)   ✅ BUILT 2026-09-05
+scripts/generate_pairs.py --survey      ← measure first, decide second. Writes NOTHING.
+  └─ build_variants(): 21 variants — the 6 policies with one artefact each, plus
+     dqn@0..4, reinforce@0..4, actor_critic@0..4      ← a repeat is not a detail (D-045)
+       └─ epsilon pinned to 0 wherever it exists (tabular, DQN — a partly-random
+          agent is not the policy that was learned)
+       └─ policy-gradient agents have no epsilon, so their draws are pinned by
+          reseed() instead, exactly as train_reinforce.py does at eval time (D-036)
   └─ runner.run_episodes(seeds = pair_seed_start .. +n_pair_seeds)   ← seed block 3000000
+  └─ variant_traces(records)             ← the actions taken, which is the whole of
+                                            what a labeller can see
+  └─ identical_groups(traces)            ──▶ which variants are indistinguishable
+                                            (found: reinforce@2 == reinforce@4
+                                                             == severity_sort)
+
+        ↓  a human reads that table and chooses (D-045: repeat 0 for all three)
+
+scripts/generate_pairs.py --write
+  └─ build_variants()  ← the SAME constructor the survey used, deliberately: built by
+     a second route, the survey's evidence would describe policies that never shipped
+  └─ the 9 chosen: random, severity_sort, dp, q_learning, sarsa, monte_carlo,
+     dqn@0, reinforce@0, actor_critic@0
+  └─ agent.name = policy_name(label)     ← "dqn", not "dqn@0"; build_pairs matches
+                                            records on agent_name and would refuse
+  └─ runner.run_episodes(...)            ← 9 policies x 12 seeds = 108 episodes
+  └─ collapsed_pairs(traces, chosen)     ──▶ REFUSE, naming both, if any two chosen
+                                            take identical actions on all 12 seeds —
+                                            that pair would ask a labeller to prefer
+                                            a policy over itself (D-046)
+  └─ REFUSE an existing pairs.json without --force  ──▶ a rebuild renumbers every
+                                            pair_id and silently repoints labels
+                                            already collected against them
   └─ runner.save_records(...)            ──▶ results/rlhf/records/*.json
 
 STAGE 1b — build the pairs  (pure data; no agent, no env, no torch)   ✅ BUILT

@@ -144,6 +144,9 @@ RLPROJECT/                     ← D:\RLPROJECT on the current device
 │       └─ app.py               ← GET / and POST /label
 ├─ tests/
 ├─ scripts/                    ← thin CLI entry points, no logic
+│   ├─ generate_pairs.py       ← --survey measures which repeats collapse; --write
+│   │                             builds the 300 pairs. The ONE place allowed to
+│   │                             need both torch and results/ (FEATURE_011 §3)
 │   └─ label_ui.py             ← serves labelling/app.py for one --labeller
 ├─ results/                    ← gitignored except .gitkeep
 └─ web/                        ← React dashboard (Phase 6, not built)
@@ -260,7 +263,7 @@ trainers now record `episode_steps`; the agents consume samples at very differen
 | 2 | **all built ✅** — `tiny_mdp`, `agents/tabular`, `agents/q_learning`, `agents/sarsa`, `agents/monte_carlo`, `scripts/train.py`, `scripts/policy_table.py`, `scripts/compare_agents.py`, `scripts/ablations.py` |
 | 3 | **all built ✅, no training result yet** — `agents/dqn`, `agents/replay`, `scripts/train_dqn.py`, `scripts/run_dqn_sweep.py`, `scripts/aggregate_dqn.py`, `scripts/compare_dqn_tabular.py`, `scripts/dqn_ablations.py` |
 | 4 | 🟡 `agents/reinforce` **built + tested, unmeasured** (FEATURE_008, E-018), `scripts/train_reinforce.py`; still to come: `agents/actor_critic`, the sample-efficiency comparison, the variance demonstration |
-| 5 | 🟡 **5a data layer + labelling UI built + tested** (FEATURE_011, FEATURE_012) — `rlhf/summary`, `rlhf/pairs`, `rlhf/store`, `rlhf/agreement`, `labelling/queue`, `labelling/render`, `labelling/app`, `scripts/report_kappa.py`, `scripts/label_ui.py`, `config.RLHFConfig`; still to come: `scripts/generate_pairs.py` (Pranav), the 350 real judgements, `rlhf/reward_model` (5b), 5c re-training |
+| 5 | 🟡 **5a is code complete** (FEATURE_011, FEATURE_012) — `rlhf/summary`, `rlhf/pairs`, `rlhf/store`, `rlhf/agreement`, `labelling/queue`, `labelling/render`, `labelling/app`, `scripts/report_kappa.py`, `scripts/label_ui.py`, `scripts/generate_pairs.py`, `config.RLHFConfig`. The 300 pairs exist and load through the UI. Still to come: the 350 real judgements (human time, not code), `rlhf/reward_model` (5b), 5c re-training |
 | 6 | `evaluation/audit`, `evaluation/plots` |
 
 Nothing from a later phase should be needed to run an earlier phase. If Phase 5 breaks, Phase 2's results must still reproduce.
