@@ -277,8 +277,11 @@ with `powercfg /change standby-timeout-ac 60`.
 
 ## 🔑 STARTING THE NEXT SESSION - do these first, in order
 
-> **Rewritten 2026-09-05 at the end of session 14.** The balance is **BALANCED,
-> Pranav 57 / Diya 56, gap 1** - either person may take the next block.
+> **Rewritten 2026-09-05 at the end of session 14.** The balance is **IMBALANCED:
+> Pranav 63 / Diya 56, gap 7 - `commit_balance.py` says Diya should take the next
+> block**, roughly 4-7 commits to get back inside the threshold. It was 57/56 and
+> balanced mid-session; session 14's documentation commits pushed it out. Measured
+> after the final push, not before - a pre-push run of that script is not evidence.
 >
 > **There is no unbuilt code left in 5a.** The next thing is not a coding session:
 > it is the 300 labelling sessions, 50 of them done by *both* of you, which is
@@ -315,7 +318,7 @@ approval (CONSTRAINTS #8).
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/ -q    # expect 391 passed
-python scripts/commit_balance.py                  # expect: BALANCED, 57/56
+python scripts/commit_balance.py                  # expect: IMBALANCED, 63/56
 ```
 
 **Suite timing is NOT stable, and the old "~8 min" figure was misleading.** The same
