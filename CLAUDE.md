@@ -8,14 +8,15 @@ This project follows the *AI Collaboration Field Guide* ("Don't just trust the A
 
 ## Session start protocol
 
-Do these six things before writing any code:
+Do these seven things before writing any code, **in this order**:
 
-1. Read `HANDOVER.md` — where things actually stand.
-2. Read `ROADMAP.md` — find the current phase and the next unchecked task.
-3. Read `CONSTRAINTS.md` — the hard boundaries.
-4. **Confirm which machine and which teammate this is** — `git config user.name`. The two students alternate machines, and the answer changes who should be committing.
-5. **Run `python scripts/commit_balance.py` and report the result** (CONSTRAINTS #26). If the person at this keyboard is the one *ahead*, say so immediately and recommend handing over before starting new work.
-6. State the plan in prose and **wait for approval before implementing** (Field Guide habit #11: ask *why* before *what*).
+1. **`git fetch`, then `git pull --ff-only` — before reading anything else.** This is step 1 because on a project with two people alternating machines, *every other step in this list is a lie on a stale checkout*. A clean tree and a `## master...origin/master` line with no `ahead` marker look identical whether you are current or nine commits behind — nothing local can tell you, because nothing local has asked the remote. If the tree is dirty or the pull will not fast-forward, **stop and say so**; do not create a merge nobody asked for. *(Added 2026-09-05, session 14. Session 14's preflight read `HANDOVER.md` and ran `commit_balance.py` on a checkout 9 commits behind. Both agreed and both were wrong — "IMBALANCED, Pranav 8 ahead, hand over to Diya" was really BALANCED 55/56 — and the plan about to be proposed routed work around Diya's labelling UI, which she had built, tested and pushed that morning.)*
+2. Read `HANDOVER.md` — where things actually stand. **Read it after the pull, not before**; the pull frequently rewrites it.
+3. Read `ROADMAP.md` — find the current phase and the next unchecked task.
+4. Read `CONSTRAINTS.md` — the hard boundaries.
+5. **Confirm which machine and which teammate this is** — `git config user.name`. The two students alternate machines, and the answer changes who should be committing.
+6. **Run `python scripts/commit_balance.py` and report the result** (CONSTRAINTS #26). If the person at this keyboard is the one *ahead*, say so immediately and recommend handing over before starting new work. Its answer depends on history, so a pre-pull run of it is not evidence — it must run **after** step 1.
+7. State the plan in prose and **wait for approval before implementing** (Field Guide habit #11: ask *why* before *what*).
 
 Skim `ARCHITECTURE.md` if the task touches more than one module.
 
