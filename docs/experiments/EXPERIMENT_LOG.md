@@ -1512,3 +1512,82 @@ Full budget, 5 repeats each, evaluated once on the 30-seed block after every tra
 decision was already made (CONSTRAINTS #2). Reportable. The DQN runs are the regenerated
 ones carrying `episode_steps`; E-017's originals are preserved untouched at
 `results/dqn_runs/dqn_E017_preserved_no_episode_steps/` (CONSTRAINTS #4).
+
+---
+
+## E-024 - E-022's "three of five" is two of five on the seeds that matter, and the third is the best policy in the pool - 2026-09-05
+
+**Model:** Claude Opus 5 · **Phase:** 5a · **Machine:** Pranav's PC · **Decisions applied:** D-036 (sampled is the reported number), D-045, D-046
+
+**Not a training run.** Every policy here was already trained; this is inference on a
+seed block none of them has seen. 21 variants x 12 seeds = 252 episodes in about two
+minutes, which is why it was worth measuring rather than deciding by rule.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/generate_pairs.py --survey
+```
+
+Seeds 3000000..3000011 (`rlhf.pair_seed_start`), config `679eaa992c7f`. Exploration
+pinned to 0 for the tabular learners and the DQN; the policy-gradient agents keep
+sampling with `reseed(repeat)`, per D-036.
+
+### Why this was run
+
+**E-022 reported that REINFORCE "rediscovers severity_sort, exactly, in three runs of
+five."** That was measured on the **eval** seeds, where repeats 1, 2 and 4 all scored
+recall 0.8443 - severity_sort's eval recall. FEATURE_011 §4 forbids building the pair
+set from eval episodes, so the pair set runs on its own seed block, and the question
+"is this repeat a severity_sort clone?" had never been asked on those shifts.
+
+It is also a different question from the one E-022 answered. Equal recall is not equal
+behaviour. This compares **action traces** - every decision, in order - because that is
+what a labeller can actually see, and two policies with the same trace are the same
+policy under two names.
+
+### Result
+
+```
+COLLAPSED:  reinforce@2  ==  reinforce@4  ==  severity_sort
+```
+
+Identical actions on all 12 pair seeds, hence identical recall (0.8530) and reward
+(162.80). No other collapse: all five `dqn` repeats, all five `actor_critic` repeats
+and the six single-artefact policies are mutually distinguishable.
+
+| variant | recall | total reward | | variant | recall | total reward |
+|---|---|---|---|---|---|---|
+| random | 0.4467 | -244.51 | | dqn@0 | 0.4280 | 89.63 |
+| severity_sort | 0.8530 | 162.80 | | dqn@1 | 0.7009 | 306.05 |
+| dp | 0.2520 | -64.30 | | dqn@2 | 0.4904 | 140.99 |
+| q_learning | 0.7113 | 49.50 | | dqn@3 | 0.6230 | 173.17 |
+| sarsa | 0.7029 | 309.09 | | dqn@4 | 0.4858 | 117.47 |
+| monte_carlo | 0.6353 | 73.27 | | actor_critic@0 | 0.5930 | 26.31 |
+| reinforce@0 | 0.5715 | 243.21 | | actor_critic@1 | 0.7161 | 109.25 |
+| **reinforce@1** | **0.8947** | 172.05 | | actor_critic@2 | 0.5949 | 31.18 |
+| reinforce@2 | 0.8530 | 162.80 | | actor_critic@3 | 0.5389 | -12.17 |
+| reinforce@3 | 0.6922 | 335.26 | | actor_critic@4 | 0.6517 | 28.86 |
+
+### What this corrects, and what it does not
+
+**It does not overturn E-022.** E-022's numbers were correct for the seeds it measured,
+and its finding - that a policy-gradient learner can converge onto a hand-written
+heuristic and that this is worth reporting rather than hiding - is unchanged and is
+arguably strengthened: the collapse reproduces on a second, unseen seed block.
+
+**It does narrow the count, and it rescues one repeat.** Two of the five reproduce
+severity_sort on the pair seeds, not three. `reinforce@1` is *not* one of them - it is
+the highest-recall policy in the entire pool at 0.8947, above severity_sort's 0.8530,
+and it was only ever grouped with the clones because equal eval-seed recall was read as
+equal behaviour. Even on the eval seeds the tell was visible and unremarked: repeat 1
+scored reward 42.63 against 40.44 for repeats 2 and 4, so it was never actually
+identical, only tied on the headline metric.
+
+**The methodological point, which is the reusable one.** A rule chosen before measuring
+would have got this wrong in both directions. "Median repeat by recall" lands on 0.8530
+- repeat 2 or 4, a clone, the exact failure the check exists to prevent. "Discard the
+three that look like severity_sort" throws away the best policy available. Neither
+error would have raised anything; both would have produced a pair set that looked
+entirely normal. Cost of measuring: two minutes.
+
+The repeat actually chosen for the pair set is 0 for all three learners, for reasons
+that are about defensibility rather than performance - see **D-045**.
