@@ -1247,3 +1247,78 @@ reads and was tested against in session 13, and `p0000` ids are baked into its
 fixtures and into `rlhf/store.py`'s schema. Changing the id scheme now to avoid a
 guard would be building backwards (CONSTRAINTS #18) across a module boundary that
 is currently working.
+
+---
+
+## D-047 - The onboarding doc set, and the rule that every session updates it and explains itself
+
+**Date:** 2026-09-09/10 (session 15) · **Taken by:** Pranav · **Model:** Claude Opus 5
+**Applies to:** `docs/onboarding/`, `CLAUDE.md`
+
+Pranav asked for a set of documents that would let someone entirely new read the
+whole project and understand it, with the code open beside them, ahead of the
+labelling phase. The reason he gave is the operative one: **"for the human
+labelling part we need to understand everything fully."** A labeller who cannot
+say what the agent was choosing between cannot judge whether a shift was handled
+well, and 350 judgements made without that understanding are 350 pieces of noise
+in the one artefact this project cannot regenerate.
+
+Three scoping choices were made explicitly rather than defaulted.
+
+**Depth: a tiered walkthrough, not a line-by-line transcript.** All 86 files are
+covered, but important lines are explained individually and routine boilerplate is
+compressed into tables. A literal line-by-line pass over 17,699 lines would be
+longer than the code, and the parts worth explaining would be buried in the parts
+that are not. The request said "every file line by line"; the tiering was proposed
+against that wording and accepted, because the goal behind the wording is
+comprehension, not coverage.
+
+**Format: Markdown source, Word export.** The `.md` files are the source of truth
+and live in git where they diff; the `.docx` is a generated artefact. The
+alternative - authoring in Word - puts the canonical text in a binary that cannot
+be reviewed in a diff, on a project whose whole thesis is traceability.
+
+**Comments: verify per file, do not sweep.** The pass covers all 86 files, but
+`rlhf/`, `labelling/` and most of `agents/` are already densely commented with
+intent comments and D-number citations. Adding to them would make them worse. This
+was discovered by reading them rather than assumed, and it changes the task from a
+bulk edit to a verification sweep with a per-file verdict.
+
+**Rejected: one large document.** Seven documents with a fixed reading order and
+one owner per file beats a single file with a table of contents, because the
+ownership rule is what stops the same code being explained three times in three
+slightly different ways - the failure mode that makes a doc set untrustworthy once
+the explanations drift apart.
+
+### The teaching-back rule
+
+Two obligations were added to `CLAUDE.md`, both at the end of every session.
+
+**The onboarding docs get updated every session, without being asked**, with a
+table mapping each document to the changes that trigger it. A code change without
+its doc update is now an unfinished change. Documentation that is written once and
+then goes stale is worse than none, because it is trusted and wrong.
+
+**Claude explains the session in the chat, in plain terms** - what it did, why,
+how it works, what it verified with exact output, what it did NOT do, and what the
+humans should check rather than take on trust. The reasoning is this project's
+founding constraint: if the humans cannot explain the code, the project has failed
+regardless of what the metrics say. A file that is written but never read does not
+discharge that, and re-deriving a session's work weeks later from a diff is the
+expensive way to learn it. So the explanation happens while the context is still
+live, in the conversation, where it can be questioned.
+
+The rule states that if a session runs long, the *work* stops early to leave room
+for the explanation. That ordering is the decision: **an unexplained change is
+worth less to this project than no change at all.**
+
+### What was left for the next session
+
+Documents 0-3 were written (4,227 lines). Documents 4-6, the `.docx` export and
+the comment pass were not started, and are Diya's block - partly because the
+balance was 11 commits imbalanced by the end of the session, and partly because
+writing a walkthrough of code is one of the better ways to learn it, and documents
+5 and 6 cover the RLHF module she built. The contract for that work is
+`docs/onboarding/_SPEC_AND_STATUS.md`, which carries the original request verbatim,
+the house style derived from the four existing documents, and a per-section plan
+naming every file each remaining document owns.

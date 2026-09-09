@@ -1114,3 +1114,97 @@ people so their agreement can be measured. What has not happened is the part no
 code can do: somebody sitting down and answering them. Until that happens there is
 no agreement figure and no learned reward, only the machinery standing ready for
 both.
+
+---
+
+## Part 9 - The onboarding guide, and why the project now explains itself out loud
+
+*Added 2026-09-10, session 15.*
+
+There is a gap between a project that works and a project two students can defend.
+Everything in this repository up to now has been aimed at the first: the simulator,
+the seven algorithms, the evidence discipline, the label pipeline. This part is
+aimed at the second, and it exists because of what comes next.
+
+The next thing that happens is three hundred human judgements. Somebody sits in
+front of two shifts, side by side, and says which one was handled better. That
+judgement is the raw material for the learned reward, and it is the one artefact
+in the project that cannot be regenerated - re-running a script cannot recover an
+opinion somebody formed six weeks ago. So the quality of those judgements is the
+ceiling on everything downstream.
+
+And a judgement is only as good as the judge's understanding. Somebody who does
+not know that the agent picks a *rule* rather than an alert, or that severity is
+deliberately a weak signal, or that bulk-close is a trap that pays five points and
+occasionally costs two hundred and twenty, cannot tell a good shift from a lucky
+one. They will produce answers, and the answers will look exactly like data.
+
+So before the labelling starts, the project explains itself.
+
+### What was written
+
+Seven documents, in a fixed reading order, in `docs/onboarding/`. Four exist so
+far. They are written for somebody who knows nothing about security operations and
+nothing about reinforcement learning, and they are meant to be read with the code
+open beside them - not instead of it.
+
+The first is a handbook for the labelling sessions themselves: how to start the
+page, what the two panes are showing, what is deliberately hidden and why, and the
+one rule that matters most, which is not to discuss the pairs with each other while
+labelling. Agreement between two people who calibrated on each other is not
+agreement; it is an echo, and the kappa number it produces means nothing.
+
+The second is the tour: what a SOC is, why most of the queue is never looked at,
+what reinforcement learning is, the whole decision problem worked through on a
+concrete example, and an honest section on the reward function that says plainly
+that every number in it was invented. That section is the argument for the entire
+labelling phase, so it is stated rather than implied.
+
+The third and fourth walk the code. One covers the world - where alerts come from,
+what the agent is allowed to see, how a shift plays out minute by minute. The other
+covers the eleven agents, organised around the two questions that place any
+algorithm: does it use its own guess about the future, and does it learn the value
+of the policy it is actually following. Answer those two and the difference between
+every pair of algorithms in the project comes down to a single named term.
+
+Both quote the code's own comments rather than paraphrasing them, which is
+deliberate: it means a reader can check every claim against the file in front of
+them, and it means the documents inherit the reasoning the comments already carry
+instead of inventing a second version of it.
+
+### The rule that came with them
+
+Documentation that is written once and then left behind is worse than none,
+because it is trusted and wrong. So two obligations were written into the
+project's operating rules, and they apply to every session from now on.
+
+The first is that these documents are updated every session, without being asked,
+with a table saying which document covers which part of the code so there is no
+ambiguity about what needs checking. A change to the code without its change to
+the documents is now an unfinished change.
+
+The second is that at the end of every session, the work gets explained in plain
+English in the conversation itself - not only written to a file. What was done,
+why, how it works, what was actually verified and with what output, what was *not*
+done, and what a human should check rather than take on trust.
+
+The reasoning behind the second one is the reasoning behind this whole repository.
+If the two people whose names are on this project cannot explain the code, it has
+failed no matter what the numbers say. A document nobody reads does not fix that.
+Reconstructing a session's work from a diff three weeks later is the expensive way
+to learn it, and usually the way it does not get learned at all. So the
+explanation happens while the work is still fresh, in the place where it can be
+argued with.
+
+The rule is explicit that if a session runs short of room, the work stops early
+and the explanation still happens. An unexplained change is worth less to this
+project than no change at all.
+
+### What is still not done
+
+Three of the seven documents are unwritten - the one on running and measuring,
+the one on the preference pipeline, and the one on the decisions, experiments and
+negative results. The Word exports have not been generated, and the pass to check
+comments across all eighty-six source files has not started. All of it is
+specified in `docs/onboarding/_SPEC_AND_STATUS.md` and all of it is Diya's next
+block.

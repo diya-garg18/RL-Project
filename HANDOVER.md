@@ -7,6 +7,73 @@
 
 ---
 
+## ONBOARDING DOCS - 4 OF 7 WRITTEN. DIYA HAS THE NEXT BLOCK (2026-09-10, session 15)
+
+> Pranav's box. No Python was changed this session, so the **391-passing** baseline
+> still holds and was re-verified at session start (`391 passed in 173.74s`).
+
+**What this session built.** A seven-document plain-English guided tour in
+`docs/onboarding/`, written so someone who knows nothing about SOCs or RL can read
+it alongside the code and understand the whole project. Pranav asked for it because
+**the labelling phase needs both students to understand everything fully** - you
+cannot judge whether a shift was handled well if you do not know what the agent
+was choosing between.
+
+| Document | Lines | Status |
+|---|---:|---|
+| `00_labelling_handbook.md` | 419 | written |
+| `01_the_project_in_plain_english.md` | 1000 | written |
+| `02_the_world.md` | 1254 | written |
+| `03_the_agents.md` | 1554 | written |
+| `04_running_and_measuring.md` | - | **NOT STARTED** |
+| `05_rlhf_and_labelling.md` | - | **NOT STARTED** |
+| `06_decisions_experiments_results.md` | - | **NOT STARTED** |
+| `.docx` exports (all seven) | - | **NOT STARTED** |
+| intent-comment pass, 86 `.py` files | - | **NOT STARTED** |
+
+### ⚠️ Read `docs/onboarding/_SPEC_AND_STATUS.md` before touching any of it
+
+That file is the contract for the whole set: the original request verbatim, the three
+scoping decisions already taken (tiered walkthrough / Markdown source + Word export /
+all 86 files intent comments), the **house style derived from the four documents that
+exist**, and a per-section plan for documents 4, 5 and 6 naming every file each one
+owns. Documents 4-6 must be indistinguishable in voice from 0-3 - a document written
+in a different register is worse than no document, because the reader stops trusting
+the set.
+
+### Two rules were added to `CLAUDE.md` this session, and they bind every session from now on
+
+1. **`docs/onboarding/` is updated every session, without being asked.** The
+   document-to-trigger mapping is in CLAUDE.md under "The teaching-back rule". A code
+   change without its doc update is an unfinished change; if a document needed no
+   edit, say so explicitly rather than leaving it ambiguous.
+2. **Claude explains the session in the chat, in plain terms** - what it did, why,
+   how it works, what it verified with exact output, what it did NOT do, and what the
+   humans should check rather than take on trust. If a session runs long, the *work*
+   stops early to leave room for the explanation.
+
+### Watch out for
+
+- **The zero-byte junk file trap fired again this session** (BUG_001). A 0-byte file
+  named `cheaper` appeared in the repo root from a `->` in prose being read as a shell
+  redirect. Caught by the mandated `git status --short` sweep and deleted. `git add -A`
+  would have committed it. Run
+  `find . -maxdepth 2 -type f -size 0 -not -path './.git/*'` after every commit;
+  legitimate hits are `*/.gitkeep` and gitignored `results/*.err`, nothing else.
+- **`rlhf/` and `labelling/` are already densely commented.** The 86-file comment pass
+  must be verified per file, not applied in bulk - adding comments to those files would
+  make them worse. Expect `scripts/` to be where the real work is.
+- **Do not re-run `scripts/generate_pairs.py`.** D-046: a rebuild renumbers `pair_id`
+  and orphans any labels already collected.
+
+### The balance
+
+**Pranav 11 ahead - IMBALANCED.** Three documentation commits this session took the gap
+from 8 to 11. `commit_balance.py` says Diya should take the next 8-11 commits, which is
+why documents 4-6 are assigned to her. Measured after the final push, not before.
+
+---
+
 ## PHASE 5a - CODE COMPLETE. THE 300 PAIRS EXIST. NOTHING IS LABELLED YET (2026-09-05, session 14)
 
 > Pranav's box, on Pranav's machine (`D:\RLPROJECT`). Every claim here was run
@@ -277,11 +344,17 @@ with `powercfg /change standby-timeout-ac 60`.
 
 ## 🔑 STARTING THE NEXT SESSION - do these first, in order
 
-> **Rewritten 2026-09-05 at the end of session 14.** The balance is **IMBALANCED:
-> Pranav 63 / Diya 56, gap 7 - `commit_balance.py` says Diya should take the next
-> block**, roughly 4-7 commits to get back inside the threshold. It was 57/56 and
-> balanced mid-session; session 14's documentation commits pushed it out. Measured
-> after the final push, not before - a pre-push run of that script is not evidence.
+> **Updated 2026-09-10 at the end of session 15.** The balance is **IMBALANCED:
+> gap 11, `commit_balance.py` says Diya should take the next 8-11 commits.** It was
+> gap 7 after session 14 and gap 8 at the start of session 15; three documentation
+> commits pushed it to 11. Measured after the final push, not before - a pre-push run
+> of that script is not evidence.
+>
+> **Diya's next block is documents 4, 5 and 6 of the onboarding set**, then the
+> `.docx` export and the 86-file comment pass. The contract for all of it is
+> `docs/onboarding/_SPEC_AND_STATUS.md` - read that file before anything else in
+> that directory. Four documents already exist and set the house style; matching
+> them is the job.
 >
 > **There is no unbuilt code left in 5a.** The next thing is not a coding session:
 > it is the 300 labelling sessions, 50 of them done by *both* of you, which is
