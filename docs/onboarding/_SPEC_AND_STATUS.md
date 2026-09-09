@@ -27,7 +27,7 @@ next began.
 | 5 | `05_rlhf_and_labelling.md` | 1085 | ✅ **Written** | Diya, session 16 |
 | 6 | `06_decisions_experiments_results.md` | 866 | ✅ **Written** | Diya, session 16 |
 | — | `.docx` exports of all seven | — | ✅ **Written, gitignored** (regenerated from .md via the docx skill) | Diya, session 16 |
-| — | Intent-comment pass, 86 `.py` files | — | ❌ **NOT STARTED** | Diya |
+| — | Intent-comment pass, 86 `.py` files | — | ✅ **Verified, 0 additions needed** (all 86 files already sufficient per CLAUDE.md's existing discipline) | Diya, session 16 |
 
 **Total written so far: 4,227 lines across four documents.** Documents 4–6 should land in
 roughly the same range — 1,000–1,500 lines each. Do not pad to hit a number, and do not
