@@ -1143,10 +1143,11 @@ So before the labelling starts, the project explains itself.
 
 ### What was written
 
-Seven documents, in a fixed reading order, in `docs/onboarding/`. Four exist so
-far. They are written for somebody who knows nothing about security operations and
-nothing about reinforcement learning, and they are meant to be read with the code
-open beside them - not instead of it.
+Seven documents, in a fixed reading order, in `docs/onboarding/`. All seven now
+exist (the last three landed 2026-09-10, session 16, Diya's block). They are
+written for somebody who knows nothing about security operations and nothing
+about reinforcement learning, and they are meant to be read with the code open
+beside them - not instead of it.
 
 The first is a handbook for the labelling sessions themselves: how to start the
 page, what the two panes are showing, what is deliberately hidden and why, and the
@@ -1171,6 +1172,25 @@ Both quote the code's own comments rather than paraphrasing them, which is
 deliberate: it means a reader can check every claim against the file in front of
 them, and it means the documents inherit the reasoning the comments already carry
 instead of inventing a second version of it.
+
+The fifth and sixth continue the tour. One covers how an episode becomes a
+number - the runner, the five metrics, and the two hand-solved fixtures
+(a tiny five-state MRP and a tiny two-state MDP) that exist purely so a
+learner's answer can be checked against a number a human worked out on paper
+first, rather than only against another program that might share the same
+mistake. The other covers the RLHF machinery in detail: how three hundred
+blinded comparisons get built, which file is responsible for stripping every
+reward number before a human ever sees a pair, and Cohen's kappa worked through
+by hand on a ten-pair example so the formula is not just asserted.
+
+The seventh is the "why" document - forty-seven decisions and twenty-four
+experiments, read together rather than as two separate logs, plus all five bugs
+in full and an honest accounting of why four of the project's six phases closed
+without passing their own exit criterion. That pattern - four honest failures in
+a row - is presented as the project's headline finding rather than something to
+explain away, because a criterion that turns out to be wrong and is corrected
+openly is worth more than four criteria quietly rewritten to fit whatever the
+numbers turned out to be.
 
 ### The rule that came with them
 
@@ -1202,9 +1222,9 @@ project than no change at all.
 
 ### What is still not done
 
-Three of the seven documents are unwritten - the one on running and measuring,
-the one on the preference pipeline, and the one on the decisions, experiments and
-negative results. The Word exports have not been generated, and the pass to check
-comments across all eighty-six source files has not started. All of it is
-specified in `docs/onboarding/_SPEC_AND_STATUS.md` and all of it is Diya's next
-block.
+All seven Markdown documents are now written. Two things named in the original
+request remain: the Word exports have not been generated, and the pass to check
+intent comments across all eighty-six source files has not started (most of
+`rlhf/`, `labelling/` and `agents/` are already densely commented, so this is a
+per-file verification sweep, not a bulk edit - see `_SPEC_AND_STATUS.md` §9).
+Both are specified in `docs/onboarding/_SPEC_AND_STATUS.md`.
