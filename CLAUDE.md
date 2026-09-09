@@ -8,7 +8,7 @@ This project follows the *AI Collaboration Field Guide* ("Don't just trust the A
 
 ## Session start protocol
 
-Do these seven things before writing any code, **in this order**:
+Do these eight things before writing any code, **in this order**:
 
 1. **`git fetch`, then `git pull --ff-only` — before reading anything else.** This is step 1 because on a project with two people alternating machines, *every other step in this list is a lie on a stale checkout*. A clean tree and a `## master...origin/master` line with no `ahead` marker look identical whether you are current or nine commits behind — nothing local can tell you, because nothing local has asked the remote. If the tree is dirty or the pull will not fast-forward, **stop and say so**; do not create a merge nobody asked for. *(Added 2026-09-05, session 14. Session 14's preflight read `HANDOVER.md` and ran `commit_balance.py` on a checkout 9 commits behind. Both agreed and both were wrong — "IMBALANCED, Pranav 8 ahead, hand over to Diya" was really BALANCED 55/56 — and the plan about to be proposed routed work around Diya's labelling UI, which she had built, tested and pushed that morning.)*
 2. Read `HANDOVER.md` — where things actually stand. **Read it after the pull, not before**; the pull frequently rewrites it.
@@ -17,6 +17,11 @@ Do these seven things before writing any code, **in this order**:
 5. **Confirm which machine and which teammate this is** — `git config user.name`. The two students alternate machines, and the answer changes who should be committing.
 6. **Run `python scripts/commit_balance.py` and report the result** (CONSTRAINTS #26). If the person at this keyboard is the one *ahead*, say so immediately and recommend handing over before starting new work. Its answer depends on history, so a pre-pull run of it is not evidence — it must run **after** step 1.
 7. State the plan in prose and **wait for approval before implementing** (Field Guide habit #11: ask *why* before *what*).
+8. **Know now how this session must end.** Two things are owed at the end of *every*
+   session, and both are easy to run out of room for if you discover them late: the
+   `docs/onboarding/` update, and a plain-English explanation of the session written in
+   the chat. Read "The teaching-back rule" below **at the start**, not at the end, and
+   budget for it — the work stops early if it has to.
 
 Skim `ARCHITECTURE.md` if the task touches more than one module.
 
@@ -55,6 +60,13 @@ Do all of these before the session closes. This is not optional and it is not "i
 knows nothing about it. It is read alongside the code, so it goes stale the moment the
 code moves.
 
+> **Before writing or editing anything in that directory, read
+> `docs/onboarding/_SPEC_AND_STATUS.md`.** It is the contract for the set: what is
+> written and what is not, the scoping decisions already taken, the house style the
+> existing documents establish, and a per-section plan for each remaining document. The
+> seven documents must read as one voice; a document written in a different register is
+> worse than no document, because the reader stops trusting the set.
+
 | Document | Update it when |
 |---|---|
 | `00_labelling_handbook.md` | anything about collecting preferences changes |
@@ -88,6 +100,29 @@ itself**, not only in a file. It must cover:
 **Write it for someone learning, not someone auditing.** The goal is that Pranav and Diya
 finish the session understanding the work well enough to defend it in a viva — not that
 they have a record they could reconstruct it from later.
+
+Pranav's own words when he asked for this, kept here because the phrasing is the spec:
+
+> *"in the session chat only it will explain everything it did that session in clear,
+> plain simple terms so that the users can understand and learn alongside it rather than
+> wasting time later."*
+
+**"Learn alongside it" is the bar.** Not a summary of what changed — a teach-back that
+leaves the reader able to do it themselves. In practice that means:
+
+- **Explain the idea before the diff.** Why this approach, what was rejected, and what
+  the reader would have had to know to arrive at it.
+- **Unpack every term.** If a sentence contains "off-policy", "bootstrapping", "Huber
+  delta" or "kappa", the sentence before it defines the term. No exceptions for terms
+  used earlier in the project — the person reading may not have been at that session.
+- **Show the actual output.** "Tests pass" is not evidence; `391 passed in 173.74s` is.
+  Quote the number you saw, not the number you expected.
+- **Say what you did not do, plainly and first-person.** Skipped, deferred, broken,
+  half-done, or not started. A gap discovered later costs more than one admitted now.
+- **Point at what to double-check.** Name the specific claims a human should verify
+  rather than take on trust, and say why those and not others.
+- **Never bury bad news.** A failing test, a worse number, a wrong earlier claim — that
+  goes near the top, in plain language, not softened.
 
 This is not optional and it is not "if there is room in the context". If a session is
 running long, stop the work early and leave room for the explanation. **An unexplained
@@ -131,7 +166,7 @@ The two students alternate machines continuously. **Assume every session is the 
 Plus two not in the Field Guide, added for this project:
 
 | `EXPLAIN.md` | Everything the project does, in plain English, for a reader who knows nothing | **Every session** |
-| `docs/onboarding/` | The full guided tour — six documents that walk a newcomer from "what is a SOC" to every file in the repo, read alongside the code. Markdown is the source of truth; `.docx` exports are generated from it. | **Every session** — see the teaching-back rule |
+| `docs/onboarding/` | The full guided tour — seven documents that walk a newcomer from "what is a SOC" to every file in the repo, read alongside the code. **`_SPEC_AND_STATUS.md` is the contract: read it before writing or editing anything in that directory.** Markdown is the source of truth; `.docx` exports are generated from it. | **Every session** — see the teaching-back rule |
 
 ---
 

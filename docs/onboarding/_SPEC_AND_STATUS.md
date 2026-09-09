@@ -457,10 +457,24 @@ python scripts/commit_balance.py     # report it before starting
 Read the **count**, not just the exit code. It should say **391 passed**. A suite that
 passes while collecting zero tests exits 0 too.
 
-### The zero-byte junk-file trap (BUG_001)
+### The zero-byte junk-file trap (BUG_001) — it targets THIS work specifically
 
 Any `->` or `>` in text passing through a session can be misread as a shell redirect,
-dropping an empty file named after the next token. It has happened twice.
+dropping an empty file named after the next token.
+
+**Refined 2026-09-10, after it fired five times in one session while writing these
+documents.** The trigger that matters for doc work is a **markdown blockquote whose line
+wraps**, so a continuation line begins with `> word`:
+
+```markdown
+> ...so that the users can understand and learn alongside it rather than
+> wasting time later.                                    ← drops a file named `wasting`
+```
+
+Five junk files in one session — `cheaper`, `still`, `unexplained`, `wasting`, `worse` —
+every one of them the first word of a wrapped blockquote line. **This doc set is full of
+blockquotes** (the house style in §4.2 requires quoting the code's own comments), so
+expect it, and sweep after every single commit:
 
 ```bash
 git status --short                                   # after every commit
