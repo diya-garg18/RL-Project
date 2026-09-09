@@ -1220,11 +1220,20 @@ The rule is explicit that if a session runs short of room, the work stops early
 and the explanation still happens. An unexplained change is worth less to this
 project than no change at all.
 
-### What is still not done
+### What is now done, and what the last piece actually found
 
-All seven Markdown documents are now written. Two things named in the original
-request remain: the Word exports have not been generated, and the pass to check
-intent comments across all eighty-six source files has not started (most of
-`rlhf/`, `labelling/` and `agents/` are already densely commented, so this is a
-per-file verification sweep, not a bulk edit - see `_SPEC_AND_STATUS.md` §9).
-Both are specified in `docs/onboarding/_SPEC_AND_STATUS.md`.
+All seven Markdown documents are written. The Word exports of all seven exist
+too (gitignored - regenerable from the Markdown, so nothing is lost by not
+tracking them). And the intent-comment verification sweep across all
+eighty-six source files - `scripts/`, `tests/`, the `src/soc_triage/` core,
+`agents/`, and `rlhf/`+`labelling/` - is complete, read fresh, file by file,
+against CLAUDE.md's "comment intent, not syntax" rule.
+
+**It found nothing to add.** Every one of the eighty-six files already carried
+a module docstring stating why it exists and a comment on every non-obvious
+line explaining the reasoning behind it, usually citing the exact decision or
+experiment number that produced it. The original request expected this to be
+a mix of verification and real editing, weighted toward `scripts/` needing the
+most work. That did not happen - the discipline the project had already been
+holding itself to for six phases had already reached every file. Nothing in
+the original request remains unstarted.
