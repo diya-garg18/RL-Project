@@ -23,7 +23,7 @@ next began.
 | 1 | `01_the_project_in_plain_english.md` | 1000 | ✅ **Written** | Pranav, session 15 |
 | 2 | `02_the_world.md` | 1254 | ✅ **Written** | Pranav, session 15 |
 | 3 | `03_the_agents.md` | 1554 | ✅ **Written** | Pranav, session 15 |
-| 4 | `04_running_and_measuring.md` | — | ❌ **NOT STARTED** | Diya |
+| 4 | `04_running_and_measuring.md` | 917 | ✅ **Written** | Diya, session 16 |
 | 5 | `05_rlhf_and_labelling.md` | — | ❌ **NOT STARTED** | Diya |
 | 6 | `06_decisions_experiments_results.md` | — | ❌ **NOT STARTED** | Diya |
 | — | `.docx` exports of all seven | — | ❌ **NOT STARTED** | Diya |
