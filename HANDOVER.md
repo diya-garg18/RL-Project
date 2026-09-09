@@ -7,17 +7,19 @@
 
 ---
 
-## ONBOARDING DOCS - 4 OF 7 WRITTEN. DIYA HAS THE NEXT BLOCK (2026-09-10, session 15)
+## ONBOARDING DOCS - ALL 7 MARKDOWN FILES WRITTEN (2026-09-10, session 16)
 
-> Pranav's box. No Python was changed this session, so the **391-passing** baseline
-> still holds and was re-verified at session start (`391 passed in 173.74s`).
+> Diya's box. No Python was changed this session either - only Markdown - so the
+> **391-passing** baseline from session 15 still holds; it was not re-run this
+> session because nothing that could affect it changed (last observed:
+> `391 passed in 777.18s`, by the agent that wrote document 4).
 
-**What this session built.** A seven-document plain-English guided tour in
-`docs/onboarding/`, written so someone who knows nothing about SOCs or RL can read
-it alongside the code and understand the whole project. Pranav asked for it because
-**the labelling phase needs both students to understand everything fully** - you
-cannot judge whether a shift was handled well if you do not know what the agent
-was choosing between.
+**What this session built.** The three onboarding documents session 15 left for
+Diya - `04_running_and_measuring.md`, `05_rlhf_and_labelling.md`, and
+`06_decisions_experiments_results.md` - closing out the seven-document set. Each
+was written by re-reading its owned source files fresh this session (never
+recalled from memory), matching the house style `_SPEC_AND_STATUS.md` derived
+from documents 0-3.
 
 | Document | Lines | Status |
 |---|---:|---|
@@ -25,55 +27,52 @@ was choosing between.
 | `01_the_project_in_plain_english.md` | 1000 | written |
 | `02_the_world.md` | 1254 | written |
 | `03_the_agents.md` | 1554 | written |
-| `04_running_and_measuring.md` | - | **NOT STARTED** |
-| `05_rlhf_and_labelling.md` | - | **NOT STARTED** |
-| `06_decisions_experiments_results.md` | - | **NOT STARTED** |
+| `04_running_and_measuring.md` | 917 | **written, session 16** |
+| `05_rlhf_and_labelling.md` | 1085 | **written, session 16** |
+| `06_decisions_experiments_results.md` | 866 | **written, session 16** |
 | `.docx` exports (all seven) | - | **NOT STARTED** |
 | intent-comment pass, 86 `.py` files | - | **NOT STARTED** |
 
 ### ⚠️ Read `docs/onboarding/_SPEC_AND_STATUS.md` before touching any of it
 
-That file is the contract for the whole set: the original request verbatim, the three
-scoping decisions already taken (tiered walkthrough / Markdown source + Word export /
-all 86 files intent comments), the **house style derived from the four documents that
-exist**, and a per-section plan for documents 4, 5 and 6 naming every file each one
-owns. Documents 4-6 must be indistinguishable in voice from 0-3 - a document written
-in a different register is worse than no document, because the reader stops trusting
-the set.
+That file is still the contract for the set, and it now applies to the two remaining
+items rather than to documents 4-6, which are done: the original request verbatim,
+the three scoping decisions (tiered walkthrough / Markdown source + Word export / all
+86 files intent comments), the **house style derived from documents 0-3**, and the
+`.docx` export instructions (§8) and comment-pass instructions (§9). Documents 4-6
+were checked against this file's acceptance test (§12) before being committed and
+match documents 0-3's voice.
 
-### Two rules were added to `CLAUDE.md` this session, and they bind every session from now on
+### Two rules were added to `CLAUDE.md` last session, and they bound this one
 
-1. **`docs/onboarding/` is updated every session, without being asked.** The
-   document-to-trigger mapping is in CLAUDE.md under "The teaching-back rule". A code
-   change without its doc update is an unfinished change; if a document needed no
-   edit, say so explicitly rather than leaving it ambiguous.
+1. **`docs/onboarding/` is updated every session, without being asked.** Honoured this
+   session by finishing documents 4-6 and updating `EXPLAIN.md` Part 9 to match.
 2. **Claude explains the session in the chat, in plain terms** - what it did, why,
    how it works, what it verified with exact output, what it did NOT do, and what the
-   humans should check rather than take on trust. If a session runs long, the *work*
-   stops early to leave room for the explanation.
+   humans should check rather than take on trust. Done at the end of this session, in
+   the conversation.
 
 ### Watch out for
 
-- **The zero-byte junk file trap fired FIVE times this session** (BUG_001) - `cheaper`,
-  `still`, `unexplained`, `wasting`, `worse`. Every one was caught by the mandated
-  `git status --short` sweep and deleted; `git add -A` would have committed all five.
-  **The trigger is sharper than BUG_001 records:** four of the five were the first word
-  of a *wrapped markdown blockquote line* - a continuation line beginning `> word`.
-  Documentation work is full of those, so this will keep happening to whoever writes
-  documents 4-6. Sweep after **every** commit:
-  `find . -maxdepth 2 -type f -size 0 -not -path './.git/*'` - legitimate hits are
-  `*/.gitkeep` and gitignored `results/*.err`, nothing else.
+- **The zero-byte junk file trap (BUG_001) did NOT fire this session** - `git status
+  --porcelain` was swept after every write and stayed clean of anything but the four
+  legitimate `.gitkeep` files throughout. Worth noting as a data point, not a fix: the
+  trap is content-dependent (wrapped blockquote continuation lines), not eliminated.
+  Keep sweeping every session that writes prose.
 - **`rlhf/` and `labelling/` are already densely commented.** The 86-file comment pass
-  must be verified per file, not applied in bulk - adding comments to those files would
-  make them worse. Expect `scripts/` to be where the real work is.
+  (still not started) must be verified per file, not applied in bulk - adding comments
+  to those files would make them worse. Expect `scripts/` to be where the real work is.
 - **Do not re-run `scripts/generate_pairs.py`.** D-046: a rebuild renumbers `pair_id`
   and orphans any labels already collected.
 
 ### The balance
 
-**Pranav 14 ahead - IMBALANCED.** Six documentation commits this session took the gap
-from 8 to 14. `commit_balance.py` says Diya should take the next 11-14 commits, which is
-why documents 4-6 are assigned to her. Measured after the final push, not before.
+**Pranav 9 ahead - still IMBALANCED, but closing.** The gap was 15 at this session's
+start (measured after session 15's push) and is 9 now, after this session's six
+commits (three documents + three spec-status updates) plus the `EXPLAIN.md` update.
+`commit_balance.py` says Diya should take the next 6-9 commits - the `.docx` export
+and the intent-comment pass would both count and are the natural next block.
+Measured after the session's commits, not before - a pre-commit run is not evidence.
 
 ---
 
@@ -331,7 +330,7 @@ with `powercfg /change standby-timeout-ac 60`.
 
 | | |
 |---|---|
-| **Last session** | 2026-09-05 (session 13, on Diya's PC) |
+| **Last session** | 2026-09-10 (session 16, on Diya's PC) - onboarding documents 4-6 |
 | **Model** | Claude Sonnet 5 |
 | **Phase 0** | Closed. Gate **passes** on the 30-seed block. |
 | **Phase 1** | **CLOSED as built-but-not-passed** (D-022, confirmed final by **D-033**). |
@@ -347,17 +346,17 @@ with `powercfg /change standby-timeout-ac 60`.
 
 ## 🔑 STARTING THE NEXT SESSION - do these first, in order
 
-> **Updated 2026-09-10 at the end of session 15.** The balance is **IMBALANCED:
-> gap 14, `commit_balance.py` says Diya should take the next 11-14 commits.** It was
-> gap 7 after session 14 and gap 8 at the start of session 15; six documentation
-> commits pushed it to 14. Measured after the final push, not before - a pre-push run
-> of that script is not evidence.
+> **Updated 2026-09-10 at the end of session 16.** The balance is **IMBALANCED:
+> gap 9, `commit_balance.py` says Diya should take the next 6-9 commits.** It was
+> gap 15 at the start of this session; the three onboarding documents plus their
+> spec-status commits plus the `EXPLAIN.md` update closed six of it. Measured
+> after this session's commits, not before.
 >
-> **Diya's next block is documents 4, 5 and 6 of the onboarding set**, then the
-> `.docx` export and the 86-file comment pass. The contract for all of it is
-> `docs/onboarding/_SPEC_AND_STATUS.md` - read that file before anything else in
-> that directory. Four documents already exist and set the house style; matching
-> them is the job.
+> **All seven onboarding Markdown documents are now written.** What is left from
+> the original request is the `.docx` export (§8 of `docs/onboarding/_SPEC_AND_STATUS.md`)
+> and the 86-file intent-comment verification pass (§9 of the same file) - both are
+> a natural next block for closing the remaining commit gap. Read
+> `_SPEC_AND_STATUS.md` before starting either.
 >
 > **There is no unbuilt code left in 5a.** The next thing is not a coding session:
 > it is the 300 labelling sessions, 50 of them done by *both* of you, which is
