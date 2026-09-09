@@ -54,12 +54,15 @@ the set.
 
 ### Watch out for
 
-- **The zero-byte junk file trap fired again this session** (BUG_001). A 0-byte file
-  named `cheaper` appeared in the repo root from a `->` in prose being read as a shell
-  redirect. Caught by the mandated `git status --short` sweep and deleted. `git add -A`
-  would have committed it. Run
-  `find . -maxdepth 2 -type f -size 0 -not -path './.git/*'` after every commit;
-  legitimate hits are `*/.gitkeep` and gitignored `results/*.err`, nothing else.
+- **The zero-byte junk file trap fired FIVE times this session** (BUG_001) - `cheaper`,
+  `still`, `unexplained`, `wasting`, `worse`. Every one was caught by the mandated
+  `git status --short` sweep and deleted; `git add -A` would have committed all five.
+  **The trigger is sharper than BUG_001 records:** four of the five were the first word
+  of a *wrapped markdown blockquote line* - a continuation line beginning `> word`.
+  Documentation work is full of those, so this will keep happening to whoever writes
+  documents 4-6. Sweep after **every** commit:
+  `find . -maxdepth 2 -type f -size 0 -not -path './.git/*'` - legitimate hits are
+  `*/.gitkeep` and gitignored `results/*.err`, nothing else.
 - **`rlhf/` and `labelling/` are already densely commented.** The 86-file comment pass
   must be verified per file, not applied in bulk - adding comments to those files would
   make them worse. Expect `scripts/` to be where the real work is.
@@ -68,8 +71,8 @@ the set.
 
 ### The balance
 
-**Pranav 11 ahead - IMBALANCED.** Three documentation commits this session took the gap
-from 8 to 11. `commit_balance.py` says Diya should take the next 8-11 commits, which is
+**Pranav 14 ahead - IMBALANCED.** Six documentation commits this session took the gap
+from 8 to 14. `commit_balance.py` says Diya should take the next 11-14 commits, which is
 why documents 4-6 are assigned to her. Measured after the final push, not before.
 
 ---
@@ -345,9 +348,9 @@ with `powercfg /change standby-timeout-ac 60`.
 ## 🔑 STARTING THE NEXT SESSION - do these first, in order
 
 > **Updated 2026-09-10 at the end of session 15.** The balance is **IMBALANCED:
-> gap 11, `commit_balance.py` says Diya should take the next 8-11 commits.** It was
-> gap 7 after session 14 and gap 8 at the start of session 15; three documentation
-> commits pushed it to 11. Measured after the final push, not before - a pre-push run
+> gap 14, `commit_balance.py` says Diya should take the next 11-14 commits.** It was
+> gap 7 after session 14 and gap 8 at the start of session 15; six documentation
+> commits pushed it to 14. Measured after the final push, not before - a pre-push run
 > of that script is not evidence.
 >
 > **Diya's next block is documents 4, 5 and 6 of the onboarding set**, then the
