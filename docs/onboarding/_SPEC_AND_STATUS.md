@@ -24,7 +24,7 @@ next began.
 | 2 | `02_the_world.md` | 1254 | ✅ **Written** | Pranav, session 15 |
 | 3 | `03_the_agents.md` | 1554 | ✅ **Written** | Pranav, session 15 |
 | 4 | `04_running_and_measuring.md` | 917 | ✅ **Written** | Diya, session 16 |
-| 5 | `05_rlhf_and_labelling.md` | — | ❌ **NOT STARTED** | Diya |
+| 5 | `05_rlhf_and_labelling.md` | 1085 | ✅ **Written** | Diya, session 16 |
 | 6 | `06_decisions_experiments_results.md` | — | ❌ **NOT STARTED** | Diya |
 | — | `.docx` exports of all seven | — | ❌ **NOT STARTED** | Diya |
 | — | Intent-comment pass, 86 `.py` files | — | ❌ **NOT STARTED** | Diya |
