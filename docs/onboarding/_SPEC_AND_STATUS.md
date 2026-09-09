@@ -26,7 +26,7 @@ next began.
 | 4 | `04_running_and_measuring.md` | 917 | ✅ **Written** | Diya, session 16 |
 | 5 | `05_rlhf_and_labelling.md` | 1085 | ✅ **Written** | Diya, session 16 |
 | 6 | `06_decisions_experiments_results.md` | 866 | ✅ **Written** | Diya, session 16 |
-| — | `.docx` exports of all seven | — | ❌ **NOT STARTED** | Diya |
+| — | `.docx` exports of all seven | — | ✅ **Written, gitignored** (regenerated from .md via the docx skill) | Diya, session 16 |
 | — | Intent-comment pass, 86 `.py` files | — | ❌ **NOT STARTED** | Diya |
 
 **Total written so far: 4,227 lines across four documents.** Documents 4–6 should land in
