@@ -30,9 +30,68 @@ Do all of these before the session closes. This is not optional and it is not "i
 4. Update `FLOW.md` if execution paths changed.
 5. Update `ARCHITECTURE.md` if a module was added or its responsibility changed.
 6. Log any training run in `docs/experiments/EXPERIMENT_LOG.md`.
-7. **Commit in meaningful pieces, not one lump** (CONSTRAINTS #24). One logical change per commit, message explaining what and why.
-8. **Run `python scripts/commit_balance.py` again and report it.** State plainly whether the work should move to the other teammate (CONSTRAINTS #26).
-9. **Leave the repo transfer-ready** — see the machine-transfer checklist below. The next session may be on the other person's laptop.
+7. **Update `docs/onboarding/` for anything that changed.** See "The teaching-back rule" below — this is a hard requirement, not a nice-to-have.
+8. **Commit in meaningful pieces, not one lump** (CONSTRAINTS #24). One logical change per commit, message explaining what and why.
+9. **Run `python scripts/commit_balance.py` again and report it.** State plainly whether the work should move to the other teammate (CONSTRAINTS #26).
+10. **Leave the repo transfer-ready** — see the machine-transfer checklist below. The next session may be on the other person's laptop.
+11. **Teach the session back in the chat, in plain English.** See below. Nothing is finished until this is done.
+
+---
+
+## The teaching-back rule — mandatory at the end of every session
+
+> Added 2026-09-09 at Pranav's request. The reason is the project's founding constraint:
+> **if the humans cannot explain the code, the project has failed regardless of what the
+> metrics say.** Documentation that is written but never read does not discharge that,
+> and re-deriving a session's work weeks later from a diff is the expensive way to learn
+> it. So the explanation happens *while the context is still live*, in the conversation,
+> where it can be questioned.
+
+**Two obligations, both hard, both at the end of every session.**
+
+### 1. The onboarding docs get updated — every session, without being asked
+
+`docs/onboarding/` is a plain-English guide to the whole project, written for someone who
+knows nothing about it. It is read alongside the code, so it goes stale the moment the
+code moves.
+
+| Document | Update it when |
+|---|---|
+| `00_labelling_handbook.md` | anything about collecting preferences changes |
+| `01_the_project_in_plain_english.md` | the MDP, a phase status, or a headline result changes |
+| `02_the_world.md` | env, generator, state, alerts or config changes |
+| `03_the_agents.md` | any file under `agents/` changes |
+| `04_running_and_measuring.md` | `runner.py`, `evaluation/`, or any script changes |
+| `05_rlhf_and_labelling.md` | anything under `rlhf/` or `labelling/` changes |
+| `06_decisions_experiments_results.md` | a decision, experiment or negative result is added |
+
+**A code change without its doc update is an unfinished change.** If a session touched a
+file, the document covering that file is checked in the same session — and if it needed
+no edit, say so explicitly rather than leaving it ambiguous.
+
+The Markdown is the source of truth; the `.docx` exports are regenerated from it.
+
+### 2. Claude explains the session in the chat, in plain terms
+
+Before handing back, write a plain-English account of the session **in the conversation
+itself**, not only in a file. It must cover:
+
+| Section | What it answers |
+|---|---|
+| **What I did** | Every change, in plain language. No jargon that has not been unpacked. |
+| **Why** | The reasoning behind each choice, including options rejected. |
+| **How it works** | Enough that a reader could re-derive the change themselves. |
+| **What I verified** | The exact commands run and the exact output. Claims without evidence do not count. |
+| **What I did NOT do** | Anything skipped, deferred, or left broken — stated plainly. |
+| **What to check yourself** | The parts a human should not take on trust. |
+
+**Write it for someone learning, not someone auditing.** The goal is that Pranav and Diya
+finish the session understanding the work well enough to defend it in a viva — not that
+they have a record they could reconstruct it from later.
+
+This is not optional and it is not "if there is room in the context". If a session is
+running long, stop the work early and leave room for the explanation. **An unexplained
+change is worth less to this project than no change at all.**
 
 ---
 
@@ -69,9 +128,10 @@ The two students alternate machines continuously. **Assume every session is the 
 | `TEST_CHECKLIST.md` | What "done" means, with real commands | When new checks are added |
 | `ROLLBACK.md` | How to undo | When risky work starts |
 
-Plus one document not in the Field Guide, added for this project:
+Plus two not in the Field Guide, added for this project:
 
 | `EXPLAIN.md` | Everything the project does, in plain English, for a reader who knows nothing | **Every session** |
+| `docs/onboarding/` | The full guided tour — six documents that walk a newcomer from "what is a SOC" to every file in the repo, read alongside the code. Markdown is the source of truth; `.docx` exports are generated from it. | **Every session** — see the teaching-back rule |
 
 ---
 
